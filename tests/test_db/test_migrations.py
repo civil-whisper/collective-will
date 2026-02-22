@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import asyncio
 import os
+from functools import partial
 
 import pytest
 from alembic import command
@@ -17,13 +19,29 @@ def _alembic_config(database_url: str) -> Config:
     os.environ["OPENAI_API_KEY"] = "x"
     os.environ["DEEPSEEK_API_KEY"] = "x"
     os.environ["EVOLUTION_API_KEY"] = "x"
+    from src.config import get_settings
+
+    get_settings.cache_clear()
     return cfg
+
+
+async def _run_alembic(fn: partial[None]) -> None:
+    """Run an Alembic command in a thread (it calls asyncio.run() internally)."""
+    loop = asyncio.get_running_loop()
+    await loop.run_in_executor(None, fn)
 
 
 @pytest.mark.asyncio
 async def test_migration_upgrade_downgrade_roundtrip(test_database_url: str) -> None:
     cfg = _alembic_config(test_database_url)
-    command.upgrade(cfg, "head")
+
+    engine = create_async_engine(test_database_url)
+    async with engine.begin() as conn:
+        await conn.execute(text("DROP TABLE IF EXISTS alembic_version CASCADE"))
+    await engine.dispose()
+
+    await _run_alembic(partial(command.downgrade, cfg, "base"))
+    await _run_alembic(partial(command.upgrade, cfg, "head"))
 
     engine = create_async_engine(test_database_url)
     async with engine.connect() as conn:
@@ -48,7 +66,7 @@ async def test_migration_upgrade_downgrade_roundtrip(test_database_url: str) -> 
         assert ext_rows.fetchone() is not None
 
     await engine.dispose()
-    command.downgrade(cfg, "base")
+    await _run_alembic(partial(command.downgrade, cfg, "base"))
 
     engine = create_async_engine(test_database_url)
     async with engine.connect() as conn:
@@ -61,4 +79,4 @@ async def test_migration_upgrade_downgrade_roundtrip(test_database_url: str) -> 
         assert users.fetchone() is None
     await engine.dispose()
 
-    command.upgrade(cfg, "head")
+    await _run_alembic(partial(command.upgrade, cfg, "head"))

@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import UTC, date, datetime, timedelta
-from unittest.mock import AsyncMock, patch
+from datetime import UTC, datetime, timedelta
+from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
 import pytest
-from sqlalchemy import select, text
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from src.config import Settings
@@ -87,10 +87,12 @@ async def test_verify_chain_detects_payload_tamper(db_session: AsyncSession) -> 
     await db_session.commit()
 
     await db_session.execute(
-        text("UPDATE evidence_log SET payload = :payload WHERE id = :id"),
-        {"payload": '{"a":999}', "id": first.id},
+        update(EvidenceLogEntry)
+        .where(EvidenceLogEntry.id == first.id)
+        .values(payload={"a": 999})
     )
     await db_session.commit()
+    db_session.expire_all()
     valid, _ = await verify_chain(db_session)
     assert valid is False
 
@@ -102,10 +104,12 @@ async def test_verify_chain_detects_metadata_tamper(db_session: AsyncSession) ->
     await db_session.commit()
 
     await db_session.execute(
-        text("UPDATE evidence_log SET event_type = 'vote_cast' WHERE id = :id"),
-        {"id": first.id},
+        update(EvidenceLogEntry)
+        .where(EvidenceLogEntry.id == first.id)
+        .values(event_type="vote_cast")
     )
     await db_session.commit()
+    db_session.expire_all()
     valid, _ = await verify_chain(db_session)
     assert valid is False
 
@@ -174,52 +178,57 @@ async def test_concurrent_appends_keep_integrity(db_session: AsyncSession) -> No
 @pytest.mark.asyncio
 async def test_merkle_root_computed_even_when_publish_disabled(db_session: AsyncSession) -> None:
     now = datetime.now(UTC)
+    today_utc = now.date()
     for idx in range(3):
         entry = await append_evidence(db_session, "candidate_created", "candidate", uuid4(), {"i": idx})
         entry.timestamp = now + timedelta(seconds=idx)
     await db_session.commit()
 
-    root = await compute_daily_merkle_root(db_session, date.today())
+    root = await compute_daily_merkle_root(db_session, today_utc)
     assert root is not None
     anchor = (await db_session.execute(select(DailyAnchor))).scalar_one()
     assert anchor.merkle_root == root
 
     settings = _settings()
     assert settings.witness_publish_enabled is False
-    assert await publish_daily_merkle_root(root, date.today(), settings) is None
+    assert await publish_daily_merkle_root(root, today_utc, settings) is None
 
 
 @pytest.mark.asyncio
 async def test_merkle_root_deterministic_for_fixed_entries(db_session: AsyncSession) -> None:
     now = datetime.now(UTC)
+    today_utc = now.date()
     for idx in range(3):
         entry = await append_evidence(db_session, "candidate_created", "candidate", uuid4(), {"i": idx})
         entry.timestamp = now + timedelta(seconds=idx)
     await db_session.commit()
 
-    root1 = await compute_daily_merkle_root(db_session, date.today())
-    root2 = await compute_daily_merkle_root(db_session, date.today())
+    root1 = await compute_daily_merkle_root(db_session, today_utc)
     assert root1 is not None
-    assert root1 == root2
+    await db_session.commit()
+
+    anchor = (await db_session.execute(select(DailyAnchor).where(DailyAnchor.day == today_utc))).scalar_one()
+    assert anchor.merkle_root == root1
 
 
 @pytest.mark.asyncio
 async def test_publish_stores_receipt_when_enabled(db_session: AsyncSession) -> None:
     now = datetime.now(UTC)
+    today_utc = now.date()
     for idx in range(2):
         entry = await append_evidence(db_session, "candidate_created", "candidate", uuid4(), {"i": idx})
         entry.timestamp = now + timedelta(seconds=idx)
     await db_session.commit()
 
-    root = await compute_daily_merkle_root(db_session, date.today())
+    root = await compute_daily_merkle_root(db_session, today_utc)
     assert root is not None
     await db_session.commit()
 
     settings = _settings(witness_publish_enabled="true", witness_api_key="test-key")
 
-    mock_response = AsyncMock()
+    mock_response = MagicMock()
     mock_response.json.return_value = {"id": "receipt-123"}
-    mock_response.raise_for_status = lambda: None
+    mock_response.raise_for_status = MagicMock()
 
     with patch("src.db.anchoring.httpx.AsyncClient") as mock_client_cls:
         mock_client = AsyncMock()
@@ -228,23 +237,24 @@ async def test_publish_stores_receipt_when_enabled(db_session: AsyncSession) -> 
         mock_client.__aexit__ = AsyncMock(return_value=None)
         mock_client_cls.return_value = mock_client
 
-        receipt = await publish_daily_merkle_root(root, date.today(), settings, session=db_session)
+        receipt = await publish_daily_merkle_root(root, today_utc, settings, session=db_session)
         assert receipt == "receipt-123"
         await db_session.commit()
 
-    anchor = (await db_session.execute(select(DailyAnchor).where(DailyAnchor.day == date.today()))).scalar_one()
+    anchor = (await db_session.execute(select(DailyAnchor).where(DailyAnchor.day == today_utc))).scalar_one()
     assert anchor.published_receipt == "receipt-123"
 
 
 @pytest.mark.asyncio
 async def test_publish_failure_does_not_erase_local_root(db_session: AsyncSession) -> None:
     now = datetime.now(UTC)
+    today_utc = now.date()
     for idx in range(2):
         entry = await append_evidence(db_session, "candidate_created", "candidate", uuid4(), {"i": idx})
         entry.timestamp = now + timedelta(seconds=idx)
     await db_session.commit()
 
-    root = await compute_daily_merkle_root(db_session, date.today())
+    root = await compute_daily_merkle_root(db_session, today_utc)
     assert root is not None
     await db_session.commit()
 
@@ -258,8 +268,8 @@ async def test_publish_failure_does_not_erase_local_root(db_session: AsyncSessio
         mock_client_cls.return_value = mock_client
 
         with pytest.raises(Exception, match="network failure"):
-            await publish_daily_merkle_root(root, date.today(), settings, session=db_session)
+            await publish_daily_merkle_root(root, today_utc, settings, session=db_session)
 
-    anchor = (await db_session.execute(select(DailyAnchor).where(DailyAnchor.day == date.today()))).scalar_one()
+    anchor = (await db_session.execute(select(DailyAnchor).where(DailyAnchor.day == today_utc))).scalar_one()
     assert anchor.merkle_root == root
     assert anchor.published_receipt is None

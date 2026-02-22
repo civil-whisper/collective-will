@@ -32,6 +32,7 @@ from src.models import (
     VoteCreate,
     VotingCycleCreate,
 )
+from src.models.user import User
 
 
 async def _seed_user(session: AsyncSession) -> tuple[str, str]:
@@ -150,7 +151,7 @@ async def test_submission_candidate_cluster_vote_endorsement_flow(db_session: As
     assert endorsement.cluster_id == cluster.id
     assert vote.cycle_id == cycle.id
     assert candidate.stance in {"neutral", "unclear"}
-    assert len(candidate.embedding or []) == 1024
+    assert candidate.embedding is not None and len(candidate.embedding) == 1024
 
     unclear_candidate = await create_policy_candidate(
         db_session,
@@ -188,9 +189,8 @@ async def test_foreign_keys_and_unique_constraints(db_session: AsyncSession) -> 
         language="fa",
         hash="b" * 64,
     )
-    await create_submission(db_session, bad_submission)
     with pytest.raises(IntegrityError):
-        await db_session.commit()
+        await create_submission(db_session, bad_submission)
     await db_session.rollback()
 
     email, _ = await _seed_user(db_session)
@@ -225,11 +225,12 @@ async def test_foreign_keys_and_unique_constraints(db_session: AsyncSession) -> 
         ),
     )
     await create_policy_endorsement(db_session, PolicyEndorsementCreate(user_id=user.id, cluster_id=cluster.id))
-    await create_policy_endorsement(db_session, PolicyEndorsementCreate(user_id=user.id, cluster_id=cluster.id))
+    await db_session.commit()
+    user_id = user.id
     with pytest.raises(IntegrityError):
-        await db_session.commit()
+        await create_policy_endorsement(db_session, PolicyEndorsementCreate(user_id=user_id, cluster_id=cluster.id))
+    await db_session.rollback()
 
-    # ensure at least one model round-trip goes through explicit schema methods
-    result = await db_session.execute(select(type(user)).where(type(user).id == user.id))
+    result = await db_session.execute(select(User).where(User.id == user_id))
     loaded_user = result.scalar_one()
-    assert loaded_user.to_schema().id == user.id
+    assert loaded_user.to_schema().id == user_id

@@ -9,7 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.db.connection import get_db
-from src.db.evidence import EvidenceLogEntry
+from src.db.evidence import EvidenceLogEntry, isoformat_z
 from src.models.cluster import Cluster
 from src.models.vote import VotingCycle
 
@@ -51,12 +51,12 @@ async def top_policies(session: AsyncSession = Depends(get_db)) -> list[dict[str
 
 @router.get("/evidence")
 async def evidence(session: AsyncSession = Depends(get_db)) -> list[dict[str, object]]:
-    result = await session.execute(select(EvidenceLogEntry).order_by(EvidenceLogEntry.id.desc()).limit(200))
+    result = await session.execute(select(EvidenceLogEntry).order_by(EvidenceLogEntry.id.asc()).limit(200))
     rows = result.scalars().all()
     return [
         {
             "id": row.id,
-            "timestamp": row.timestamp.isoformat(),
+            "timestamp": isoformat_z(row.timestamp),
             "event_type": row.event_type,
             "entity_type": row.entity_type,
             "entity_id": str(row.entity_id),

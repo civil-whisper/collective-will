@@ -11,7 +11,7 @@ class UnifiedMessage(BaseModel):
 
     text: str
     sender_ref: str
-    platform: Literal["whatsapp"] = "whatsapp"
+    platform: Literal["whatsapp", "telegram"] = "whatsapp"
     timestamp: datetime = Field(default_factory=lambda: datetime.now(UTC))
     message_id: str
     raw_payload: dict[str, Any] | None = None
@@ -22,4 +22,4 @@ class OutboundMessage(BaseModel):
 
     recipient_ref: str
     text: str
-    platform: Literal["whatsapp"] = "whatsapp"
+    platform: Literal["whatsapp", "telegram"] = "whatsapp"

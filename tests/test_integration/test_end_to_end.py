@@ -51,6 +51,7 @@ async def test_end_to_end_intake_pipeline_and_evidence(db_session: AsyncSession)
         db_session, UserCreate(email=f"{uuid4()}@example.com", locale="fa", messaging_account_ref=str(uuid4()))
     )
     user.email_verified = True
+    user.messaging_verified = True
     user.messaging_account_age = datetime.now(UTC) - timedelta(hours=72)
     await db_session.commit()
 

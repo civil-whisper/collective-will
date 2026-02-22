@@ -1,3 +1,7 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
 [project]
 name = "collective-will"
 version = "0.1.0"
@@ -6,6 +10,7 @@ requires-python = ">=3.11"
 dependencies = [
     "alembic",
     "asyncpg",
+    "email-validator",
     "fastapi",
     "hdbscan",
     "httpx",
@@ -25,7 +30,11 @@ dev = [
     "pytest",
     "pytest-asyncio",
     "ruff",
+    "telethon>=1.42.0",
 ]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src"]
 
 [tool.ruff]
 line-length = 120

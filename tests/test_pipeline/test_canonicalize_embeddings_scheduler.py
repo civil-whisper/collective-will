@@ -33,7 +33,7 @@ class FakeRouter:
 
     async def embed(self, texts: list[str], timeout_s: float = 30.0):  # type: ignore[no-untyped-def]
         class R:
-            vectors = [[0.2, 0.3] for _ in texts]
+            vectors = [[0.01] * 1024 for _ in texts]
 
         return R()
 

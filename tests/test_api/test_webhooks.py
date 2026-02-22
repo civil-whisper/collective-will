@@ -64,3 +64,56 @@ def test_webhook_returns_200_for_status_update(monkeypatch: pytest.MonkeyPatch) 
     response = client.post("/webhooks/evolution", json=payload, headers={"x-api-key": "testkey"})
     assert response.status_code == 200
     assert response.json()["status"] == "ignored"
+
+
+def test_telegram_webhook_returns_404_when_token_not_configured(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("TELEGRAM_BOT_TOKEN", raising=False)
+    from src.config import get_settings
+
+    get_settings.cache_clear()
+    client = TestClient(app)
+    payload = {"update_id": 1, "message": {"message_id": 1, "chat": {"id": 123}, "text": "hi"}}
+    response = client.post("/webhooks/telegram", json=payload)
+    assert response.status_code == 404
+
+
+@patch("src.api.routes.webhooks.route_message", new_callable=AsyncMock)
+def test_telegram_webhook_accepts_valid_message(mock_route: AsyncMock, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "fake-bot-token")
+    from src.config import get_settings
+
+    get_settings.cache_clear()
+    client = TestClient(app)
+    payload = {
+        "update_id": 123,
+        "message": {
+            "message_id": 42,
+            "from": {"id": 987654321, "is_bot": False, "first_name": "Test"},
+            "chat": {"id": 987654321, "type": "private"},
+            "date": 1707000000,
+            "text": "سلام",
+        },
+    }
+    response = client.post("/webhooks/telegram", json=payload)
+    assert response.status_code == 200
+    assert response.json()["status"] == "accepted"
+
+
+def test_telegram_webhook_ignores_non_text(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "fake-bot-token")
+    from src.config import get_settings
+
+    get_settings.cache_clear()
+    client = TestClient(app)
+    payload = {
+        "update_id": 124,
+        "message": {
+            "message_id": 43,
+            "chat": {"id": 987654321, "type": "private"},
+            "date": 1707000000,
+            "photo": [{"file_id": "ABC"}],
+        },
+    }
+    response = client.post("/webhooks/telegram", json=payload)
+    assert response.status_code == 200
+    assert response.json()["status"] == "ignored"

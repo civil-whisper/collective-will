@@ -50,8 +50,13 @@ def test_unified_message_rejects_invalid_platform() -> None:
             sender_ref="abc",
             text="hello",
             message_id="m1",
-            platform="telegram",
+            platform="signal",
         )
+
+
+def test_unified_message_accepts_telegram_platform() -> None:
+    msg = UnifiedMessage(sender_ref="abc", text="hello", message_id="m1", platform="telegram")
+    assert msg.platform == "telegram"
 
 
 def test_outbound_message_validates_correct_input() -> None:

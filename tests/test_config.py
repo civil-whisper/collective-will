@@ -40,7 +40,7 @@ def test_missing_required_env_var_fails(monkeypatch: pytest.MonkeyPatch) -> None
             monkeypatch.setenv(key, value)
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     with pytest.raises(ValidationError):
-        Settings()
+        Settings(_env_file=None)
 
 
 # --- 3. get_settings() caching ---

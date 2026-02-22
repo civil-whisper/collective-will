@@ -15,6 +15,7 @@ class Settings(BaseSettings):
     deepseek_api_key: str
     evolution_api_key: str
     evolution_api_url: str = "http://localhost:8080"
+    telegram_bot_token: str | None = None
 
     min_account_age_hours: int = 48
     min_preballot_endorsements: int = 5
@@ -44,7 +45,7 @@ class Settings(BaseSettings):
     embedding_model: str = "text-embedding-3-large"
     embedding_fallback_model: str = "mistral-embed"
 
-    model_config = SettingsConfigDict(env_file=".env", case_sensitive=False)
+    model_config = SettingsConfigDict(env_file=".env", case_sensitive=False, extra="ignore")
 
     @field_validator("app_public_base_url")
     @classmethod

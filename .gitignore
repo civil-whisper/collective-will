@@ -9,6 +9,7 @@ venv/
 
 # Environment
 .env
+*.session
 
 # Node
 node_modules/
