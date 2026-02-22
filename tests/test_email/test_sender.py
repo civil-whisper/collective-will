@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import logging
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
@@ -52,8 +51,8 @@ class TestBuildPlainText:
 
 class TestSendMagicLinkEmail:
     @pytest.mark.asyncio
-    async def test_logs_when_no_api_key(self, caplog: pytest.LogCaptureFixture) -> None:
-        with caplog.at_level(logging.INFO, logger="src.email.sender"):
+    async def test_logs_when_no_api_key(self) -> None:
+        with patch("src.email.sender.logger") as mock_logger:
             result = await send_magic_link_email(
                 to="user@example.com",
                 magic_link_url=LINK,
@@ -62,11 +61,12 @@ class TestSendMagicLinkEmail:
                 email_from="test@resend.dev",
             )
         assert result is True
-        assert "email sending disabled" in caplog.text.lower()
+        mock_logger.info.assert_called_once()
+        assert "email sending disabled" in mock_logger.info.call_args[0][0].lower()
 
     @pytest.mark.asyncio
-    async def test_logs_when_empty_api_key(self, caplog: pytest.LogCaptureFixture) -> None:
-        with caplog.at_level(logging.INFO, logger="src.email.sender"):
+    async def test_logs_when_empty_api_key(self) -> None:
+        with patch("src.email.sender.logger") as mock_logger:
             result = await send_magic_link_email(
                 to="user@example.com",
                 magic_link_url=LINK,
@@ -75,7 +75,8 @@ class TestSendMagicLinkEmail:
                 email_from="test@resend.dev",
             )
         assert result is True
-        assert "email sending disabled" in caplog.text.lower()
+        mock_logger.info.assert_called_once()
+        assert "email sending disabled" in mock_logger.info.call_args[0][0].lower()
 
     @pytest.mark.asyncio
     async def test_calls_resend_api(self) -> None:

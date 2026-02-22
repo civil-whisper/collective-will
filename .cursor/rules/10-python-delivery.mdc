@@ -11,3 +11,4 @@ alwaysApply: false
 - Add or update tests for each implemented task.
 - Keep business logic model-agnostic; route LLM selection through configuration.
 - Never include secrets, personal identities, or raw sensitive identifiers in code or fixtures.
+- Before committing and pushing, run `scripts/ci-backend.sh` locally to catch lint and test failures early. If it fails, fix the issues before committing.

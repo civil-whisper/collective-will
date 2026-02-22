@@ -34,7 +34,8 @@ def _build_magic_link_html(magic_link_url: str, locale: str) -> tuple[str, str]:
 <body style="margin:0;padding:0;background-color:#f4f4f5;font-family:system-ui,-apple-system,sans-serif;">
   <table width="100%" cellpadding="0" cellspacing="0" style="padding:40px 20px;">
     <tr><td align="center">
-      <table width="480" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;padding:40px;max-width:480px;">
+      <table width="480" cellpadding="0" cellspacing="0"
+        style="background:#ffffff;border-radius:12px;padding:40px;max-width:480px;">
         <tr><td style="text-align:center;">
           <h1 style="margin:0 0 16px;font-size:22px;color:#111827;">{heading}</h1>
           <p style="margin:0 0 24px;font-size:15px;line-height:1.6;color:#4b5563;">{body_text}</p>
