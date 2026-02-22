@@ -214,6 +214,39 @@ Inspiration: [Plausible Analytics](https://plausible.io/plausible.io) — clean,
     - Add new tests for new UI components
     - Ensure all tests pass
 
+### P1 — Signup Flow (Two-Step Email + Telegram Linking)
+
+31. [done] Create `/signup` page with two-step guided flow
+    - Step 1: Email form → calls `/auth/subscribe` → shows "check your email" confirmation
+    - Step 2: After magic link click, `/verify` shows linking code + Telegram bot deep link
+    - Visual step indicator (1. Verify Email, 2. Connect Telegram)
+    - Info blurbs explain why email/Telegram, no phone numbers collected
+    - Rate limit and error states handled
+    - Links to sign-in for existing users
+
+32. [done] Redesign `/verify` page for Telegram linking
+    - Step indicator showing email completed, Telegram active
+    - Linking code display with copy button
+    - "Open Telegram Bot" deep link button
+    - Code expiry notice (60 minutes)
+    - Error states: expired vs invalid tokens, link back to `/signup`
+
+33. [done] Update landing page and navigation
+    - Hero CTAs: "Join Now" → `/signup` + "Start the Bot on Telegram" → `t.me/...`
+    - NavBar: "Sign Up" button in desktop + mobile nav
+    - Removed `SubscribeForm` as primary entry point (component still exists)
+
+34. [done] Full i18n for signup/verify flows
+    - Added `signup.*` (14 keys) and `verify.*` (12 keys) namespaces
+    - Added `common.signup` and `landing.joinCta` keys
+    - Farsi + English parity verified by tests
+
+35. [done] Tests for signup flow (all 139 tests pass across 17 files)
+    - New `signup-page.test.tsx` (11 tests)
+    - Updated `verify-page.test.tsx` (10 tests)
+    - Updated `navbar.test.tsx` (9 tests)
+    - Updated `messages.test.ts` (8 tests)
+
 ## Definition of Done (This Cycle)
 
 - No CI/CD job performs paid LLM API calls

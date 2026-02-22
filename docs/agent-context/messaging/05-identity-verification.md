@@ -7,7 +7,7 @@
 - `database/04-evidence-store` (append_evidence)
 
 ## Goal
-Implement the full identity verification flow: email magic-link signup, token verification, and WhatsApp account linking.
+Implement the full identity verification flow: email magic-link signup, token verification, and messaging account linking (Telegram for MVP, WhatsApp post-MVP).
 
 ## Files to create/modify
 
@@ -56,32 +56,30 @@ Steps:
 - After 5 failed attempts in 24 hours → 24-hour lockout on that email
 - Return generic error (don't reveal whether email exists)
 
-### WhatsApp account linking
+### Messaging account linking
 
-When a verified user sends their first WhatsApp message to the bot:
+When a verified user sends their linking code to the Telegram bot (MVP) or WhatsApp bot (post-MVP):
 
-```python
-async def link_whatsapp_account(
-    user: User,
-    account_ref: str,
-    db: AsyncSession,
-) -> None:
-```
+The backend provides two paths:
 
+1. **`resolve_linking_code(code, account_ref)`** — generic, used by any channel. Looks up the linking code, finds the associated email/user, sets `messaging_account_ref` and `messaging_verified`.
+2. **`link_whatsapp_account(user, account_ref)`** — direct linking for WhatsApp (post-MVP).
+
+Steps:
 1. Check that no other user is already linked to this `account_ref`
-2. Set `user.messaging_account_ref = account_ref`
+2. Set `user.messaging_account_ref = account_ref` (opaque UUIDv4, never raw platform ID)
 3. Set `user.messaging_verified = True`
-4. Set `user.messaging_account_age` to current time (or WhatsApp account creation time if available)
-5. Log `user_verified` event (type: `whatsapp_linked`) to evidence store
-
-The linking flow requires the user to send a linking code (provided on the website after email verification) via WhatsApp. The bot matches the code to the pending user.
+4. Set `user.messaging_account_age` to current time
+5. Log `user_verified` event (type: `messaging_linked`) to evidence store
 
 ### Linking code
 
 - Generated after email verification: `secrets.token_urlsafe(8)` (short, easy to type)
-- Stored with 1-hour expiry
-- User sends this code as their first WhatsApp message
-- Bot matches code → links account
+- Stored in `verification_tokens` DB table with 1-hour expiry
+- User receives the code on the `/verify` page after clicking the magic link
+- Website shows the code prominently with a copy button and "Open Telegram Bot" deep link
+- User sends this code as a message to the bot
+- Bot calls `resolve_linking_code` → links account
 
 ## Constraints
 

@@ -48,14 +48,25 @@ export const authOptions = {
 
 For v0, email sending can use a stub/console adapter (log the magic link URL instead of sending email). This allows development without an SMTP server.
 
+### Signup page
+
+`/signup` — dedicated two-step signup flow (implemented).
+
+- Step 1: Email input form → calls `POST /auth/subscribe` → shows "check your email" confirmation
+- Step 2: Handled by `/verify` after magic link click → shows linking code + Telegram bot link
+- Visual step indicator tracks progress (1. Verify Email, 2. Connect Telegram)
+- Info blurbs explain why email and Telegram are needed, no phone numbers collected
+- Rate limit (429) and generic error states handled
+- Links to sign-in for existing users
+
 ### Verification page
 
-`/verify` — the page users land on after clicking the magic link.
+`/verify?token=...` — the page users land on after clicking the magic link (implemented).
 
-- Shows "Verifying..." while NextAuth processes the token
-- On success: redirect to `/dashboard` with a success toast
-- On failure: show error message and link to try again
-- After email verification: show instructions to connect WhatsApp (link code flow)
+- Shows "Verifying..." while the backend processes the token
+- On success: shows linking code with copy button + "Open Telegram Bot" deep link + 60-min expiry notice
+- On failure: distinguishes expired vs invalid tokens, links back to `/signup`
+- Same step indicator showing email completed, Telegram active
 
 ### Protected routes
 
