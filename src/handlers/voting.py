@@ -44,14 +44,29 @@ def parse_ballot(text: str, max_options: int | None = None) -> list[int] | None:
     return values if values else None
 
 
-def eligible_for_vote(user: User, min_account_age_hours: int) -> bool:
+def eligible_for_submission_or_endorsement(user: User) -> bool:
+    settings = get_settings()
     if not user.email_verified:
         return False
     if not user.messaging_verified:
         return False
     if user.messaging_account_age is None:
         return False
-    if user.contribution_count < 1:
+    return datetime.now(UTC) - user.messaging_account_age >= timedelta(
+        hours=settings.min_account_age_hours
+    )
+
+
+def eligible_for_vote(
+    user: User, min_account_age_hours: int, require_contribution: bool = True
+) -> bool:
+    if not user.email_verified:
+        return False
+    if not user.messaging_verified:
+        return False
+    if user.messaging_account_age is None:
+        return False
+    if require_contribution and user.contribution_count < 1:
         return False
     return datetime.now(UTC) - user.messaging_account_age >= timedelta(hours=min_account_age_hours)
 
@@ -60,12 +75,13 @@ async def open_cycle(
     cluster_ids: list[UUID],
     db: AsyncSession,
 ) -> VotingCycle:
+    settings = get_settings()
     now = datetime.now(UTC)
     cycle = await create_voting_cycle(
         db,
         VotingCycleCreate(
             started_at=now,
-            ends_at=now + timedelta(hours=48),
+            ends_at=now + timedelta(hours=settings.voting_cycle_hours),
             status="active",
             cluster_ids=cluster_ids,
             total_voters=0,
@@ -80,7 +96,7 @@ async def open_cycle(
             "cycle_id": str(cycle.id),
             "cluster_ids": [str(c) for c in cluster_ids],
             "starts_at": now.isoformat(),
-            "ends_at": (now + timedelta(hours=48)).isoformat(),
+            "ends_at": (now + timedelta(hours=settings.voting_cycle_hours)).isoformat(),
         },
     )
     await db.commit()
@@ -113,12 +129,7 @@ async def record_endorsement(
     user: User,
     cluster_id: UUID,
 ) -> tuple[bool, str]:
-    settings = get_settings()
-    if not user.email_verified or not user.messaging_verified:
-        return False, "not_eligible"
-    if user.messaging_account_age is None:
-        return False, "not_eligible"
-    if datetime.now(UTC) - user.messaging_account_age < timedelta(hours=settings.min_account_age_hours):
+    if not eligible_for_submission_or_endorsement(user):
         return False, "not_eligible"
 
     try:
@@ -148,8 +159,13 @@ async def cast_vote(
     cycle: VotingCycle,
     approved_cluster_ids: list[UUID],
     min_account_age_hours: int,
+    require_contribution: bool = True,
 ) -> tuple[Vote | None, str]:
-    if not eligible_for_vote(user, min_account_age_hours=min_account_age_hours):
+    if not eligible_for_vote(
+        user,
+        min_account_age_hours=min_account_age_hours,
+        require_contribution=require_contribution,
+    ):
         return None, "not_eligible"
     if not await can_change_vote(session=session, user_id=user.id, cycle_id=cycle.id):
         return None, "vote_change_limit_reached"

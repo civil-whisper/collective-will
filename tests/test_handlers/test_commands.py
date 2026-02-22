@@ -23,7 +23,7 @@ class FakeChannel(BaseChannel):
     def __init__(self) -> None:
         self.messages: list[OutboundMessage] = []
 
-    def parse_webhook(self, payload: dict[str, Any]) -> UnifiedMessage | None:
+    async def parse_webhook(self, payload: dict[str, Any]) -> UnifiedMessage | None:
         return None
 
     async def send_message(self, message: OutboundMessage) -> bool:

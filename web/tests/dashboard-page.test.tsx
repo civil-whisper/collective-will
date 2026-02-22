@@ -1,6 +1,6 @@
 import React from "react";
 import {render, screen} from "@testing-library/react";
-import {afterEach, beforeEach, describe, expect, it, vi} from "vitest";
+import {afterEach, describe, expect, it, vi} from "vitest";
 
 import DashboardPage from "../app/[locale]/dashboard/page";
 
@@ -159,7 +159,7 @@ describe("DashboardPage", () => {
     );
     const jsx = await DashboardPage();
     render(jsx);
-    expect(screen.getByText(/Cycle: cycle-99/)).toBeTruthy();
+    expect(screen.getByText("cycle-99")).toBeTruthy();
   });
 
   it("shows correct counts in summary cards", async () => {
@@ -173,8 +173,8 @@ describe("DashboardPage", () => {
     const jsx = await DashboardPage();
     render(jsx);
     const html = document.body.innerHTML;
-    expect(html).toContain("Total Submissions</strong>: 2");
-    expect(html).toContain("Total Votes</strong>: 1");
+    expect(html).toContain(">2<");
+    expect(html).toContain(">1<");
   });
 
   it("handles API failure gracefully", async () => {

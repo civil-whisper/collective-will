@@ -25,6 +25,9 @@ class Settings(BaseSettings):
     burst_quarantine_threshold_count: int = 3
     burst_quarantine_window_minutes: int = 5
     major_email_providers: str = "gmail.com,outlook.com,yahoo.com,protonmail.com"
+    voting_cycle_hours: int = 48
+    max_submissions_per_day: int = 5
+    require_contribution_for_vote: bool = True
 
     canonicalization_model: str = "claude-sonnet-4-20250514"
     canonicalization_fallback_model: str = "claude-sonnet-4-20250514"

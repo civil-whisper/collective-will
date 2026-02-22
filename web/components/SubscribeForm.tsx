@@ -29,7 +29,7 @@ export function SubscribeForm() {
   };
 
   return (
-    <form onSubmit={submit} style={{display: "flex", gap: "0.5rem", flexWrap: "wrap", justifyContent: "center"}}>
+    <form onSubmit={submit} className="flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
       <input
         type="email"
         required
@@ -37,13 +37,25 @@ export function SubscribeForm() {
         onChange={(event) => setEmail(event.target.value)}
         placeholder={t("emailPlaceholder")}
         aria-label={t("emailPlaceholder")}
-        style={{padding: "0.5rem 1rem", fontSize: "1rem"}}
+        className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm outline-none transition-colors placeholder:text-gray-400 focus:border-accent focus:ring-2 focus:ring-accent/20 dark:border-slate-600 dark:bg-slate-800 dark:placeholder:text-slate-500 sm:w-72"
       />
-      <button type="submit" disabled={status === "loading"} style={{padding: "0.5rem 1.5rem", fontSize: "1rem"}}>
+      <button
+        type="submit"
+        disabled={status === "loading"}
+        className="w-full rounded-lg bg-accent px-6 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-accent-hover disabled:opacity-50 sm:w-auto"
+      >
         {status === "loading" ? common("loading") : t("subscribeCta")}
       </button>
-      {status === "success" && <p role="status">{t("successMessage")}</p>}
-      {status === "error" && <p role="alert">{t("errorMessage")}</p>}
+      {status === "success" && (
+        <p role="status" className="text-sm font-medium text-green-600 dark:text-green-400">
+          {t("successMessage")}
+        </p>
+      )}
+      {status === "error" && (
+        <p role="alert" className="text-sm font-medium text-red-600 dark:text-red-400">
+          {t("errorMessage")}
+        </p>
+      )}
     </form>
   );
 }

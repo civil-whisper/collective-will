@@ -1,10 +1,9 @@
 "use client";
 
 import {useRouter, usePathname} from "next/navigation";
-import {useLocale, useTranslations} from "next-intl";
+import {useLocale} from "next-intl";
 
 export function LanguageSwitcher() {
-  const t = useTranslations("common");
   const locale = useLocale();
   const router = useRouter();
   const pathname = usePathname();
@@ -16,16 +15,32 @@ export function LanguageSwitcher() {
   };
 
   return (
-    <label>
-      {t("language")}{" "}
-      <select
-        aria-label={t("language")}
-        value={locale}
-        onChange={(event) => changeLocale(event.target.value)}
+    <div className="flex items-center gap-1 text-sm">
+      <button
+        type="button"
+        onClick={() => changeLocale("en")}
+        aria-label="English"
+        className={`rounded-md px-2.5 py-1 font-medium transition-colors ${
+          locale === "en"
+            ? "bg-accent/10 text-accent dark:text-indigo-300"
+            : "text-gray-500 hover:text-gray-900 dark:text-slate-400 dark:hover:text-white"
+        }`}
       >
-        <option value="fa">فارسی</option>
-        <option value="en">English</option>
-      </select>
-    </label>
+        EN
+      </button>
+      <span className="text-gray-300 dark:text-slate-600">/</span>
+      <button
+        type="button"
+        onClick={() => changeLocale("fa")}
+        aria-label="فارسی"
+        className={`rounded-md px-2.5 py-1 font-medium transition-colors ${
+          locale === "fa"
+            ? "bg-accent/10 text-accent dark:text-indigo-300"
+            : "text-gray-500 hover:text-gray-900 dark:text-slate-400 dark:hover:text-white"
+        }`}
+      >
+        FA
+      </button>
+    </div>
   );
 }

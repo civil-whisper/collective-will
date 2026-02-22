@@ -40,8 +40,10 @@ describe("TopPoliciesPage", () => {
     ]);
     const jsx = await TopPoliciesPage();
     render(jsx);
-    expect(screen.getByText(/Rank 1/)).toBeTruthy();
-    expect(screen.getByText(/Rank 2/)).toBeTruthy();
+    expect(screen.getByText("1")).toBeTruthy();
+    expect(screen.getByText("2")).toBeTruthy();
+    expect(screen.getByText("Policy Alpha")).toBeTruthy();
+    expect(screen.getByText("Policy Beta")).toBeTruthy();
   });
 
   it("links each policy to its cluster detail page", async () => {

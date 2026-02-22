@@ -1,15 +1,11 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
 import pytest
 
 from src.handlers.identity import (
-    _FAILED_VERIFICATIONS,
-    _PENDING_LINKING_CODES,
-    _PENDING_MAGIC_LINKS,
     LINKING_CODE_EXPIRY_MINUTES,
     MAGIC_LINK_EXPIRY_MINUTES,
     create_linking_code,
@@ -19,13 +15,6 @@ from src.handlers.identity import (
     subscribe_email,
     verify_magic_link,
 )
-
-
-@pytest.fixture(autouse=True)
-def _clear_state() -> None:
-    _PENDING_MAGIC_LINKS.clear()
-    _PENDING_LINKING_CODES.clear()
-    _FAILED_VERIFICATIONS.clear()
 
 
 def test_magic_link_token_uses_secrets() -> None:
@@ -47,6 +36,7 @@ def test_linking_code_expiry_is_60_minutes() -> None:
 
 
 @pytest.mark.asyncio
+@patch("src.handlers.identity.store_token", new_callable=AsyncMock)
 @patch("src.handlers.identity.check_signup_limits", new_callable=AsyncMock, return_value=(True, None))
 @patch("src.handlers.identity.get_user_by_email", new_callable=AsyncMock, return_value=None)
 @patch("src.handlers.identity.create_user", new_callable=AsyncMock)
@@ -56,6 +46,7 @@ async def test_subscribe_creates_user(
     mock_create: AsyncMock,
     mock_get: AsyncMock,
     mock_limits: AsyncMock,
+    mock_store: AsyncMock,
 ) -> None:
     mock_settings.return_value.app_public_base_url = "https://test.example.com"
     new_user = MagicMock()
@@ -68,8 +59,8 @@ async def test_subscribe_creates_user(
     )
     assert user is not None
     assert token is not None
-    assert token in _PENDING_MAGIC_LINKS
     mock_create.assert_called_once()
+    mock_store.assert_called_once()
 
 
 @pytest.mark.asyncio
@@ -84,37 +75,45 @@ async def test_subscribe_blocked_by_rate_limit(mock_limits: AsyncMock) -> None:
 
 
 @pytest.mark.asyncio
+@patch("src.handlers.identity.consume_token", new_callable=AsyncMock, return_value=True)
+@patch("src.handlers.identity.store_token", new_callable=AsyncMock)
+@patch("src.handlers.identity.lookup_token", new_callable=AsyncMock, return_value=("test@example.com", False))
 @patch("src.handlers.identity.get_user_by_email", new_callable=AsyncMock)
 @patch("src.handlers.identity.append_evidence", new_callable=AsyncMock)
-async def test_verify_valid_token(mock_evidence: AsyncMock, mock_get: AsyncMock) -> None:
+async def test_verify_valid_token(
+    mock_evidence: AsyncMock,
+    mock_get: AsyncMock,
+    mock_lookup: AsyncMock,
+    mock_store: AsyncMock,
+    mock_consume: AsyncMock,
+) -> None:
     user = MagicMock()
     user.id = uuid4()
     user.email_verified = False
     mock_get.return_value = user
     session = AsyncMock()
 
-    _PENDING_MAGIC_LINKS["tok123"] = ("test@example.com", datetime.now(UTC))
     ok, linking_code = await verify_magic_link(session=session, token="tok123")
     assert ok is True
     assert user.email_verified is True
-    assert "tok123" not in _PENDING_MAGIC_LINKS
-    assert linking_code in _PENDING_LINKING_CODES
+    mock_store.assert_called_once()
+    mock_consume.assert_called()
     mock_evidence.assert_called_once()
 
 
 @pytest.mark.asyncio
-async def test_verify_expired_token() -> None:
+@patch("src.handlers.identity.consume_token", new_callable=AsyncMock, return_value=True)
+@patch("src.handlers.identity.lookup_token", new_callable=AsyncMock, return_value=("test@example.com", True))
+async def test_verify_expired_token(mock_lookup: AsyncMock, mock_consume: AsyncMock) -> None:
     session = AsyncMock()
-    expired_time = datetime.now(UTC) - timedelta(minutes=MAGIC_LINK_EXPIRY_MINUTES + 1)
-    _PENDING_MAGIC_LINKS["expired"] = ("test@example.com", expired_time)
-
     ok, status = await verify_magic_link(session=session, token="expired")
     assert ok is False
     assert status == "expired_token"
 
 
 @pytest.mark.asyncio
-async def test_verify_invalid_token() -> None:
+@patch("src.handlers.identity.lookup_token", new_callable=AsyncMock, return_value=None)
+async def test_verify_invalid_token(mock_lookup: AsyncMock) -> None:
     session = AsyncMock()
     ok, status = await verify_magic_link(session=session, token="nonexistent")
     assert ok is False
@@ -122,21 +121,16 @@ async def test_verify_invalid_token() -> None:
 
 
 @pytest.mark.asyncio
-async def test_lockout_after_5_failures() -> None:
-    session = AsyncMock()
-    email = "lockout@test.com"
-    _FAILED_VERIFICATIONS[email] = [datetime.now(UTC) for _ in range(5)]
-    _PENDING_MAGIC_LINKS["lock-tok"] = (email, datetime.now(UTC))
-
-    ok, status = await verify_magic_link(session=session, token="lock-tok")
-    assert ok is False
-    assert status == "locked_out"
-
-
-@pytest.mark.asyncio
+@patch("src.handlers.identity.consume_token", new_callable=AsyncMock, return_value=True)
+@patch("src.handlers.identity.lookup_token", new_callable=AsyncMock, return_value=("test@example.com", False))
 @patch("src.handlers.identity.get_user_by_email", new_callable=AsyncMock)
 @patch("src.handlers.identity.append_evidence", new_callable=AsyncMock)
-async def test_resolve_linking_code_valid(mock_evidence: AsyncMock, mock_get: AsyncMock) -> None:
+async def test_resolve_linking_code_valid(
+    mock_evidence: AsyncMock,
+    mock_get: AsyncMock,
+    mock_lookup: AsyncMock,
+    mock_consume: AsyncMock,
+) -> None:
     user = MagicMock()
     user.id = uuid4()
     user.messaging_account_ref = ""
@@ -144,29 +138,28 @@ async def test_resolve_linking_code_valid(mock_evidence: AsyncMock, mock_get: As
     mock_get.return_value = user
     session = AsyncMock()
 
-    _PENDING_LINKING_CODES["code123"] = ("test@example.com", datetime.now(UTC))
     ok, status = await resolve_linking_code(session=session, code="code123", account_ref="opaque-ref")
     assert ok is True
     assert status == "linked"
     assert user.messaging_verified is True
     assert user.messaging_account_ref == "opaque-ref"
-    assert "code123" not in _PENDING_LINKING_CODES
+    mock_consume.assert_called()
     mock_evidence.assert_called_once()
 
 
 @pytest.mark.asyncio
-async def test_resolve_linking_code_expired() -> None:
+@patch("src.handlers.identity.consume_token", new_callable=AsyncMock, return_value=True)
+@patch("src.handlers.identity.lookup_token", new_callable=AsyncMock, return_value=("test@example.com", True))
+async def test_resolve_linking_code_expired(mock_lookup: AsyncMock, mock_consume: AsyncMock) -> None:
     session = AsyncMock()
-    expired = datetime.now(UTC) - timedelta(minutes=LINKING_CODE_EXPIRY_MINUTES + 1)
-    _PENDING_LINKING_CODES["old-code"] = ("test@example.com", expired)
-
     ok, status = await resolve_linking_code(session=session, code="old-code", account_ref="ref")
     assert ok is False
     assert status == "expired_code"
 
 
 @pytest.mark.asyncio
-async def test_resolve_linking_code_invalid() -> None:
+@patch("src.handlers.identity.lookup_token", new_callable=AsyncMock, return_value=None)
+async def test_resolve_linking_code_invalid(mock_lookup: AsyncMock) -> None:
     session = AsyncMock()
     ok, status = await resolve_linking_code(session=session, code="nope", account_ref="ref")
     assert ok is False

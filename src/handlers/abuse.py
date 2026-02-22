@@ -33,12 +33,13 @@ def is_major_provider(domain: str, settings: Settings | None = None) -> bool:
 
 
 async def check_submission_rate(db: AsyncSession, user_id: UUID) -> RateLimitResult:
+    settings = get_settings()
     start = datetime.now(UTC) - timedelta(hours=24)
     result = await db.execute(
         select(func.count(Submission.id)).where(Submission.user_id == user_id, Submission.created_at >= start)
     )
     count = int(result.scalar_one())
-    if count >= 5:
+    if count >= settings.max_submissions_per_day:
         return RateLimitResult(allowed=False, reason="submission_daily_limit")
     return RateLimitResult(allowed=True)
 

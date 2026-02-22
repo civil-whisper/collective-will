@@ -32,8 +32,8 @@ async def evolution_webhook(
     except Exception as exc:
         raise HTTPException(status_code=400, detail="malformed json") from exc
 
-    channel = WhatsAppChannel()
-    message = channel.parse_webhook(payload)
+    channel = WhatsAppChannel(session=session)
+    message = await channel.parse_webhook(payload)
     if message is None:
         return {"status": "ignored"}
 
@@ -56,8 +56,8 @@ async def telegram_webhook(
     except Exception as exc:
         raise HTTPException(status_code=400, detail="malformed json") from exc
 
-    channel = TelegramChannel(bot_token=settings.telegram_bot_token)
-    message = channel.parse_webhook(payload)
+    channel = TelegramChannel(bot_token=settings.telegram_bot_token, session=session)
+    message = await channel.parse_webhook(payload)
     if message is None:
         return {"status": "ignored"}
 

@@ -3,40 +3,24 @@ from __future__ import annotations
 import logging
 from datetime import UTC, datetime
 from typing import Any
-from uuid import uuid4
 
 import httpx
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.channels.base import BaseChannel
 from src.channels.types import OutboundMessage, UnifiedMessage
+from src.db.sealed_mapping import get_or_create_account_ref, get_platform_id_by_ref
 
 logger = logging.getLogger(__name__)
 
-_SEALED_TG_MAPPING: dict[str, str] = {}
-_REVERSE_TG_MAPPING: dict[str, str] = {}
-
-
-def resolve_or_create_account_ref(chat_id: str) -> str:
-    """Resolve an existing account ref or create a new opaque one for a Telegram chat_id."""
-    existing = _SEALED_TG_MAPPING.get(chat_id)
-    if existing:
-        return existing
-    account_ref = str(uuid4())
-    _SEALED_TG_MAPPING[chat_id] = account_ref
-    _REVERSE_TG_MAPPING[account_ref] = chat_id
-    return account_ref
-
-
-def _reverse_lookup(account_ref: str) -> str | None:
-    return _REVERSE_TG_MAPPING.get(account_ref)
-
 
 class TelegramChannel(BaseChannel):
-    def __init__(self, bot_token: str) -> None:
+    def __init__(self, bot_token: str, session: AsyncSession) -> None:
         self.api_url = f"https://api.telegram.org/bot{bot_token}"
         self.client = httpx.AsyncClient(timeout=30.0)
+        self._session = session
 
-    def parse_webhook(self, payload: dict[str, Any]) -> UnifiedMessage | None:
+    async def parse_webhook(self, payload: dict[str, Any]) -> UnifiedMessage | None:
         message = payload.get("message")
         if message is None:
             return None
@@ -50,7 +34,7 @@ class TelegramChannel(BaseChannel):
         if not chat_id:
             return None
 
-        sender_ref = resolve_or_create_account_ref(chat_id)
+        sender_ref = await get_or_create_account_ref(self._session, "telegram", chat_id)
         message_id = str(message.get("message_id", ""))
         date_ts = message.get("date")
         timestamp = datetime.fromtimestamp(int(date_ts), tz=UTC) if date_ts else datetime.now(UTC)
@@ -65,7 +49,7 @@ class TelegramChannel(BaseChannel):
         )
 
     async def send_message(self, message: OutboundMessage) -> bool:
-        chat_id = _reverse_lookup(message.recipient_ref)
+        chat_id = await get_platform_id_by_ref(self._session, message.recipient_ref)
         if chat_id is None:
             logger.error("No chat_id mapping for account_ref %s", message.recipient_ref)
             return False

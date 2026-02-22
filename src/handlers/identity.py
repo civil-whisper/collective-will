@@ -1,22 +1,20 @@
 from __future__ import annotations
 
 import secrets
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.config import get_settings
 from src.db.evidence import append_evidence
 from src.db.queries import create_user, get_user_by_email
+from src.db.verification_tokens import consume_token, lookup_token, store_token
 from src.handlers.abuse import check_signup_limits
 from src.models.user import User, UserCreate
 
-_PENDING_MAGIC_LINKS: dict[str, tuple[str, datetime]] = {}
-_PENDING_LINKING_CODES: dict[str, tuple[str, datetime]] = {}  # code -> (email, issued_at)
-_FAILED_VERIFICATIONS: dict[str, list[datetime]] = {}
-
 MAGIC_LINK_EXPIRY_MINUTES = 15
 LINKING_CODE_EXPIRY_MINUTES = 60
+MAX_FAILED_VERIFICATIONS = 5
 
 
 def create_magic_link_token() -> str:
@@ -42,7 +40,13 @@ async def subscribe_email(
     existing = await get_user_by_email(session, email)
     if existing is not None:
         token = create_magic_link_token()
-        _PENDING_MAGIC_LINKS[token] = (email, datetime.now(UTC))
+        await store_token(
+            session,
+            token=token,
+            email=email,
+            token_type="magic_link",
+            expiry_minutes=MAGIC_LINK_EXPIRY_MINUTES,
+        )
         return existing, token
 
     user = await create_user(
@@ -50,7 +54,13 @@ async def subscribe_email(
         UserCreate(email=email, locale=locale, messaging_account_ref=messaging_account_ref),
     )
     token = create_magic_link_token()
-    _PENDING_MAGIC_LINKS[token] = (email, datetime.now(UTC))
+    await store_token(
+        session,
+        token=token,
+        email=email,
+        token_type="magic_link",
+        expiry_minutes=MAGIC_LINK_EXPIRY_MINUTES,
+    )
 
     settings = get_settings()
     magic_link = f"{settings.app_public_base_url}/verify?token={token}"
@@ -62,26 +72,16 @@ async def subscribe_email(
     return user, token
 
 
-def _is_locked(email: str) -> bool:
-    attempts = _FAILED_VERIFICATIONS.get(email, [])
-    now = datetime.now(UTC)
-    recent = [a for a in attempts if now - a <= timedelta(hours=24)]
-    _FAILED_VERIFICATIONS[email] = recent
-    return len(recent) >= 5
-
-
 async def verify_magic_link(*, session: AsyncSession, token: str) -> tuple[bool, str]:
-    details = _PENDING_MAGIC_LINKS.get(token)
+    details = await lookup_token(session, token, "magic_link")
     if details is None:
         return False, "invalid_token"
 
-    email, issued_at = details
+    email, is_expired = details
 
-    if _is_locked(email):
-        return False, "locked_out"
-
-    if datetime.now(UTC) - issued_at > timedelta(minutes=MAGIC_LINK_EXPIRY_MINUTES):
-        _FAILED_VERIFICATIONS.setdefault(email, []).append(datetime.now(UTC))
+    if is_expired:
+        await consume_token(session, token, "magic_link")
+        await session.commit()
         return False, "expired_token"
 
     user = await get_user_by_email(session, email)
@@ -92,7 +92,15 @@ async def verify_magic_link(*, session: AsyncSession, token: str) -> tuple[bool,
     user.last_active_at = datetime.now(UTC)
 
     linking_code = create_linking_code()
-    _PENDING_LINKING_CODES[linking_code] = (email, datetime.now(UTC))
+    await store_token(
+        session,
+        token=linking_code,
+        email=email,
+        token_type="linking_code",
+        expiry_minutes=LINKING_CODE_EXPIRY_MINUTES,
+    )
+
+    await consume_token(session, token, "magic_link")
 
     await append_evidence(
         session=session,
@@ -102,19 +110,20 @@ async def verify_magic_link(*, session: AsyncSession, token: str) -> tuple[bool,
         payload={"method": "email_magic_link"},
     )
     await session.commit()
-    _PENDING_MAGIC_LINKS.pop(token, None)
     return True, linking_code
 
 
 async def resolve_linking_code(*, session: AsyncSession, code: str, account_ref: str) -> tuple[bool, str]:
-    """Resolve a linking code sent by a user via WhatsApp to link their account."""
-    details = _PENDING_LINKING_CODES.get(code)
+    """Resolve a linking code sent by a user via messaging to link their account."""
+    details = await lookup_token(session, code, "linking_code")
     if details is None:
         return False, "invalid_code"
 
-    email, issued_at = details
-    if datetime.now(UTC) - issued_at > timedelta(minutes=LINKING_CODE_EXPIRY_MINUTES):
-        _PENDING_LINKING_CODES.pop(code, None)
+    email, is_expired = details
+
+    if is_expired:
+        await consume_token(session, code, "linking_code")
+        await session.commit()
         return False, "expired_code"
 
     user = await get_user_by_email(session, email)
@@ -125,15 +134,16 @@ async def resolve_linking_code(*, session: AsyncSession, code: str, account_ref:
     user.messaging_verified = True
     user.messaging_account_age = datetime.now(UTC)
 
+    await consume_token(session, code, "linking_code")
+
     await append_evidence(
         session=session,
         event_type="user_verified",
         entity_type="user",
         entity_id=user.id,
-        payload={"method": "whatsapp_linked", "account_ref": account_ref},
+        payload={"method": "messaging_linked", "account_ref": account_ref},
     )
     await session.commit()
-    _PENDING_LINKING_CODES.pop(code, None)
     return True, "linked"
 
 

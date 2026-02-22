@@ -40,9 +40,10 @@ describe("NavBar", () => {
     expect(screen.getByText("Audit")).toBeTruthy();
   });
 
-  it("renders the language switcher", () => {
+  it("renders the language switcher buttons", () => {
     render(<NavBar />);
-    expect(screen.getByRole("combobox")).toBeTruthy();
+    expect(screen.getAllByLabelText("English").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByLabelText("فارسی").length).toBeGreaterThanOrEqual(1);
   });
 
   it("has a mobile menu toggle button", () => {

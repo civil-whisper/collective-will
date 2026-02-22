@@ -197,12 +197,14 @@ async def route_message(
         selections = parse_ballot(text, max_options=len(active_cycle.cluster_ids))
         if selections is not None:
             cluster_ids = [active_cycle.cluster_ids[idx - 1] for idx in selections]
+            settings = get_settings()
             vote, status = await cast_vote(
                 session=session,
                 user=user,
                 cycle=active_cycle,
                 approved_cluster_ids=cluster_ids,
-                min_account_age_hours=get_settings().min_account_age_hours,
+                min_account_age_hours=settings.min_account_age_hours,
+                require_contribution=settings.require_contribution_for_vote,
             )
             if vote is None:
                 await channel.send_message(

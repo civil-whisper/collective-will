@@ -35,8 +35,11 @@ def test_webhook_ignores_non_message(monkeypatch: pytest.MonkeyPatch) -> None:
     assert response.json()["status"] == "ignored"
 
 
+@patch("src.channels.whatsapp.get_or_create_account_ref", new_callable=AsyncMock, return_value="opaque-ref")
 @patch("src.api.routes.webhooks.route_message", new_callable=AsyncMock)
-def test_valid_text_message_triggers_route(mock_route: AsyncMock, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_valid_text_message_triggers_route(
+    mock_route: AsyncMock, mock_mapping: AsyncMock, monkeypatch: pytest.MonkeyPatch
+) -> None:
     monkeypatch.setenv("EVOLUTION_API_KEY", "good")
     from src.config import get_settings
 
@@ -77,8 +80,11 @@ def test_telegram_webhook_returns_404_when_token_not_configured(monkeypatch: pyt
     assert response.status_code == 404
 
 
+@patch("src.channels.telegram.get_or_create_account_ref", new_callable=AsyncMock, return_value="opaque-ref")
 @patch("src.api.routes.webhooks.route_message", new_callable=AsyncMock)
-def test_telegram_webhook_accepts_valid_message(mock_route: AsyncMock, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_telegram_webhook_accepts_valid_message(
+    mock_route: AsyncMock, mock_mapping: AsyncMock, monkeypatch: pytest.MonkeyPatch
+) -> None:
     monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "fake-bot-token")
     from src.config import get_settings
 

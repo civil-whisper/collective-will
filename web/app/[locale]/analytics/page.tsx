@@ -2,6 +2,8 @@ import Link from "next/link";
 import {getLocale, getTranslations} from "next-intl/server";
 
 import {apiGet} from "@/lib/api";
+import {MetricCard, BreakdownTable, PageShell, DomainBadge} from "@/components/ui";
+import type {BreakdownItem} from "@/components/ui";
 
 type Cluster = {
   id: string;
@@ -12,35 +14,146 @@ type Cluster = {
   variance_flag: boolean;
 };
 
+type CycleStats = {
+  total_voters: number;
+  total_submissions: number;
+  current_cycle: string | null;
+};
+
 export default async function AnalyticsPage() {
   const t = await getTranslations("analytics");
   const locale = await getLocale();
-  const clusters = await apiGet<Cluster[]>("/analytics/clusters").catch(() => []);
+
+  const [clusters, stats] = await Promise.all([
+    apiGet<Cluster[]>("/analytics/clusters").catch(() => []),
+    apiGet<CycleStats>("/analytics/stats").catch(() => ({
+      total_voters: 0,
+      total_submissions: 0,
+      current_cycle: null,
+    })),
+  ]);
+
+  const sortedClusters = [...clusters].sort(
+    (a, b) => b.approval_count - a.approval_count,
+  );
+
+  const domainCounts: Record<string, number> = {};
+  for (const c of clusters) {
+    domainCounts[c.domain] = (domainCounts[c.domain] ?? 0) + c.member_count;
+  }
+  const domainItems: BreakdownItem[] = Object.entries(domainCounts)
+    .sort((a, b) => b[1] - a[1])
+    .map(([domain, count]) => ({
+      key: domain,
+      label: <DomainBadge domain={domain} />,
+      value: count,
+    }));
+
+  const clusterItems: BreakdownItem[] = sortedClusters.slice(0, 10).map((c) => ({
+    key: c.id,
+    label: (
+      <Link
+        href={`/${locale}/analytics/clusters/${c.id}`}
+        className="text-gray-900 hover:text-accent dark:text-slate-100 dark:hover:text-indigo-300"
+      >
+        {c.summary}
+      </Link>
+    ),
+    value: c.approval_count,
+    displayValue: `${c.approval_count.toLocaleString()} approvals`,
+  }));
 
   return (
-    <section>
-      <h1>{t("clusters")}</h1>
+    <PageShell title={t("clusters")}>
+      {/* Metric cards */}
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <MetricCard
+          label={t("totalVoters")}
+          value={stats.total_voters.toLocaleString()}
+        />
+        <MetricCard
+          label={t("clusters")}
+          value={clusters.length.toLocaleString()}
+        />
+        <MetricCard
+          label={t("memberCount")}
+          value={clusters.reduce((sum, c) => sum + c.member_count, 0).toLocaleString()}
+        />
+        <MetricCard
+          label={t("unclustered")}
+          value={
+            clusters.filter((c) => c.variance_flag).length.toLocaleString()
+          }
+        />
+      </div>
+
       {clusters.length === 0 ? (
-        <p>{t("noClusters")}</p>
+        <div className="rounded-lg border border-gray-200 bg-white p-12 text-center dark:border-slate-700 dark:bg-slate-800">
+          <p className="text-gray-500 dark:text-slate-400">{t("noClusters")}</p>
+        </div>
       ) : (
-        <ul>
-          {clusters.map((cluster) => (
-            <li key={cluster.id} style={{marginBottom: "1rem", padding: "1rem", border: "1px solid #ddd"}}>
-              <Link href={`/${locale}/analytics/clusters/${cluster.id}`}>
-                <strong>{cluster.summary}</strong>
+        <>
+          {/* Breakdown tables — side by side */}
+          <div className="grid gap-4 lg:grid-cols-2">
+            <BreakdownTable
+              title={t("topPolicies")}
+              items={clusterItems}
+            />
+            <BreakdownTable
+              title={t("domain")}
+              items={domainItems}
+            />
+          </div>
+
+          {/* Full cluster list */}
+          <div className="space-y-2">
+            {sortedClusters.map((cluster) => (
+              <Link
+                key={cluster.id}
+                href={`/${locale}/analytics/clusters/${cluster.id}`}
+                className="flex items-center justify-between rounded-lg border border-gray-200 bg-white px-5 py-4 transition-colors hover:bg-gray-50 dark:border-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700"
+              >
+                <div className="min-w-0 flex-1">
+                  <p className="truncate font-medium">{cluster.summary}</p>
+                  <div className="mt-1 flex items-center gap-2">
+                    <DomainBadge domain={cluster.domain} />
+                    <span className="text-xs text-gray-500 dark:text-slate-400">
+                      {t("memberCount")}: {cluster.member_count}
+                    </span>
+                    {cluster.variance_flag && (
+                      <span className="text-xs font-medium text-amber-600 dark:text-amber-400">
+                        {t("varianceFlag")}
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <div className="ms-4 text-end">
+                  <p className="text-lg font-bold">{cluster.approval_count}</p>
+                  <p className="text-xs text-gray-500 dark:text-slate-400">
+                    {t("approvalCount")}
+                  </p>
+                </div>
               </Link>
-              <br />
-              {t("domain")}: {cluster.domain} | {t("memberCount")}: {cluster.member_count} | {t("approvalCount")}: {cluster.approval_count}
-              {cluster.variance_flag && <span> ⚠️ {t("varianceFlag")}</span>}
-            </li>
-          ))}
-        </ul>
+            ))}
+          </div>
+        </>
       )}
-      <p>
-        <Link href={`/${locale}/analytics/top-policies`}>{t("topPolicies")}</Link>
-        {" | "}
-        <Link href={`/${locale}/analytics/evidence`}>{t("evidence")}</Link>
-      </p>
-    </section>
+
+      {/* Footer links */}
+      <div className="flex items-center gap-4 text-sm">
+        <Link
+          href={`/${locale}/analytics/top-policies`}
+          className="font-medium text-accent hover:underline"
+        >
+          {t("topPolicies")} →
+        </Link>
+        <Link
+          href={`/${locale}/analytics/evidence`}
+          className="font-medium text-accent hover:underline"
+        >
+          {t("evidence")} →
+        </Link>
+      </div>
+    </PageShell>
   );
 }

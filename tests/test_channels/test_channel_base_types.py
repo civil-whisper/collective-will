@@ -14,7 +14,7 @@ class FakeChannel(BaseChannel):
     def __init__(self) -> None:
         self.sent: list[OutboundMessage] = []
 
-    def parse_webhook(self, payload: dict[str, Any]) -> UnifiedMessage | None:
+    async def parse_webhook(self, payload: dict[str, Any]) -> UnifiedMessage | None:
         return UnifiedMessage(sender_ref="x", text=payload["text"], message_id="fake-1")
 
     async def send_message(self, message: OutboundMessage) -> bool:
@@ -79,7 +79,7 @@ def test_concrete_subclass_can_be_instantiated() -> None:
 @pytest.mark.asyncio
 async def test_fake_channel_works_without_whatsapp_imports() -> None:
     channel = FakeChannel()
-    inbound = channel.parse_webhook({"text": "hello"})
+    inbound = await channel.parse_webhook({"text": "hello"})
     assert inbound is not None
     assert inbound.text == "hello"
     result = await channel.send_message(OutboundMessage(recipient_ref="x", text="ok"))

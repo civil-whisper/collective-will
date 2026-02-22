@@ -25,7 +25,7 @@ class FakeChannel(BaseChannel):
     def __init__(self) -> None:
         self.sent: list[OutboundMessage] = []
 
-    def parse_webhook(self, payload: dict[str, Any]) -> UnifiedMessage | None:
+    async def parse_webhook(self, payload: dict[str, Any]) -> UnifiedMessage | None:
         return None
 
     async def send_message(self, message: OutboundMessage) -> bool:
@@ -91,6 +91,11 @@ def test_ineligible_no_contributions() -> None:
     assert eligible_for_vote(user, 48) is False
 
 
+def test_eligible_no_contributions_when_not_required() -> None:
+    user = _make_user(contribution_count=0)
+    assert eligible_for_vote(user, 48, require_contribution=False) is True
+
+
 def test_ineligible_email_not_verified() -> None:
     user = _make_user(verified=False)
     assert eligible_for_vote(user, 48) is False
@@ -122,9 +127,11 @@ def test_eligible_with_endorsement_only() -> None:
 @pytest.mark.asyncio
 @patch("src.handlers.voting.append_evidence", new_callable=AsyncMock)
 @patch("src.handlers.voting.create_voting_cycle", new_callable=AsyncMock)
+@patch("src.handlers.voting.get_settings")
 async def test_open_cycle_creates_with_correct_dates(
-    mock_create: AsyncMock, mock_evidence: AsyncMock,
+    mock_settings: MagicMock, mock_create: AsyncMock, mock_evidence: AsyncMock,
 ) -> None:
+    mock_settings.return_value.voting_cycle_hours = 48
     cycle = MagicMock()
     cycle.id = uuid4()
     mock_create.return_value = cycle
@@ -148,6 +155,7 @@ async def test_record_endorsement_success(
     mock_settings: MagicMock, mock_create: AsyncMock, mock_evidence: AsyncMock,
 ) -> None:
     mock_settings.return_value.min_account_age_hours = 48
+    mock_settings.return_value.require_contribution_for_vote = True
     user = _make_user(contribution_count=0)
     db = AsyncMock()
 
@@ -166,6 +174,7 @@ async def test_record_endorsement_idempotent(mock_settings: MagicMock, mock_crea
     from sqlalchemy.exc import IntegrityError
 
     mock_settings.return_value.min_account_age_hours = 48
+    mock_settings.return_value.require_contribution_for_vote = True
     mock_create.side_effect = IntegrityError("dup", params=None, orig=Exception("dup"))
     user = _make_user()
     db = AsyncMock()

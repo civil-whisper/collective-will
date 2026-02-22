@@ -12,29 +12,23 @@ vi.mock("next/navigation", () => ({
 }));
 
 describe("LanguageSwitcher", () => {
-  it("renders a select with fa and en options", () => {
+  it("renders EN and FA buttons", () => {
     render(<LanguageSwitcher />);
-    const select = screen.getByRole("combobox") as HTMLSelectElement;
-    expect(select).toBeTruthy();
-    expect(select.value).toBe("en");
-    const options = select.querySelectorAll("option");
-    expect(options.length).toBe(2);
-    expect(options[0].value).toBe("fa");
-    expect(options[1].value).toBe("en");
+    expect(screen.getByLabelText("English")).toBeTruthy();
+    expect(screen.getByLabelText("فارسی")).toBeTruthy();
   });
 
-  it("navigates to Farsi locale on selection change", () => {
+  it("navigates to Farsi locale on FA button click", () => {
+    mockPush.mockClear();
     render(<LanguageSwitcher />);
-    const select = screen.getByRole("combobox");
-    fireEvent.change(select, {target: {value: "fa"}});
+    fireEvent.click(screen.getByLabelText("فارسی"));
     expect(mockPush).toHaveBeenCalledWith("/fa/analytics");
   });
 
   it("keeps the path after locale segment when switching", () => {
     mockPush.mockClear();
     render(<LanguageSwitcher />);
-    const select = screen.getByRole("combobox");
-    fireEvent.change(select, {target: {value: "fa"}});
+    fireEvent.click(screen.getByLabelText("فارسی"));
     const calledPath = mockPush.mock.calls[0][0];
     expect(calledPath).toBe("/fa/analytics");
   });

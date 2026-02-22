@@ -15,7 +15,7 @@ class BaseChannel(ABC):
         ...
 
     @abstractmethod
-    def parse_webhook(self, payload: dict[str, Any]) -> UnifiedMessage | None:
+    async def parse_webhook(self, payload: dict[str, Any]) -> UnifiedMessage | None:
         """Parse incoming webhook payload into UnifiedMessage.
         Returns None if payload is not a user text message."""
         ...

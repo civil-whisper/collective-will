@@ -1,10 +1,12 @@
 import {DisputeStatus} from "@/components/DisputeStatus";
+import {PageShell, Card} from "@/components/ui";
 
 export default function DisputesPage() {
   return (
-    <section>
-      <h1>Disputes</h1>
-      <DisputeStatus status="open" />
-    </section>
+    <PageShell title="Disputes">
+      <Card>
+        <DisputeStatus status="open" />
+      </Card>
+    </PageShell>
   );
 }
