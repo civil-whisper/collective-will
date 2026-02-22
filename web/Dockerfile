@@ -2,8 +2,8 @@ FROM node:20-alpine AS base
 
 FROM base AS deps
 WORKDIR /app
-COPY package.json pnpm-lock.yaml* ./
-RUN corepack enable pnpm && pnpm install --frozen-lockfile 2>/dev/null || npm install
+COPY package.json package-lock.json ./
+RUN --mount=type=cache,target=/root/.npm npm ci
 
 FROM base AS builder
 WORKDIR /app
