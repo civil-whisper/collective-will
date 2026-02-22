@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from unittest.mock import AsyncMock, patch
-from uuid import uuid4
 
 import pytest
 
@@ -52,8 +51,11 @@ async def test_parse_webhook_returns_none_for_media_message() -> None:
     assert await channel.parse_webhook(payload) is None
 
 
+_WA_JID = "989123456789@s.whatsapp.net"
+
+
 @pytest.mark.asyncio
-@patch("src.channels.whatsapp.get_platform_id_by_ref", new_callable=AsyncMock, return_value="989123456789@s.whatsapp.net")
+@patch("src.channels.whatsapp.get_platform_id_by_ref", new_callable=AsyncMock, return_value=_WA_JID)
 async def test_send_message_calls_correct_endpoint(
     mock_reverse: AsyncMock, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -88,7 +90,7 @@ async def test_send_message_calls_correct_endpoint(
 
 
 @pytest.mark.asyncio
-@patch("src.channels.whatsapp.get_platform_id_by_ref", new_callable=AsyncMock, return_value="989123456789@s.whatsapp.net")
+@patch("src.channels.whatsapp.get_platform_id_by_ref", new_callable=AsyncMock, return_value=_WA_JID)
 async def test_send_message_returns_false_on_http_error(
     mock_reverse: AsyncMock, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -118,7 +120,7 @@ async def test_send_message_returns_false_on_http_error(
 
 
 @pytest.mark.asyncio
-@patch("src.channels.whatsapp.get_platform_id_by_ref", new_callable=AsyncMock, return_value="989123456789@s.whatsapp.net")
+@patch("src.channels.whatsapp.get_platform_id_by_ref", new_callable=AsyncMock, return_value=_WA_JID)
 async def test_send_ballot_formats_correctly(
     mock_reverse: AsyncMock, monkeypatch: pytest.MonkeyPatch
 ) -> None:

@@ -24,7 +24,7 @@ async def clusters(session: AsyncSession = Depends(get_db)) -> list[dict[str, ob
         {
             "id": str(row.id),
             "summary": row.summary,
-            "domain": row.domain.value,
+            "domain": row.domain.value if hasattr(row.domain, "value") else row.domain,
             "member_count": row.member_count,
             "variance_flag": row.variance_flag,
         }

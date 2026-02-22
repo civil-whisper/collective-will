@@ -30,7 +30,8 @@ import asyncpg
 
 async def main() -> int:
     try:
-        conn = await asyncpg.connect(os.environ["TEST_DATABASE_URL"], timeout=2)
+        dsn = os.environ["TEST_DATABASE_URL"].replace("postgresql+asyncpg://", "postgresql://", 1)
+        conn = await asyncpg.connect(dsn, timeout=2)
         await conn.close()
         return 0
     except Exception:

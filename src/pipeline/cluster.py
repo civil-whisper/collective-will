@@ -53,7 +53,7 @@ def run_clustering(
         )
 
     arr = np.array(embeddings, dtype=float)
-    clusterer = hdbscan.HDBSCAN(min_cluster_size=min_cluster_size)
+    clusterer = hdbscan.HDBSCAN(min_cluster_size=min_cluster_size, min_samples=1)
     labels = clusterer.fit_predict(arr)
 
     groups: dict[int, list[PolicyCandidate]] = defaultdict(list)

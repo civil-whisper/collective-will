@@ -93,13 +93,16 @@ class FixtureReplayRouter:
 
     @staticmethod
     def _vector_for_text(text: str) -> list[float]:
+        import numpy as np
+
         if "Water" in text:
-            base = 0.02
+            center = 0.0
         elif "Tax" in text:
-            base = 8.0
+            center = 10.0
         else:
-            base = 4.0
-        return [base + ((idx % 5) * 0.0001) for idx in range(1024)]
+            center = 5.0
+        rng = np.random.RandomState(hash(text) & 0x7FFFFFFF)
+        return rng.normal(center, 0.1, 1024).tolist()
 
 
 @pytest.mark.asyncio

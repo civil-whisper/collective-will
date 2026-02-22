@@ -35,7 +35,8 @@ def test_clustering_forms_clusters_and_noise() -> None:
         ],
     )
     result = run_clustering(candidates=candidates, cycle_id=uuid4(), min_cluster_size=2)
-    assert len(result.clusters) + len(result.noise_candidate_ids) == len(candidates)
+    clustered_count = sum(len(c.candidate_ids) for c in result.clusters)
+    assert clustered_count + len(result.noise_candidate_ids) == len(candidates)
     assert isinstance(result.noise_candidate_ids, list)
 
 

@@ -8,6 +8,7 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.config import get_settings
 from src.db.queries import (
     create_policy_candidate,
     create_submission,
@@ -25,6 +26,9 @@ from src.scheduler import run_pipeline
 
 
 class FakeRouter:
+    def __init__(self) -> None:
+        self._embed_counter = 0
+
     async def complete(self, *, tier: str, prompt: str, timeout_s: float = 60.0, **kwargs: object) -> LLMResponse:
         return LLMResponse(
             text='{"title":"Policy","domain":"economy","summary":"s","stance":"unclear","entities":[],"confidence":0.5,"ambiguity_flags":[]}',
@@ -35,8 +39,17 @@ class FakeRouter:
         )
 
     async def embed(self, texts: list[str], timeout_s: float = 30.0):  # type: ignore[no-untyped-def]
+        import numpy as np
+
+        rng = np.random.RandomState(42)
+        vecs: list[list[float]] = []
+        for _text in texts:
+            self._embed_counter += 1
+            center = 0.0 if self._embed_counter % 2 == 0 else 10.0
+            vecs.append(rng.normal(center, 0.1, 1024).tolist())
+
         class R:
-            vectors = [[0.01] * 1024 for _ in texts]
+            vectors = vecs
 
         return R()
 
@@ -111,7 +124,12 @@ async def test_create_voting_cycle_query(db_session: AsyncSession) -> None:
 
 
 @pytest.mark.asyncio
-async def test_run_pipeline_populates_cycle_cluster_ids(db_session: AsyncSession) -> None:
+async def test_run_pipeline_populates_cycle_cluster_ids(
+    db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("MIN_CLUSTER_SIZE", "2")
+    get_settings.cache_clear()
+
     user = await create_user(
         db_session, UserCreate(email=f"{uuid4()}@example.com", locale="fa", messaging_account_ref=str(uuid4()))
     )
@@ -119,10 +137,10 @@ async def test_run_pipeline_populates_cycle_cluster_ids(db_session: AsyncSession
     user.messaging_verified = True
     user.messaging_account_age = datetime.now(UTC) - timedelta(hours=72)
 
-    for idx in range(5):
+    for idx in range(10):
         await create_submission(
             db_session,
-            SubmissionCreate(user_id=user.id, raw_text=f"text-{idx}", language="fa", hash=("c" * 63) + str(idx)),
+            SubmissionCreate(user_id=user.id, raw_text=f"text-{idx}", language="fa", hash=("c" * 62) + f"{idx:02d}"),
         )
     await db_session.commit()
 
@@ -140,7 +158,12 @@ async def test_run_pipeline_populates_cycle_cluster_ids(db_session: AsyncSession
 
 
 @pytest.mark.asyncio
-async def test_run_pipeline_uses_real_endorsement_count_path(db_session: AsyncSession) -> None:
+async def test_run_pipeline_uses_real_endorsement_count_path(
+    db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("MIN_CLUSTER_SIZE", "2")
+    get_settings.cache_clear()
+
     user = await create_user(
         db_session, UserCreate(email=f"{uuid4()}@example.com", locale="fa", messaging_account_ref=str(uuid4()))
     )
@@ -148,10 +171,10 @@ async def test_run_pipeline_uses_real_endorsement_count_path(db_session: AsyncSe
     user.messaging_verified = True
     user.messaging_account_age = datetime.now(UTC) - timedelta(hours=72)
 
-    for idx in range(5):
+    for idx in range(10):
         await create_submission(
             db_session,
-            SubmissionCreate(user_id=user.id, raw_text=f"text-{idx}", language="fa", hash=("d" * 63) + str(idx)),
+            SubmissionCreate(user_id=user.id, raw_text=f"text-{idx}", language="fa", hash=("d" * 62) + f"{idx:02d}"),
         )
     await db_session.commit()
 
