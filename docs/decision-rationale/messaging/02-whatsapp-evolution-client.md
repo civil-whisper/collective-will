@@ -10,7 +10,7 @@
 
 This file is the concrete adapter for the shared-context channel decision:
 
-- v0 transport is WhatsApp via Evolution API
+- MVP testing transport is Telegram-first; WhatsApp Evolution is deferred post-MVP
 - Evolution-specific payload knowledge is isolated to this module
 - raw `wa_id` is confined to a sealed mapping layer; core app uses opaque `account_ref`
 - all other layers consume only normalized abstractions (`UnifiedMessage`, `OutboundMessage`, `BaseChannel`)

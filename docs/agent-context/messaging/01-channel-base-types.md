@@ -4,7 +4,7 @@
 - `database/01-project-scaffold` (project structure exists)
 
 ## Goal
-Create the abstract channel interface and unified message types. This is the foundation for all messaging integrations — WhatsApp now, Telegram/Signal later. Even in WhatsApp-only v0, this abstraction is mandatory so v1 channel expansion is a one-module change.
+Create the abstract channel interface and unified message types. This is the foundation for all messaging integrations — Telegram first for MVP testing, WhatsApp next, Signal later. This abstraction is mandatory so transport changes are one-module updates.
 
 ## Files to create
 
@@ -20,7 +20,7 @@ class UnifiedMessage(BaseModel):
     """Normalized incoming message from any platform."""
     text: str
     sender_ref: str              # Opaque account reference (never raw ID)
-    platform: Literal["whatsapp"]  # Extend to "telegram" | "signal" post-v0
+    platform: Literal["telegram", "whatsapp"]  # Extend to "signal" later
     timestamp: datetime
     message_id: str              # Platform-specific message ID
     raw_payload: dict | None = None  # Original webhook payload for debugging
@@ -29,7 +29,7 @@ class OutboundMessage(BaseModel):
     """Message to send to a user."""
     recipient_ref: str           # Opaque account reference
     text: str
-    platform: Literal["whatsapp"]
+    platform: Literal["telegram", "whatsapp"]
 ```
 
 ### src/channels/base.py

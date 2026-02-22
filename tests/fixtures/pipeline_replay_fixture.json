@@ -1,0 +1,52 @@
+{
+  "submissions": [
+    {
+      "raw_text": "کمبود آب آشامیدنی در منطقه ما جدی است.",
+      "canonical": {
+        "title": "Water Access Priority",
+        "domain": "rights",
+        "summary": "Expand clean water access in underserved areas.",
+        "stance": "support",
+        "entities": ["water", "infrastructure"],
+        "confidence": 0.94,
+        "ambiguity_flags": []
+      }
+    },
+    {
+      "raw_text": "لوله کشی آب فرسوده است و باید نوسازی شود.",
+      "canonical": {
+        "title": "Water Network Renewal",
+        "domain": "rights",
+        "summary": "Renovate old water distribution networks.",
+        "stance": "support",
+        "entities": ["water", "pipes"],
+        "confidence": 0.92,
+        "ambiguity_flags": []
+      }
+    },
+    {
+      "raw_text": "مالیات کسب و کارهای کوچک باید کاهش یابد.",
+      "canonical": {
+        "title": "Tax Relief for Small Businesses",
+        "domain": "economy",
+        "summary": "Lower tax burden for small enterprises.",
+        "stance": "support",
+        "entities": ["tax", "small_business"],
+        "confidence": 0.93,
+        "ambiguity_flags": []
+      }
+    },
+    {
+      "raw_text": "شفافیت مالیاتی باید افزایش پیدا کند.",
+      "canonical": {
+        "title": "Tax Transparency Reform",
+        "domain": "economy",
+        "summary": "Increase transparency in tax collection and spending.",
+        "stance": "support",
+        "entities": ["tax", "transparency"],
+        "confidence": 0.91,
+        "ambiguity_flags": []
+      }
+    }
+  ]
+}

@@ -21,6 +21,8 @@ def _make_mock_session() -> AsyncMock:
 
     session.begin_nested = _begin_nested
     session.execute = AsyncMock(return_value=MagicMock(scalar_one_or_none=MagicMock(return_value=None)))
+    # SQLAlchemy Session.add is synchronous; keep it non-async in mocks.
+    session.add = MagicMock()
     return session
 
 

@@ -9,7 +9,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.config import get_settings
 from src.db.anchoring import compute_daily_merkle_root, publish_daily_merkle_root
-from src.db.queries import create_cluster, create_policy_candidate, create_voting_cycle
+from src.db.queries import (
+    count_cluster_endorsements,
+    create_cluster,
+    create_policy_candidate,
+    create_voting_cycle,
+)
 from src.models.cluster import Cluster
 from src.models.submission import PolicyCandidate, Submission
 from src.models.vote import VotingCycleCreate
@@ -76,7 +81,7 @@ async def run_pipeline(*, session: AsyncSession, llm_router: LLMRouter | None = 
             clustering = run_clustering(
                 candidates=db_candidates,
                 cycle_id=cycle.id,
-                min_cluster_size=settings.min_preballot_endorsements,
+                min_cluster_size=settings.min_cluster_size,
                 random_seed=7,
             )
             db_clusters: list[Cluster] = []
@@ -84,6 +89,7 @@ async def run_pipeline(*, session: AsyncSession, llm_router: LLMRouter | None = 
                 db_cluster = await create_cluster(session, item)
                 db_clusters.append(db_cluster)
             result.created_clusters = len(db_clusters)
+            cycle.cluster_ids = [cluster.id for cluster in db_clusters]
 
             candidates_by_id = {candidate.id: candidate for candidate in db_candidates}
             await summarize_clusters(
@@ -93,11 +99,14 @@ async def run_pipeline(*, session: AsyncSession, llm_router: LLMRouter | None = 
                 llm_router=router,
             )
 
-            endorsement_counts = {str(cluster.id): 0 for cluster in db_clusters}
+            endorsement_counts = {
+                str(cluster.id): await count_cluster_endorsements(session, cluster.id)
+                for cluster in db_clusters
+            }
             agenda_items = build_agenda(
                 clusters=db_clusters,
                 endorsement_counts=endorsement_counts,
-                min_cluster_size=settings.min_preballot_endorsements,
+                min_cluster_size=settings.min_cluster_size,
                 min_preballot_endorsements=settings.min_preballot_endorsements,
             )
             result.qualified_clusters = sum(1 for item in agenda_items if item.qualifies)

@@ -20,11 +20,18 @@ VALID_EVENT_TYPES = {
     "candidate_created",
     "cluster_created",
     "cluster_updated",
+    "policy_endorsed",
     "vote_cast",
     "cycle_opened",
     "cycle_closed",
     "user_created",
     "user_verified",
+    "dispute_opened",
+    "dispute_escalated",
+    "dispute_resolved",
+    "dispute_metrics_recorded",
+    "dispute_tuning_recommended",
+    "anchor_computed",
 }
 
 

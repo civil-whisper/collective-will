@@ -8,10 +8,10 @@
 
 ## Context
 
-WhatsApp (via Evolution API / Baileys) is the v0 production channel. Baileys uses
-WhatsApp's unofficial Web protocol. WhatsApp actively detects and bans numbers
-exhibiting automation patterns — making it unsuitable for repeated development
-testing and local end-to-end smoke tests.
+WhatsApp (via Evolution API / Baileys) remains the target rollout channel, but
+anonymous Netherlands SIMs required for safe operations are still in transit.
+Until SIM operations are ready, Telegram is used as the primary MVP testing
+transport to keep implementation velocity high.
 
 The original plan was to fire mock `curl` payloads at the local webhook for unit and
 integration tests, and use a throwaway virtual number (e.g. SMSPVA) for the one-time
@@ -21,25 +21,24 @@ and the WhatsApp session must be kept alive in Evolution API.
 
 ---
 
-## Decision: Add TelegramChannel as a dev/test-only BaseChannel adapter
+## Decision: Use TelegramChannel as the primary MVP testing adapter
 
 **Why this is correct**
 
 - Telegram provides an **official Bot API** — no unofficial protocol, no ban risk,
-  no number acquisition required. Setup takes under 5 minutes via @BotFather.
+  and no SIM provisioning dependency. Setup takes under 5 minutes via @BotFather.
 - A second real `BaseChannel` implementation **validates the abstraction under test**,
   not just with a mock. If the handlers and pipeline work correctly with
   `TelegramChannel`, they will work with `WhatsAppChannel` — the business logic
   is provably channel-agnostic.
 - No identity exposure: Telegram bot tokens carry no real-world identity. No SIM
   card, no personal number, no Meta account linkage.
-- Consistent with the existing CONTEXT-shared guardrail: *"enforce with
-  fake/mock-channel tests so adding Signal/Telegram in v1 is a one-module
-  addition."* This adapter is that one module, used earlier for dev convenience.
+- Keeps the shared guardrail intact: *transport logic stays behind `BaseChannel`*,
+  so switching from Telegram-first MVP testing to WhatsApp post-MVP is a bounded
+  adapter change.
 
-**Why this is not a production channel**
+**Why this is still not final production policy**
 
-- v0 scope is WhatsApp-only. Telegram is explicitly out of scope for v0.
 - Telegram's default group/bot messages are not end-to-end encrypted; metadata
   is visible to Telegram servers. For the Iran pilot, routing real user submissions
   through Telegram introduces surveillance risk that WhatsApp (with E2E encryption
@@ -66,4 +65,4 @@ and the WhatsApp session must be kept alive in Evolution API.
 - No Telegram-specific logic outside `src/channels/telegram.py` and its webhook
   route. All handlers and pipeline modules interact through `BaseChannel` only.
 
-**Verdict**: **Approved for dev/test use; explicitly excluded from production**
+**Verdict**: **Approved as MVP testing transport; keep post-MVP migration path to WhatsApp**

@@ -67,7 +67,7 @@ def test_webhook_returns_200_for_status_update(monkeypatch: pytest.MonkeyPatch) 
 
 
 def test_telegram_webhook_returns_404_when_token_not_configured(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.delenv("TELEGRAM_BOT_TOKEN", raising=False)
+    monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "")
     from src.config import get_settings
 
     get_settings.cache_clear()

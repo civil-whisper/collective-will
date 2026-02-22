@@ -71,8 +71,9 @@ def _real_env(monkeypatch: pytest.MonkeyPatch) -> None:
     for key, value in dotenv_values(env_file).items():
         if value is not None:
             monkeypatch.setenv(key, value)
-    # Lower cluster threshold for smaller samples
+    # Lower thresholds for smaller samples
     if SAMPLE_PERCENT < 100:
+        monkeypatch.setenv("MIN_CLUSTER_SIZE", "3")
         monkeypatch.setenv("MIN_PREBALLOT_ENDORSEMENTS", "3")
 
 

@@ -11,6 +11,7 @@
 - Shared-context D4 now uses random opaque account refs plus sealed mapping.
 - Scaffold/config should not require `SECRET_PEPPER` for WhatsApp identity tokenization.
 - Shared-context D5/D6 age gating should be config-backed for testability (`MIN_ACCOUNT_AGE_HOURS`, default `48`).
+- Shared-context clustering policy should expose `MIN_CLUSTER_SIZE` as config (default `5`) for sparse-cycle calibration.
 - Multi-stage agenda gating should expose `MIN_PREBALLOT_ENDORSEMENTS` as config (default `5`) for calibration.
 - Shared-context D14 signup-abuse policy should be config-backed: non-major domain cap (`MAX_SIGNUPS_PER_DOMAIN_PER_DAY`), per-IP cap (`MAX_SIGNUPS_PER_IP_PER_DAY`), and major-provider exemption list (`MAJOR_EMAIL_PROVIDERS`).
 - Shared-context D15 burst soft-quarantine policy should be config-backed: trigger count (`BURST_QUARANTINE_THRESHOLD_COUNT`, default `3`) and window (`BURST_QUARANTINE_WINDOW_MINUTES`, default `5`).

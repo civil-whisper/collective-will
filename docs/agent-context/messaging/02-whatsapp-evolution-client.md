@@ -5,7 +5,7 @@
 - `database/01-project-scaffold` (config with EVOLUTION_API_URL, EVOLUTION_API_KEY)
 
 ## Goal
-Implement the WhatsApp channel using Evolution API. This handles sending/receiving WhatsApp messages via the self-hosted Evolution API gateway, but only as a `BaseChannel` adapter so other modules remain channel-agnostic.
+Define the WhatsApp channel integration contract using Evolution API for post-MVP rollout. MVP build/testing uses Telegram first; this module remains the deferred transport adapter so migration can happen without business-logic rewrites.
 
 ## Files to create
 

@@ -14,6 +14,7 @@ from src.config import get_settings
 logger = logging.getLogger(__name__)
 
 _SEALED_WA_MAPPING: dict[str, str] = {}
+_REVERSE_WA_MAPPING: dict[str, str] = {}
 
 
 def resolve_or_create_account_ref(wa_id: str) -> str:
@@ -23,7 +24,12 @@ def resolve_or_create_account_ref(wa_id: str) -> str:
         return existing
     account_ref = str(uuid4())
     _SEALED_WA_MAPPING[wa_id] = account_ref
+    _REVERSE_WA_MAPPING[account_ref] = wa_id
     return account_ref
+
+
+def _reverse_lookup(account_ref: str) -> str | None:
+    return _REVERSE_WA_MAPPING.get(account_ref)
 
 
 class WhatsAppChannel(BaseChannel):
@@ -57,9 +63,13 @@ class WhatsAppChannel(BaseChannel):
         )
 
     async def send_message(self, message: OutboundMessage) -> bool:
+        wa_id = _reverse_lookup(message.recipient_ref)
+        if wa_id is None:
+            logger.error("No wa_id mapping for account_ref %s", message.recipient_ref)
+            return False
         url = f"{self.api_url}/message/sendText/collective"
         headers = {"apikey": self.api_key}
-        body = {"number": message.recipient_ref, "text": message.text}
+        body = {"number": wa_id, "text": message.text}
         try:
             async with httpx.AsyncClient(timeout=30.0) as client:
                 response = await client.post(url, headers=headers, json=body)

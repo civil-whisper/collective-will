@@ -14,7 +14,7 @@ When implementing in the new repo, use this precedence order:
 - Keep WhatsApp linkage as opaque account refs in core tables; raw `wa_id` stays only in sealed mapping.
 - Keep evidence logging append-only and hash-chain consistent with canonical full-entry hashing.
 - Compute daily local Merkle root in v0; external publication is config-driven.
-- Preserve channel-agnostic boundaries (`BaseChannel`) even though v0 is WhatsApp-only.
+- Preserve channel-agnostic boundaries (`BaseChannel`) while MVP build/testing runs on Telegram and WhatsApp integration is deferred to post-MVP rollout.
 
 ## Delivery Discipline
 

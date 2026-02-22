@@ -1,4 +1,4 @@
-# Task: Telegram Channel Adapter (Dev/Test Only)
+# Task: Telegram Channel Adapter (MVP Testing Primary)
 
 ## Depends on
 - `messaging/01-channel-base-types` (BaseChannel, UnifiedMessage, OutboundMessage)
@@ -6,15 +6,13 @@
 
 ## Goal
 
-Implement a `TelegramChannel(BaseChannel)` adapter to use during local development and
-end-to-end testing in place of WhatsApp. Telegram's official Bot API has no ban risk,
-requires no unofficial protocol, and can be set up in minutes — making it the right
-channel for smoke-testing the full message intake, voting, and command flow before
-connecting Evolution API.
+Implement a `TelegramChannel(BaseChannel)` adapter as the primary messaging transport
+for MVP build/testing and end-to-end validation. Telegram's official Bot API has no
+ban risk, requires no unofficial protocol, and can be set up in minutes — making it
+the right channel while the team waits for anonymous SIM provisioning for WhatsApp.
 
-**This is a dev/test adapter only.** It is not a v0 production channel. WhatsApp
-remains the sole user-facing channel. The adapter must be excluded from production
-config and clearly gated by `settings.env == "development"` or equivalent.
+**This is the primary MVP testing channel.** WhatsApp Evolution integration is deferred
+until post-MVP rollout once SIM operations are ready.
 
 ## Files to create
 
@@ -35,7 +33,7 @@ config and clearly gated by `settings.env == "development"` or equivalent.
 Add to `src/config.py`:
 
 ```python
-telegram_bot_token: str | None = None   # dev/test only; absent in production
+telegram_bot_token: str | None = None   # enabled in MVP testing environments
 ```
 
 ### TelegramChannel class
@@ -148,9 +146,8 @@ platform: Literal["whatsapp", "telegram"]
 
 Also update `OutboundMessage.platform` the same way.
 
-The `User.messaging_platform` field in the data model remains `"whatsapp"` for v0
-production users. Telegram-sourced users in dev/test have `messaging_platform =
-"telegram"` but these accounts never exist in production.
+`User.messaging_platform` may be `"telegram"` during MVP testing and `"whatsapp"` after
+post-MVP transport rollout.
 
 ## Constraints
 
@@ -162,8 +159,8 @@ production users. Telegram-sourced users in dev/test have `messaging_platform =
   or WhatsApp.
 - Do not add Telegram-specific logic outside `src/channels/telegram.py` and its
   webhook route.
-- This adapter is not shipped to production. Production config omits
-  `TELEGRAM_BOT_TOKEN`.
+- Keep Telegram token usage scoped to approved MVP testing environments and avoid
+  accidental exposure in production deployment configs.
 
 ## How to use for end-to-end testing
 

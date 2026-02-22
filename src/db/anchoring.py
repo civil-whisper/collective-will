@@ -70,7 +70,7 @@ async def compute_daily_merkle_root(session: AsyncSession, day: date) -> str | N
         await session.flush()
         await append_evidence(
             session=session,
-            event_type="cluster_updated",
+            event_type="anchor_computed",
             entity_type="daily_anchor",
             entity_id=entries[-1].entity_id,
             payload={"day": day.isoformat(), "merkle_root": root, "entry_count": len(entries)},

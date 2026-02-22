@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
+from unittest.mock import AsyncMock, patch
 from uuid import uuid4
 
 import pytest
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.db.queries import (
@@ -12,9 +14,10 @@ from src.db.queries import (
     create_user,
     create_voting_cycle,
 )
+from src.models.cluster import Cluster
 from src.models.submission import PolicyCandidateCreate, PolicyDomain, SubmissionCreate
 from src.models.user import UserCreate
-from src.models.vote import VotingCycleCreate
+from src.models.vote import VotingCycle, VotingCycleCreate
 from src.pipeline.canonicalize import canonicalize_batch
 from src.pipeline.embeddings import compute_and_store_embeddings, prepare_text_for_embedding
 from src.pipeline.llm import LLMResponse
@@ -105,3 +108,55 @@ async def test_create_voting_cycle_query(db_session: AsyncSession) -> None:
         ),
     )
     assert cycle.status == "active"
+
+
+@pytest.mark.asyncio
+async def test_run_pipeline_populates_cycle_cluster_ids(db_session: AsyncSession) -> None:
+    user = await create_user(
+        db_session, UserCreate(email=f"{uuid4()}@example.com", locale="fa", messaging_account_ref=str(uuid4()))
+    )
+    user.email_verified = True
+    user.messaging_verified = True
+    user.messaging_account_age = datetime.now(UTC) - timedelta(hours=72)
+
+    for idx in range(5):
+        await create_submission(
+            db_session,
+            SubmissionCreate(user_id=user.id, raw_text=f"text-{idx}", language="fa", hash=("c" * 63) + str(idx)),
+        )
+    await db_session.commit()
+
+    result = await run_pipeline(session=db_session, llm_router=FakeRouter())  # type: ignore[arg-type]
+    assert result.created_clusters >= 1
+
+    cycle = (
+        await db_session.execute(select(VotingCycle).order_by(VotingCycle.started_at.desc()))
+    ).scalars().first()
+    assert cycle is not None
+    clusters = (await db_session.execute(select(Cluster).where(Cluster.cycle_id == cycle.id))).scalars().all()
+    cluster_ids = {cluster.id for cluster in clusters}
+    assert cluster_ids
+    assert set(cycle.cluster_ids) == cluster_ids
+
+
+@pytest.mark.asyncio
+async def test_run_pipeline_uses_real_endorsement_count_path(db_session: AsyncSession) -> None:
+    user = await create_user(
+        db_session, UserCreate(email=f"{uuid4()}@example.com", locale="fa", messaging_account_ref=str(uuid4()))
+    )
+    user.email_verified = True
+    user.messaging_verified = True
+    user.messaging_account_age = datetime.now(UTC) - timedelta(hours=72)
+
+    for idx in range(5):
+        await create_submission(
+            db_session,
+            SubmissionCreate(user_id=user.id, raw_text=f"text-{idx}", language="fa", hash=("d" * 63) + str(idx)),
+        )
+    await db_session.commit()
+
+    with patch("src.scheduler.main.count_cluster_endorsements", new_callable=AsyncMock, return_value=5) as mock_count:
+        result = await run_pipeline(session=db_session, llm_router=FakeRouter())  # type: ignore[arg-type]
+        assert result.created_clusters >= 1
+        assert result.qualified_clusters >= 1
+        assert mock_count.await_count >= 1

@@ -3,12 +3,18 @@ from __future__ import annotations
 import pytest
 
 from src.channels.types import OutboundMessage
-from src.channels.whatsapp import _SEALED_WA_MAPPING, WhatsAppChannel, resolve_or_create_account_ref
+from src.channels.whatsapp import (
+    _REVERSE_WA_MAPPING,
+    _SEALED_WA_MAPPING,
+    WhatsAppChannel,
+    resolve_or_create_account_ref,
+)
 
 
 @pytest.fixture(autouse=True)
 def _clear_mapping() -> None:
     _SEALED_WA_MAPPING.clear()
+    _REVERSE_WA_MAPPING.clear()
 
 
 def test_parse_webhook_extracts_text_and_sender_ref() -> None:
@@ -66,6 +72,7 @@ def test_different_wa_ids_produce_different_refs() -> None:
 async def test_send_message_calls_correct_endpoint(monkeypatch: pytest.MonkeyPatch) -> None:
     channel = WhatsAppChannel(api_url="http://test:8080", api_key="key123")
     captured: dict[str, object] = {}
+    ref = resolve_or_create_account_ref("989123456789@s.whatsapp.net")
 
     class FakeResponse:
         def raise_for_status(self) -> None:
@@ -84,9 +91,14 @@ async def test_send_message_calls_correct_endpoint(monkeypatch: pytest.MonkeyPat
             return FakeResponse()
 
     monkeypatch.setattr("src.channels.whatsapp.httpx.AsyncClient", lambda **kw: FakeClient())
-    result = await channel.send_message(OutboundMessage(recipient_ref="ref-1", text="hi"))
+    result = await channel.send_message(OutboundMessage(recipient_ref=ref, text="hi"))
     assert result is True
     assert "test:8080/message/sendText/collective" in str(captured["url"])
+    kwargs = captured["kwargs"]
+    assert isinstance(kwargs, dict)
+    body = kwargs.get("json")
+    assert isinstance(body, dict)
+    assert body.get("number") == "989123456789@s.whatsapp.net"
 
 
 @pytest.mark.asyncio
@@ -94,6 +106,7 @@ async def test_send_message_returns_false_on_http_error(monkeypatch: pytest.Monk
     import httpx
 
     channel = WhatsAppChannel(api_url="http://test:8080", api_key="key123")
+    ref = resolve_or_create_account_ref("989123456789@s.whatsapp.net")
 
     class FakeResponse:
         status_code = 500
@@ -112,7 +125,7 @@ async def test_send_message_returns_false_on_http_error(monkeypatch: pytest.Monk
             return FakeResponse()
 
     monkeypatch.setattr("src.channels.whatsapp.httpx.AsyncClient", lambda **kw: FakeClient())
-    result = await channel.send_message(OutboundMessage(recipient_ref="ref-1", text="hi"))
+    result = await channel.send_message(OutboundMessage(recipient_ref=ref, text="hi"))
     assert result is False
 
 
@@ -120,6 +133,7 @@ async def test_send_message_returns_false_on_http_error(monkeypatch: pytest.Monk
 async def test_send_ballot_formats_correctly(monkeypatch: pytest.MonkeyPatch) -> None:
     channel = WhatsAppChannel(api_url="http://test:8080", api_key="key123")
     sent_texts: list[str] = []
+    ref = resolve_or_create_account_ref("989123456789@s.whatsapp.net")
 
     class FakeResponse:
         def raise_for_status(self) -> None:
@@ -140,11 +154,18 @@ async def test_send_ballot_formats_correctly(monkeypatch: pytest.MonkeyPatch) ->
 
     monkeypatch.setattr("src.channels.whatsapp.httpx.AsyncClient", lambda **kw: FakeClient())
     policies = [{"summary": "اقتصاد"}, {"summary": "آموزش"}]
-    result = await channel.send_ballot(recipient_ref="ref-1", policies=policies)
+    result = await channel.send_ballot(recipient_ref=ref, policies=policies)
     assert result is True
     assert len(sent_texts) == 1
     assert "1. اقتصاد" in sent_texts[0]
     assert "2. آموزش" in sent_texts[0]
+
+
+@pytest.mark.asyncio
+async def test_send_message_returns_false_without_reverse_mapping() -> None:
+    channel = WhatsAppChannel(api_url="http://test:8080", api_key="key123")
+    result = await channel.send_message(OutboundMessage(recipient_ref="unknown-ref", text="hi"))
+    assert result is False
 
 
 def test_parse_webhook_mapping_stability() -> None:

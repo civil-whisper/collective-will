@@ -59,7 +59,7 @@ def test_env_example_contains_all_expected_keys() -> None:
     settings_fields = {
         "DATABASE_URL", "APP_PUBLIC_BASE_URL", "ANTHROPIC_API_KEY", "OPENAI_API_KEY",
         "MISTRAL_API_KEY", "DEEPSEEK_API_KEY", "EVOLUTION_API_KEY", "EVOLUTION_API_URL",
-        "MIN_ACCOUNT_AGE_HOURS", "MIN_PREBALLOT_ENDORSEMENTS",
+        "MIN_ACCOUNT_AGE_HOURS", "MIN_CLUSTER_SIZE", "MIN_PREBALLOT_ENDORSEMENTS",
         "MAX_SIGNUPS_PER_DOMAIN_PER_DAY", "MAX_SIGNUPS_PER_IP_PER_DAY",
         "BURST_QUARANTINE_THRESHOLD_COUNT", "BURST_QUARANTINE_WINDOW_MINUTES",
         "MAJOR_EMAIL_PROVIDERS", "CANONICALIZATION_MODEL", "CANONICALIZATION_FALLBACK_MODEL",
@@ -99,6 +99,14 @@ def test_min_preballot_endorsements_default_and_override(monkeypatch: pytest.Mon
 
     overridden = _make_settings(monkeypatch, MIN_PREBALLOT_ENDORSEMENTS="2")
     assert overridden.min_preballot_endorsements == 2
+
+
+def test_min_cluster_size_default_and_override(monkeypatch: pytest.MonkeyPatch) -> None:
+    settings = _make_settings(monkeypatch)
+    assert settings.min_cluster_size == 5
+
+    overridden = _make_settings(monkeypatch, MIN_CLUSTER_SIZE="3")
+    assert overridden.min_cluster_size == 3
 
 
 # --- 10. max_signups_per_domain_per_day config ---

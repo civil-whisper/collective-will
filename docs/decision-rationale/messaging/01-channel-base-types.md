@@ -10,7 +10,8 @@
 
 This task implements the cross-cutting channel decision from shared context:
 
-- v0 remains **WhatsApp-only**
+- MVP build/testing is **Telegram-first**
+- WhatsApp integration is **deferred post-MVP**
 - but messaging architecture stays **multi-channel ready** via `BaseChannel`
 - and this boundary is enforced with tests using fake/mock channel implementations
 
@@ -20,9 +21,9 @@ This task implements the cross-cutting channel decision from shared context:
 
 **Why this is correct**
 
-- Limits WhatsApp lock-in to one adapter module (`src/channels/whatsapp.py`)
+- Limits transport lock-in to one adapter module at a time
 - Keeps handlers (`intake`, `voting`, `commands`) reusable across future channels
-- Makes v1 expansion to Telegram/Signal a low-risk incremental change
+- Keeps Telegram-first MVP testing and post-MVP WhatsApp rollout low-risk
 
 **Risk if not enforced**
 

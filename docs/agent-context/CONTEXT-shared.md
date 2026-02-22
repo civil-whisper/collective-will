@@ -6,7 +6,7 @@ Every agent receives this file. It is the ground truth for the project.
 
 ## What This Project Is
 
-Collective Will surfaces what Iranians collectively want. Users submit concerns via WhatsApp, AI agents organize and cluster them, and the community votes on priorities. Everything is transparent and auditable.
+Collective Will surfaces what Iranians collectively want. During MVP build/testing, users submit concerns via Telegram, AI agents organize and cluster them, and the community votes on priorities. WhatsApp transport is integrated after MVP once SIM operations are ready. Everything is transparent and auditable.
 
 **v0 goal**: Consensus visibility + approval voting. No action execution (deferred to v1).
 
@@ -21,7 +21,7 @@ These are locked. Do not deviate.
 | Decision | Rule |
 |----------|------|
 | **Scope** | Consensus visibility + approval voting only. No action drafting or execution. |
-| **Channel** | WhatsApp only (via Evolution API, self-hosted). No Telegram, no Signal in v0. Messaging architecture must stay channel-agnostic (`BaseChannel` boundary): keep provider-specific parsing in channel adapters and test with a mock/fake channel so adding a second channel in v1 is a one-module addition. |
+| **Channel** | Telegram-first for MVP build/testing (official Bot API) while preserving channel-agnostic boundaries (`BaseChannel`). WhatsApp (Evolution API, self-hosted) is deferred until post-MVP rollout once anonymous SIM operations are ready. Keep provider-specific parsing in channel adapters and test with mock/fake channels so transport swaps remain one-module changes. |
 | **Canonicalization model** | Claude Sonnet (Farsi → structured English) |
 | **LLM routing abstraction** | Model/provider resolution is centralized in `pipeline/llm.py` via config-backed task tiers. No direct model IDs in other modules. |
 | **Embeddings** | Quality-first in v0: OpenAI `text-embedding-3-large` (cloud). Later versions may switch to cost-effective embedding models via the LLM abstraction config without business-logic changes. |
@@ -75,6 +75,16 @@ PII safety rule: run automated pre-persist PII detection on incoming submissions
 
 ---
 
+## Active Implementation Plan
+
+Execution priorities for the current remediation cycle are tracked in:
+
+- `docs/agent-context/ACTIVE-action-plan.md`
+
+Agents implementing changes should follow that plan order unless the user explicitly re-prioritizes.
+
+---
+
 ## Data Models
 
 Implement as Pydantic `BaseModel` subclasses (Python) and SQLAlchemy ORM models for DB.
@@ -87,7 +97,7 @@ Model conversion rule: define explicit ORM<->schema conversion methods (for exam
 id: UUID
 email: str
 email_verified: bool
-messaging_platform: "whatsapp"
+messaging_platform: "telegram" | "whatsapp"
 messaging_account_ref: str          # Random opaque account ref (UUIDv4), never raw wa_id
 messaging_verified: bool
 messaging_account_age: datetime | None
@@ -311,14 +321,14 @@ collective-will/
 
 ## What's In Scope (v0)
 
-- WhatsApp submission intake (Evolution API)
+- Telegram submission intake (official Bot API) for MVP build/testing
 - Email magic-link verification
-- WhatsApp account linking (opaque account refs via sealed mapping)
+- Messaging account linking with opaque account refs (Telegram now; WhatsApp mapping path prepared)
 - Canonicalization (Claude Sonnet, cloud)
 - Embeddings (quality-first cloud model in v0; cost-optimized model switch later via config)
 - Clustering (HDBSCAN, local, batch every 6h)
 - Pre-ballot endorsement/signature stage for cluster qualification
-- Approval voting via WhatsApp
+- Approval voting via Telegram during MVP build/testing
 - Public analytics dashboard (no login wall)
 - User dashboard (submissions, votes, disputes)
 - Evidence store (hash-chain in Postgres)
@@ -329,7 +339,8 @@ collective-will/
 ## What's Out of Scope (v0)
 
 - Action execution / drafting
-- Telegram, Signal
+- Signal
+- WhatsApp rollout during MVP build/testing (deferred to post-MVP once anonymous SIMs arrive)
 - Phone verification, OAuth, vouching
 - Quadratic/conviction voting
 - Federation / decentralization

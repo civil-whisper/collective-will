@@ -66,6 +66,7 @@ class Settings(BaseSettings):
     evolution_api_key: str
     evolution_api_url: str = "http://localhost:8080"
     min_account_age_hours: int = 48
+    min_cluster_size: int = 5
     min_preballot_endorsements: int = 5
     max_signups_per_domain_per_day: int = 3
     max_signups_per_ip_per_day: int = 10
@@ -105,6 +106,7 @@ DEEPSEEK_API_KEY=
 EVOLUTION_API_KEY=
 EVOLUTION_API_URL=http://localhost:8080
 MIN_ACCOUNT_AGE_HOURS=48
+MIN_CLUSTER_SIZE=5
 MIN_PREBALLOT_ENDORSEMENTS=5
 MAX_SIGNUPS_PER_DOMAIN_PER_DAY=3
 MAX_SIGNUPS_PER_IP_PER_DAY=10
@@ -145,6 +147,8 @@ Write tests in `tests/test_config.py` covering:
 - `app_public_base_url` is validated as present and used for external links
 - `min_account_age_hours` defaults to `48` when unset
 - `MIN_ACCOUNT_AGE_HOURS` can be overridden in tests (e.g., set to `1`)
+- `min_cluster_size` defaults to `5` when unset
+- `MIN_CLUSTER_SIZE` can be overridden in tests
 - `min_preballot_endorsements` defaults to `5` when unset
 - `MIN_PREBALLOT_ENDORSEMENTS` can be overridden in tests
 - `max_signups_per_domain_per_day` applies to non-major domains only

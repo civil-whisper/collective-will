@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     telegram_bot_token: str | None = None
 
     min_account_age_hours: int = 48
+    min_cluster_size: int = 5
     min_preballot_endorsements: int = 5
     max_signups_per_domain_per_day: int = 3
     max_signups_per_ip_per_day: int = 10

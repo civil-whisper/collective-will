@@ -1,0 +1,19 @@
+---
+description: Promote stable discussion decisions into durable project context
+alwaysApply: true
+---
+
+# Context Governance Loop
+
+When a discussion creates a stable, reusable project decision (not a one-off task):
+
+- Promote it to durable sources in precedence order:
+  1. `docs/agent-context/CONTEXT-shared.md`
+  2. `docs/agent-context/**`
+  3. `docs/decision-rationale/**`
+  4. `docs/mvp-specification.md` (only if needed)
+- Keep `docs/agent-context/**` as implementation contracts and `docs/decision-rationale/**` as rationale/guardrails.
+- If the decision changes agent behavior across sessions, update `.cursor/rules/**` as well.
+- Keep `AGENTS.md` aligned when a shared constraint or hard requirement changes.
+- Update `docs/agent-context/ACTIVE-action-plan.md` when priorities/status change.
+- Avoid churn: do not edit rules/docs for temporary or speculative decisions; only persist confirmed direction.

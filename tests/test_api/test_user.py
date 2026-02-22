@@ -229,7 +229,10 @@ class TestOpenDispute:
         session.execute.side_effect = [user_result, sub_result]
         app.dependency_overrides[get_db] = lambda: session
         try:
-            with patch("src.api.routes.user.append_evidence", new_callable=AsyncMock) as mock_evidence:
+            with (
+                patch("src.api.routes.user.append_evidence", new_callable=AsyncMock) as mock_evidence,
+                patch("src.api.routes.user.resolve_submission_dispute", new_callable=AsyncMock) as mock_resolve,
+            ):
                 client = TestClient(app)
                 response = client.post(
                     f"/user/dashboard/disputes/{sub_id}",
@@ -239,10 +242,11 @@ class TestOpenDispute:
                 assert response.json()["status"] == "under_automated_review"
                 mock_evidence.assert_called_once()
                 call_kwargs = mock_evidence.call_args.kwargs
-                assert call_kwargs["event_type"] == "cluster_updated"
+                assert call_kwargs["event_type"] == "dispute_opened"
                 assert call_kwargs["entity_type"] == "dispute"
                 assert call_kwargs["entity_id"] == sub_id
                 assert call_kwargs["payload"]["state"] == "dispute_open"
+                mock_resolve.assert_called_once()
         finally:
             app.dependency_overrides.pop(get_db, None)
 
@@ -258,7 +262,10 @@ class TestOpenDispute:
         session.execute.side_effect = [user_result, sub_result]
         app.dependency_overrides[get_db] = lambda: session
         try:
-            with patch("src.api.routes.user.append_evidence", new_callable=AsyncMock):
+            with (
+                patch("src.api.routes.user.append_evidence", new_callable=AsyncMock),
+                patch("src.api.routes.user.resolve_submission_dispute", new_callable=AsyncMock),
+            ):
                 client = TestClient(app)
                 client.post(
                     f"/user/dashboard/disputes/{sub_id}",

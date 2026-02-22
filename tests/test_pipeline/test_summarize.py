@@ -72,6 +72,8 @@ async def test_summarize_generates_summary() -> None:
 
     session.begin_nested = _begin_nested
     session.execute = AsyncMock(return_value=MagicMock(scalar_one_or_none=MagicMock(return_value=None)))
+    # SQLAlchemy Session.add is synchronous; keep it non-async in mocks.
+    session.add = MagicMock()
 
     result = await summarize_clusters(
         session=session,

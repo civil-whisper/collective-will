@@ -26,31 +26,34 @@
 
 **Risk**: Users may feel "nothing happens" and disengage before v1.
 
-**Guardrail**: Plan a lightweight "what happens next" communication in the WhatsApp flow so users understand they're contributing to a growing picture, not shouting into a void. This is a UX copy concern, not a scope change.
+**Guardrail**: Plan a lightweight "what happens next" communication in the messaging flow so users understand they're contributing to a growing picture, not shouting into a void. This is a UX copy concern, not a scope change.
 
 **Verdict**: **Keep**
 
 ---
 
-### D2 — Channel: WhatsApp only (Evolution API, self-hosted)
+### D2 — Channel sequencing: Telegram-first for MVP testing, WhatsApp deferred post-MVP
 
-**Context rule**: No Telegram, no Signal in v0. Messaging architecture must remain channel-agnostic via `BaseChannel`.
+**Context rule**: MVP build/testing uses Telegram first. WhatsApp (Evolution API) is integrated after MVP once anonymous SIM operations are ready. Messaging architecture must remain channel-agnostic via `BaseChannel`.
 
-**Rationale**: WhatsApp is overwhelmingly dominant in Iran (inside and diaspora). Evolution API is a self-hosted, unofficial WhatsApp gateway that avoids Meta's Business API approval process — important for a politically sensitive project. One channel first simplifies the messaging abstraction, webhook handling, and testing surface.
+**Rationale**: Telegram Bot API is official, easy to provision, and avoids SIM procurement delays while the team is waiting on anonymous Netherlands SIMs for WhatsApp Evolution operations. This keeps feature delivery moving without locking business logic to Telegram because transport-specific parsing stays in adapters.
 
-**Risk**: Evolution API is unofficial. Meta can break it with protocol changes at any time, taking the project offline. Some security-conscious users inside Iran prefer Signal; excluding them excludes the most at-risk demographic.
+**Risk**: Telegram is not the intended long-term transport for a politically sensitive rollout, and developers may accidentally blur "MVP testing channel" with "production channel policy."
 
-**Guardrail**: Treat `BaseChannel` boundary as mandatory: keep provider-specific parsing in channel adapters, keep handlers/router on normalized models only, and enforce this with fake/mock-channel tests so adding Signal/Telegram in v1 is a one-module addition.
+**Guardrails**:
+1. Keep `BaseChannel` boundary mandatory: handlers/router consume normalized models only.
+2. Keep Telegram credentials in non-production/test environments unless explicitly approved.
+3. Preserve WhatsApp adapter contracts and opaque-ID mapping requirements so post-MVP integration remains low-risk.
 
 **Verdict**: **Keep with guardrail**
 
 ---
 
-### D3 — Identity: Email magic-link + WhatsApp account linking
+### D3 — Identity: Email magic-link + messaging-account linking
 
 **Context rule**: No phone verification, no OAuth, no vouching.
 
-**Rationale**: Magic links are the simplest identity scheme that produces a verifiable, unique account. Avoids phone-number collection (privacy risk for Iranians), OAuth dependency on Google/Apple (censorship/sanctions risk), and vouching (requires an existing trust graph that doesn't exist at launch). Linking email to WhatsApp gives one-person-one-voice without storing the phone number.
+**Rationale**: Magic links are the simplest identity scheme that produces a verifiable, unique account. Avoids phone-number collection (privacy risk for Iranians), OAuth dependency on Google/Apple (censorship/sanctions risk), and vouching (requires an existing trust graph that doesn't exist at launch). Linking email to a messaging account preserves one-person-one-voice while keeping raw platform IDs outside core tables.
 
 **Risk**: Email addresses are cheap to create. A motivated adversary can generate many addresses across many providers and bypass the per-domain limit. No Sybil-resistant identity check.
 
@@ -187,7 +190,7 @@
 
 ### D11 — User-facing messages: quality-first model in v0 with mandatory fallback
 
-**Context rule**: WhatsApp confirmations, vote prompts, notifications in natural Farsi.
+**Context rule**: Messaging confirmations, vote prompts, and notifications in natural Farsi (Telegram in MVP testing, WhatsApp after rollout).
 
 **Rationale**: Same policy as D8/D10: prioritize effectiveness in v0. Use the strongest messaging-capable Farsi model by default (Sonnet via `farsi_messages` tier) to maximize clarity and reduce misunderstood prompts in a sensitive user context.
 

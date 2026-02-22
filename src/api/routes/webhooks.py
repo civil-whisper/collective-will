@@ -48,7 +48,7 @@ async def telegram_webhook(
     session: AsyncSession = Depends(get_db),
 ) -> dict[str, str]:
     settings = get_settings()
-    if settings.telegram_bot_token is None:
+    if not settings.telegram_bot_token:
         raise HTTPException(status_code=404)
 
     try:

@@ -193,6 +193,35 @@ class LLMRouter:
                 logger.warning("Model %s failed for tier=%s: %s", model, tier, exc)
         raise RuntimeError(f"All completion models failed for tier={tier}: {errors}")
 
+    async def complete_with_model(
+        self,
+        *,
+        model: str,
+        prompt: str,
+        system_prompt: str | None = None,
+        max_tokens: int = 1024,
+        temperature: float = 0.0,
+        timeout_s: float = 60.0,
+    ) -> LLMResponse:
+        payload = await self._call_with_retries(
+            model=model,
+            prompt=prompt,
+            system_prompt=system_prompt,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            timeout_s=timeout_s,
+        )
+        usage = payload.get("usage", {})
+        cost = self._estimate_completion_cost(model=model, usage=usage)
+        self.total_cost_usd += cost
+        return LLMResponse(
+            text=payload["text"],
+            model=model,
+            input_tokens=int(usage.get("input_tokens", 0)),
+            output_tokens=int(usage.get("output_tokens", 0)),
+            cost_usd=cost,
+        )
+
     async def _call_embedding_api(
         self, *, model: str, texts: list[str], dimensions: int = 1024, timeout_s: float = 60.0
     ) -> list[list[float]]:
