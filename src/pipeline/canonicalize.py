@@ -11,7 +11,6 @@ from src.models.submission import PolicyCandidateCreate, PolicyDomain
 from src.pipeline.llm import LLMRouter
 from src.pipeline.privacy import prepare_batch_for_llm, re_link_results, validate_no_metadata
 
-
 _DOMAINS = "governance, economy, rights, foreign_policy, religion, ethnic, justice, other"
 _STANCES = "support, oppose, neutral, unclear"
 
@@ -100,7 +99,12 @@ async def canonicalize_batch(
             stance = "unclear"
 
         entities_raw = output.get("entities", [])
-        entities = [str(e) if isinstance(e, str) else str(e.get("text", e)) if isinstance(e, dict) else str(e) for e in entities_raw]
+        entities = [
+            str(e) if isinstance(e, str)
+            else str(e.get("text", e)) if isinstance(e, dict)
+            else str(e)
+            for e in entities_raw
+        ]
 
         candidate = PolicyCandidateCreate(
             submission_id=submissions[idx]["id"],

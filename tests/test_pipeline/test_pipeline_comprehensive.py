@@ -186,7 +186,8 @@ class CachingLLMRouter(LLMRouter):
 # ---------------------------------------------------------------------------
 
 async def _clean_all(session: AsyncSession) -> None:
-    for model in (DailyAnchor, EvidenceLogEntry, PolicyEndorsement, Cluster, VotingCycle, PolicyCandidate, Submission, User):
+    models = (DailyAnchor, EvidenceLogEntry, PolicyEndorsement, Cluster, VotingCycle, PolicyCandidate, Submission, User)
+    for model in models:
         await session.execute(delete(model))
     await session.commit()
 
@@ -213,7 +214,6 @@ async def _create_eligible_user(session: AsyncSession) -> User:
 
 def _sample_inputs(inputs: list[dict[str, str]], percent: int) -> list[dict[str, str]]:
     """Proportionally sample inputs, keeping cluster distribution balanced."""
-    from collections import defaultdict
     import random
 
     random.seed(42)
@@ -222,7 +222,7 @@ def _sample_inputs(inputs: list[dict[str, str]], percent: int) -> list[dict[str,
         by_cluster[item["expected_cluster"]].append(item)
 
     sampled: list[dict[str, str]] = []
-    for cluster_id, items in by_cluster.items():
+    for _cluster_id, items in by_cluster.items():
         n = max(1, len(items) * percent // 100)
         sampled.extend(random.sample(items, min(n, len(items))))
     return sampled
