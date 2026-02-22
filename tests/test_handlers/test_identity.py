@@ -66,6 +66,42 @@ async def test_subscribe_creates_user(
     mock_create.assert_called_once()
     mock_store.assert_called_once()
     mock_send_email.assert_called_once()
+    sent_url = mock_send_email.call_args.kwargs["magic_link_url"]
+    assert "/fa/verify?token=" in sent_url
+
+
+@pytest.mark.asyncio
+@patch("src.handlers.identity.send_magic_link_email", new_callable=AsyncMock, return_value=True)
+@patch("src.handlers.identity.store_token", new_callable=AsyncMock)
+@patch("src.handlers.identity.check_signup_limits", new_callable=AsyncMock, return_value=(True, None))
+@patch("src.handlers.identity.get_user_by_email", new_callable=AsyncMock, return_value=None)
+@patch("src.handlers.identity.create_user", new_callable=AsyncMock)
+@patch("src.handlers.identity.get_settings")
+async def test_subscribe_magic_link_includes_locale(
+    mock_settings: MagicMock,
+    mock_create: AsyncMock,
+    mock_get: AsyncMock,
+    mock_limits: AsyncMock,
+    mock_store: AsyncMock,
+    mock_send_email: AsyncMock,
+) -> None:
+    mock_settings.return_value.app_public_base_url = "https://test.example.com"
+    mock_settings.return_value.resend_api_key = None
+    mock_settings.return_value.email_from = "test@resend.dev"
+    mock_create.return_value = MagicMock(id=uuid4())
+    session = AsyncMock()
+
+    await subscribe_email(
+        session=session, email="test@example.com", locale="en", requester_ip="1.2.3.4",
+    )
+    sent_url = mock_send_email.call_args.kwargs["magic_link_url"]
+    assert sent_url.startswith("https://test.example.com/en/verify?token=")
+
+    await subscribe_email(
+        session=session, email="test2@example.com", locale="fa", requester_ip="1.2.3.4",
+    )
+    sent_url = mock_send_email.call_args.kwargs["magic_link_url"]
+    assert sent_url.startswith("https://test.example.com/fa/verify?token=")
 
 
 @pytest.mark.asyncio
