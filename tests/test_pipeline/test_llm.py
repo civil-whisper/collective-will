@@ -56,7 +56,7 @@ async def test_complete_farsi_messages_routes_primary() -> None:
 
     router._call_with_retries = _fake  # type: ignore[method-assign]
     await router.complete(tier="farsi_messages", prompt="x")
-    assert calls[0] == "claude-sonnet-latest"
+    assert calls[0] == "claude-sonnet-4-20250514"
 
 
 # --- 3. farsi_messages falls back on primary failure ---
@@ -74,7 +74,7 @@ async def test_complete_farsi_messages_fallback() -> None:
     router._call_with_retries = _fake  # type: ignore[method-assign]
     result = await router.complete(tier="farsi_messages", prompt="x")
     assert len(calls) == 2
-    assert result.model == "claude-haiku-latest"
+    assert result.model == "claude-sonnet-4-20250514"
 
 
 # --- 4. english_reasoning routes primary ---
@@ -89,7 +89,7 @@ async def test_complete_english_reasoning_primary() -> None:
 
     router._call_with_retries = _fake  # type: ignore[method-assign]
     await router.complete(tier="english_reasoning", prompt="x")
-    assert calls[0] == "claude-sonnet-latest"
+    assert calls[0] == "claude-sonnet-4-20250514"
 
 
 # --- 5. english_reasoning falls back ---
@@ -121,7 +121,7 @@ async def test_complete_dispute_resolution_primary() -> None:
 
     router._call_with_retries = _fake  # type: ignore[method-assign]
     await router.complete(tier="dispute_resolution", prompt="x")
-    assert calls[0] == "claude-opus-latest"
+    assert calls[0] == "claude-opus-4-20250514"
 
 
 # --- 7. dispute_resolution falls back ---
@@ -138,7 +138,7 @@ async def test_complete_dispute_resolution_fallback() -> None:
 
     router._call_with_retries = _fake  # type: ignore[method-assign]
     result = await router.complete(tier="dispute_resolution", prompt="x")
-    assert result.model == "claude-sonnet-latest"
+    assert result.model == "claude-sonnet-4-20250514"
 
 
 # --- 8/9/10. Dispute resolution threshold and ensemble ---
@@ -229,7 +229,7 @@ async def test_llm_response_fields() -> None:
     router._call_with_retries = _fake  # type: ignore[method-assign]
     result = await router.complete(tier="canonicalization", prompt="x")
     assert result.text == "hello"
-    assert result.model == "claude-sonnet-latest"
+    assert result.model == "claude-sonnet-4-20250514"
     assert result.input_tokens == 100
     assert result.output_tokens == 50
     assert result.cost_usd >= 0
@@ -277,10 +277,10 @@ async def test_auth_error_not_retried() -> None:
 def test_cost_estimate_non_negative() -> None:
     router = LLMRouter(settings=_settings())
     usage = {"input_tokens": 100, "output_tokens": 50}
-    cost = router._estimate_completion_cost(model="claude-sonnet-latest", usage=usage)
+    cost = router._estimate_completion_cost(model="claude-sonnet-4-20250514", usage=usage)
     assert cost >= 0
     assert cost > 0
 
-    haiku_cost = router._estimate_completion_cost(model="claude-haiku-latest", usage=usage)
-    assert haiku_cost >= 0
-    assert haiku_cost < cost  # haiku cheaper than sonnet
+    opus_cost = router._estimate_completion_cost(model="claude-opus-4-20250514", usage=usage)
+    assert opus_cost >= 0
+    assert opus_cost > cost  # opus more expensive than sonnet

@@ -28,7 +28,7 @@ class Cluster(Base):
     )
     summary: Mapped[str] = mapped_column(String, nullable=False)
     summary_en: Mapped[str | None] = mapped_column(String, nullable=True)
-    domain: Mapped[PolicyDomain] = mapped_column(nullable=False)
+    domain: Mapped[PolicyDomain] = mapped_column(String(32), nullable=False)
     candidate_ids: Mapped[list[UUID]] = mapped_column(ARRAY(PGUUID(as_uuid=True)), nullable=False)
     member_count: Mapped[int] = mapped_column(Integer, nullable=False)
     centroid_embedding: Mapped[list[float] | None] = mapped_column(Vector(1024), nullable=True)

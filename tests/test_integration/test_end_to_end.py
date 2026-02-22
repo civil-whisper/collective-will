@@ -26,7 +26,7 @@ class IntegrationRouter:
             (),
             {
                 "text": payload,
-                "model": "claude-sonnet-latest",
+                "model": "claude-sonnet-4-20250514",
                 "input_tokens": 10,
                 "output_tokens": 5,
                 "cost_usd": 0.0,

@@ -194,23 +194,29 @@ class LLMRouter:
         raise RuntimeError(f"All completion models failed for tier={tier}: {errors}")
 
     async def _call_embedding_api(
-        self, *, model: str, texts: list[str], timeout_s: float = 60.0
+        self, *, model: str, texts: list[str], dimensions: int = 1024, timeout_s: float = 60.0
     ) -> list[list[float]]:
         provider = self._provider_for_model(model)
         async with httpx.AsyncClient(timeout=timeout_s) as client:
             if provider == "mistral":
+                key = self.settings.mistral_api_key
+                if not key:
+                    raise RuntimeError("Mistral API key not configured")
                 response = await client.post(
                     "https://api.mistral.ai/v1/embeddings",
                     json={"model": model, "input": texts},
-                    headers={"Authorization": f"Bearer {self.settings.mistral_api_key or ''}"},
+                    headers={"Authorization": f"Bearer {key}"},
                 )
                 response.raise_for_status()
                 data = response.json().get("data", [])
                 return [item["embedding"] for item in data]
 
+            body: dict[str, Any] = {"model": model, "input": texts}
+            if "text-embedding-3" in model:
+                body["dimensions"] = dimensions
             response = await client.post(
                 "https://api.openai.com/v1/embeddings",
-                json={"model": model, "input": texts},
+                json=body,
                 headers={"Authorization": f"Bearer {self.settings.openai_api_key}"},
             )
             response.raise_for_status()
@@ -225,7 +231,9 @@ class LLMRouter:
                 all_vectors: list[list[float]] = []
                 for i in range(0, len(texts), EMBED_BATCH_SIZE):
                     batch = texts[i : i + EMBED_BATCH_SIZE]
-                    vectors = await self._call_embedding_api(model=model, texts=batch, timeout_s=timeout_s)
+                    vectors = await self._call_embedding_with_retries(
+                        model=model, texts=batch, timeout_s=timeout_s
+                    )
                     all_vectors.extend(vectors)
                 return EmbeddingResult(
                     vectors=all_vectors,
@@ -234,7 +242,28 @@ class LLMRouter:
                 )
             except Exception as exc:
                 errors.append(exc)
+                logger.warning("Embedding model %s failed: %s", model, exc)
         raise RuntimeError(f"All embedding models failed: {errors}")
+
+    async def _call_embedding_with_retries(
+        self, *, model: str, texts: list[str], timeout_s: float = 60.0
+    ) -> list[list[float]]:
+        last_exc: Exception | None = None
+        for attempt in range(MAX_RETRIES):
+            try:
+                return await self._call_embedding_api(model=model, texts=texts, timeout_s=timeout_s)
+            except httpx.HTTPStatusError as exc:
+                if exc.response.status_code in NON_RETRIABLE_STATUS_CODES:
+                    raise
+                if exc.response.status_code in TRANSIENT_STATUS_CODES:
+                    last_exc = exc
+                    await asyncio.sleep(0.5 * (2**attempt))
+                    continue
+                raise
+            except (httpx.TimeoutException, httpx.ConnectError, RuntimeError) as exc:
+                last_exc = exc
+                break
+        raise last_exc or RuntimeError(f"Embedding retries exhausted for model={model}")
 
     def _estimate_completion_cost(self, *, model: str, usage: dict[str, Any]) -> float:
         in_tok = float(usage.get("input_tokens", 0))

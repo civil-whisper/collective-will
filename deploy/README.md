@@ -1,0 +1,175 @@
+# VPS Deployment Setup
+
+Remaining setup steps for GitHub Actions CI/CD. Docker and the `deploy` user
+are already configured on the VPS with SSH key access.
+
+## Prerequisites
+
+- A domain pointing to the VPS IP (A record for `yourdomain.com` and `staging.yourdomain.com`)
+
+## 1. Export your existing SSH key as a GitHub Secret
+
+You already have SSH key access to the VPS. Add the **private key** that
+authenticates as the `deploy` user as a GitHub secret named `VPS_SSH_KEY`:
+
+```bash
+cat ~/.ssh/<your-deploy-key>
+# Copy this output into GitHub → Settings → Secrets → Actions → VPS_SSH_KEY
+```
+
+## 2. Add all GitHub Secrets
+
+Go to **GitHub repo → Settings → Secrets and variables → Actions** and add:
+
+| Secret       | Value                                        |
+| ------------ | -------------------------------------------- |
+| `VPS_HOST`   | Your VPS IP address or hostname              |
+| `VPS_USER`   | `deploy`                                     |
+| `VPS_SSH_KEY` | Contents of the private key from step 1     |
+
+`GITHUB_TOKEN` is provided automatically and gives GHCR push/pull access within the same repo.
+
+Optionally add a **repository variable** (not secret):
+
+| Variable         | Value                              |
+| ---------------- | ---------------------------------- |
+| `API_BASE_URL`   | e.g. `https://yourdomain.com/api`  |
+
+## 3. Authenticate Docker on the VPS to pull from GHCR
+
+SSH into the VPS as the deploy user and log in to GHCR. You need a GitHub
+Personal Access Token (classic) with `read:packages` scope:
+
+```bash
+ssh deploy@YOUR_VPS_IP
+echo "YOUR_GITHUB_PAT" | docker login ghcr.io -u YOUR_GITHUB_USERNAME --password-stdin
+```
+
+The credentials are stored in `~/.docker/config.json` and persist across reboots.
+
+## 4. Create environment directories and secrets
+
+```bash
+sudo mkdir -p /opt/collective-will/{production,staging,repo-deploy}
+sudo chown -R deploy:deploy /opt/collective-will
+```
+
+Create `.env` files for each environment with the required secrets:
+
+```bash
+# Production
+cat > /opt/collective-will/production/.env << 'EOF'
+DB_PASSWORD=<strong-password-here>
+EVOLUTION_API_KEY=<your-evolution-key>
+IMAGE_TAG=latest
+BACKEND_PORT=8000
+WEB_PORT=3000
+EVOLUTION_PORT=8080
+# Add other app-specific env vars (LLM keys, etc.)
+EOF
+
+# Staging
+cat > /opt/collective-will/staging/.env << 'EOF'
+DB_PASSWORD=<strong-password-here>
+EVOLUTION_API_KEY=<your-evolution-key>
+IMAGE_TAG=staging
+BACKEND_PORT=8100
+WEB_PORT=3100
+EVOLUTION_PORT=8180
+# Add other app-specific env vars
+EOF
+```
+
+Secure the files:
+
+```bash
+chmod 600 /opt/collective-will/production/.env /opt/collective-will/staging/.env
+```
+
+## 5. Install and configure Caddy
+
+```bash
+sudo apt install -y debian-keyring debian-archive-keyring apt-transport-https
+curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | sudo gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
+curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' | sudo tee /etc/apt/sources.list.d/caddy-stable.list
+sudo apt update && sudo apt install -y caddy
+```
+
+Copy the Caddyfile and set your domain:
+
+```bash
+sudo cp /opt/collective-will/repo-deploy/Caddyfile /etc/caddy/Caddyfile
+```
+
+Edit `/etc/caddy/Caddyfile` and set the `DOMAIN` environment variable in the
+Caddy systemd unit, or replace `{$DOMAIN}` with your actual domain:
+
+```bash
+sudo systemctl edit caddy
+```
+
+Add:
+
+```ini
+[Service]
+Environment="DOMAIN=yourdomain.com"
+```
+
+Then reload:
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl restart caddy
+```
+
+Caddy will automatically obtain TLS certificates from Let's Encrypt.
+
+## 6. First deploy
+
+After all the above, push to the `staging` branch to trigger the first deploy:
+
+```bash
+git push origin staging
+```
+
+Monitor the GitHub Actions run. Once it completes, verify:
+
+```bash
+curl -s https://staging.yourdomain.com/api/health
+```
+
+Then merge to `main` for production.
+
+## Directory Layout (after first deploy)
+
+```
+/opt/collective-will/
+├── repo-deploy/           # Deploy files copied by GitHub Actions
+│   ├── docker-compose.prod.yml
+│   ├── deploy.sh
+│   └── Caddyfile
+├── production/
+│   ├── docker-compose.yml # Copied from repo-deploy by deploy.sh
+│   └── .env               # Production secrets (manual)
+└── staging/
+    ├── docker-compose.yml # Copied from repo-deploy by deploy.sh
+    └── .env               # Staging secrets (manual)
+```
+
+## Troubleshooting
+
+```bash
+# Check running containers
+cd /opt/collective-will/production && docker compose ps
+
+# View logs
+docker compose logs -f backend
+docker compose logs -f web
+
+# Check Caddy status
+sudo systemctl status caddy
+sudo journalctl -u caddy -f
+
+# Manually pull and restart
+docker compose pull && docker compose up -d
+```

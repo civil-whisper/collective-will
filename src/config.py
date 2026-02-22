@@ -25,16 +25,16 @@ class Settings(BaseSettings):
     burst_quarantine_window_minutes: int = 5
     major_email_providers: str = "gmail.com,outlook.com,yahoo.com,protonmail.com"
 
-    canonicalization_model: str = "claude-sonnet-latest"
-    canonicalization_fallback_model: str = "claude-haiku-latest"
-    farsi_messages_model: str = "claude-sonnet-latest"
-    farsi_messages_fallback_model: str = "claude-haiku-latest"
-    english_reasoning_model: str = "claude-sonnet-latest"
+    canonicalization_model: str = "claude-sonnet-4-20250514"
+    canonicalization_fallback_model: str = "claude-sonnet-4-20250514"
+    farsi_messages_model: str = "claude-sonnet-4-20250514"
+    farsi_messages_fallback_model: str = "claude-sonnet-4-20250514"
+    english_reasoning_model: str = "claude-sonnet-4-20250514"
     english_reasoning_fallback_model: str = "deepseek-chat"
-    dispute_resolution_model: str = "claude-opus-latest"
-    dispute_resolution_fallback_model: str = "claude-sonnet-latest"
+    dispute_resolution_model: str = "claude-opus-4-20250514"
+    dispute_resolution_fallback_model: str = "claude-sonnet-4-20250514"
     dispute_resolution_ensemble_models: str = (
-        "claude-opus-latest,claude-sonnet-latest,deepseek-chat"
+        "claude-opus-4-20250514,claude-sonnet-4-20250514,deepseek-chat"
     )
     dispute_resolution_confidence_threshold: float = 0.75
 

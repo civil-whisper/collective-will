@@ -12,10 +12,18 @@ from src.pipeline.llm import LLMRouter
 from src.pipeline.privacy import prepare_batch_for_llm, re_link_results, validate_no_metadata
 
 
+_DOMAINS = "governance, economy, rights, foreign_policy, religion, ethnic, justice, other"
+_STANCES = "support, oppose, neutral, unclear"
+
+
 def _prompt_for_item(item: dict[str, Any]) -> str:
     return (
-        "Convert this Farsi civic submission into canonical structured JSON with fields:\n"
-        "title, domain, summary, stance, entities, confidence, ambiguity_flags.\n"
+        "Convert this Farsi civic submission into canonical structured JSON.\n"
+        "Required fields:\n"
+        f"  title (str), domain (one of: {_DOMAINS}),\n"
+        f"  summary (str), stance (one of: {_STANCES}),\n"
+        "  entities (list of strings), confidence (float 0-1), ambiguity_flags (list of strings).\n"
+        "Return ONLY the raw JSON object, no markdown wrapping.\n"
         f"Input: {json.dumps(item, ensure_ascii=False)}"
     )
 
@@ -25,7 +33,30 @@ def _prompt_version(prompt: str) -> str:
 
 
 def _parse_candidate_payload(payload: str) -> dict[str, Any]:
-    data = json.loads(payload)
+    text = payload.strip()
+    if text.startswith("```"):
+        nl = text.find("\n")
+        if nl != -1:
+            text = text[nl + 1 :]
+        if text.endswith("```"):
+            text = text[:-3].rstrip()
+    # Some models wrap JSON in prose; extract the first { ... } block
+    if text and text[0] not in ("{", "["):
+        start = text.find("{")
+        if start != -1:
+            text = text[start:]
+            depth, end = 0, 0
+            for i, ch in enumerate(text):
+                if ch == "{":
+                    depth += 1
+                elif ch == "}":
+                    depth -= 1
+                    if depth == 0:
+                        end = i + 1
+                        break
+            if end:
+                text = text[:end]
+    data = json.loads(text)
     if isinstance(data, list):
         return cast(dict[str, Any], data[0])
     return cast(dict[str, Any], data)
@@ -62,13 +93,22 @@ async def canonicalize_batch(
         if domain_value not in {member.value for member in PolicyDomain}:
             domain_value = "other"
 
+        stance_raw = str(output.get("stance", "unclear")).lower().strip()
+        stance_map = {"supportive": "support", "opposing": "oppose", "opposed": "oppose"}
+        stance = stance_map.get(stance_raw, stance_raw)
+        if stance not in {"support", "oppose", "neutral", "unclear"}:
+            stance = "unclear"
+
+        entities_raw = output.get("entities", [])
+        entities = [str(e) if isinstance(e, str) else str(e.get("text", e)) if isinstance(e, dict) else str(e) for e in entities_raw]
+
         candidate = PolicyCandidateCreate(
             submission_id=submissions[idx]["id"],
             title=str(output.get("title", "Untitled policy candidate")),
             domain=PolicyDomain(domain_value),
             summary=str(output.get("summary", "")),
-            stance=str(output.get("stance", "unclear")),
-            entities=[str(v) for v in output.get("entities", [])],
+            stance=stance,
+            entities=entities,
             confidence=confidence,
             ambiguity_flags=flags,
             model_version=str(output["model_version"]),

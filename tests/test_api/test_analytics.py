@@ -1,0 +1,261 @@
+from __future__ import annotations
+
+import hashlib
+import json
+from datetime import UTC, datetime
+from typing import Any
+from unittest.mock import AsyncMock, MagicMock
+from uuid import uuid4
+
+from fastapi.testclient import TestClient
+
+from src.api.main import app
+from src.db.connection import get_db
+from src.db.evidence import EvidenceLogEntry
+from src.models.cluster import Cluster
+from src.models.submission import PolicyDomain
+from src.models.vote import VotingCycle
+
+
+def _mock_session(scalars: list[Any] | None = None) -> AsyncMock:
+    session = AsyncMock()
+    result = MagicMock()
+    result.scalars.return_value = MagicMock(all=MagicMock(return_value=scalars or []))
+    session.execute.return_value = result
+    return session
+
+
+def _make_cluster(**overrides: Any) -> MagicMock:
+    cluster = MagicMock(spec=Cluster)
+    cluster.id = overrides.get("id", uuid4())
+    cluster.summary = overrides.get("summary", "Test cluster")
+    cluster.domain = overrides.get("domain", PolicyDomain.ECONOMY)
+    cluster.member_count = overrides.get("member_count", 5)
+    cluster.variance_flag = overrides.get("variance_flag", False)
+    cluster.created_at = overrides.get("created_at", datetime.now(UTC))
+    return cluster
+
+
+def _make_evidence_entry(**overrides: Any) -> MagicMock:
+    entry = MagicMock(spec=EvidenceLogEntry)
+    entry.id = overrides.get("id", 1)
+    entry.timestamp = overrides.get("timestamp", datetime(2026, 2, 20, 10, 0, 0, tzinfo=UTC))
+    entry.event_type = overrides.get("event_type", "submission_received")
+    entry.entity_type = overrides.get("entity_type", "submission")
+    entry.entity_id = overrides.get("entity_id", uuid4())
+    entry.payload = overrides.get("payload", {"text": "hello"})
+    entry.hash = overrides.get("hash", "aaa111")
+    entry.prev_hash = overrides.get("prev_hash", "genesis")
+    return entry
+
+
+class TestClusters:
+    def test_returns_empty_list(self) -> None:
+        session = _mock_session([])
+        app.dependency_overrides[get_db] = lambda: session
+        try:
+            client = TestClient(app)
+            response = client.get("/analytics/clusters")
+            assert response.status_code == 200
+            assert response.json() == []
+        finally:
+            app.dependency_overrides.pop(get_db, None)
+
+    def test_returns_cluster_list(self) -> None:
+        cid = uuid4()
+        clusters = [
+            _make_cluster(
+                id=cid, summary="Reform A", domain=PolicyDomain.GOVERNANCE,
+                member_count=10, variance_flag=True,
+            )
+        ]
+        session = _mock_session(clusters)
+        app.dependency_overrides[get_db] = lambda: session
+        try:
+            client = TestClient(app)
+            response = client.get("/analytics/clusters")
+            assert response.status_code == 200
+            data = response.json()
+            assert len(data) == 1
+            assert data[0]["id"] == str(cid)
+            assert data[0]["summary"] == "Reform A"
+            assert data[0]["domain"] == "governance"
+            assert data[0]["member_count"] == 10
+            assert data[0]["variance_flag"] is True
+        finally:
+            app.dependency_overrides.pop(get_db, None)
+
+    def test_returns_multiple_clusters(self) -> None:
+        clusters = [_make_cluster(summary="A"), _make_cluster(summary="B")]
+        session = _mock_session(clusters)
+        app.dependency_overrides[get_db] = lambda: session
+        try:
+            client = TestClient(app)
+            response = client.get("/analytics/clusters")
+            assert response.status_code == 200
+            assert len(response.json()) == 2
+        finally:
+            app.dependency_overrides.pop(get_db, None)
+
+
+class TestTopPolicies:
+    def test_returns_empty_when_no_tallied_cycles(self) -> None:
+        session = _mock_session([])
+        app.dependency_overrides[get_db] = lambda: session
+        try:
+            client = TestClient(app)
+            response = client.get("/analytics/top-policies")
+            assert response.status_code == 200
+            assert response.json() == []
+        finally:
+            app.dependency_overrides.pop(get_db, None)
+
+    def test_returns_sorted_policies(self) -> None:
+        cycle = MagicMock(spec=VotingCycle)
+        cycle.status = "tallied"
+        cycle.results = [
+            {"cluster_id": str(uuid4()), "approval_count": 5, "approval_rate": 0.5},
+            {"cluster_id": str(uuid4()), "approval_count": 20, "approval_rate": 0.9},
+        ]
+        session = _mock_session([cycle])
+        app.dependency_overrides[get_db] = lambda: session
+        try:
+            client = TestClient(app)
+            response = client.get("/analytics/top-policies")
+            assert response.status_code == 200
+            data = response.json()
+            assert len(data) == 2
+            assert data[0]["approval_rate"] == 0.9
+            assert data[1]["approval_rate"] == 0.5
+        finally:
+            app.dependency_overrides.pop(get_db, None)
+
+    def test_skips_cycles_without_results(self) -> None:
+        cycle = MagicMock(spec=VotingCycle)
+        cycle.status = "tallied"
+        cycle.results = None
+        session = _mock_session([cycle])
+        app.dependency_overrides[get_db] = lambda: session
+        try:
+            client = TestClient(app)
+            response = client.get("/analytics/top-policies")
+            assert response.status_code == 200
+            assert response.json() == []
+        finally:
+            app.dependency_overrides.pop(get_db, None)
+
+    def test_aggregates_across_multiple_cycles(self) -> None:
+        cycle1 = MagicMock(spec=VotingCycle)
+        cycle1.status = "tallied"
+        cycle1.results = [{"cluster_id": "c1", "approval_count": 10, "approval_rate": 0.8}]
+        cycle2 = MagicMock(spec=VotingCycle)
+        cycle2.status = "tallied"
+        cycle2.results = [{"cluster_id": "c2", "approval_count": 15, "approval_rate": 0.95}]
+        session = _mock_session([cycle1, cycle2])
+        app.dependency_overrides[get_db] = lambda: session
+        try:
+            client = TestClient(app)
+            response = client.get("/analytics/top-policies")
+            data = response.json()
+            assert len(data) == 2
+            assert data[0]["approval_rate"] == 0.95
+        finally:
+            app.dependency_overrides.pop(get_db, None)
+
+
+class TestEvidence:
+    def test_returns_empty_list(self) -> None:
+        session = _mock_session([])
+        app.dependency_overrides[get_db] = lambda: session
+        try:
+            client = TestClient(app)
+            response = client.get("/analytics/evidence")
+            assert response.status_code == 200
+            assert response.json() == []
+        finally:
+            app.dependency_overrides.pop(get_db, None)
+
+    def test_returns_formatted_entries(self) -> None:
+        eid = uuid4()
+        entry = _make_evidence_entry(entity_id=eid, hash="abc123", prev_hash="genesis")
+        session = _mock_session([entry])
+        app.dependency_overrides[get_db] = lambda: session
+        try:
+            client = TestClient(app)
+            response = client.get("/analytics/evidence")
+            data = response.json()
+            assert len(data) == 1
+            assert data[0]["entity_id"] == str(eid)
+            assert data[0]["hash"] == "abc123"
+            assert data[0]["prev_hash"] == "genesis"
+            assert data[0]["event_type"] == "submission_received"
+        finally:
+            app.dependency_overrides.pop(get_db, None)
+
+
+class TestVerifyChain:
+    @staticmethod
+    def _build_valid_entry(prev_hash: str = "genesis", **overrides: Any) -> dict[str, Any]:
+        entry: dict[str, Any] = {
+            "timestamp": overrides.get("timestamp", "2026-02-20T10:00:00.000Z"),
+            "event_type": overrides.get("event_type", "test_event"),
+            "entity_type": overrides.get("entity_type", "test"),
+            "entity_id": overrides.get("entity_id", str(uuid4())),
+            "payload": overrides.get("payload", {"index": 0}),
+            "prev_hash": prev_hash,
+            "hash": "",
+        }
+        material = {
+            "timestamp": entry["timestamp"],
+            "event_type": entry["event_type"],
+            "entity_type": entry["entity_type"],
+            "entity_id": str(entry["entity_id"]).lower(),
+            "payload": entry["payload"],
+            "prev_hash": entry["prev_hash"],
+        }
+        serialized = json.dumps(material, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+        entry["hash"] = hashlib.sha256(serialized.encode("utf-8")).hexdigest()
+        return entry
+
+    def test_valid_empty_chain(self) -> None:
+        client = TestClient(app)
+        response = client.post("/analytics/evidence/verify", json=[])
+        assert response.status_code == 200
+        data = response.json()
+        assert data["valid"] is True
+        assert data["entries_checked"] == 0
+
+    def test_valid_single_entry(self) -> None:
+        entry = self._build_valid_entry()
+        client = TestClient(app)
+        response = client.post("/analytics/evidence/verify", json=[entry])
+        assert response.status_code == 200
+        assert response.json()["valid"] is True
+
+    def test_valid_multi_entry_chain(self) -> None:
+        e1 = self._build_valid_entry()
+        e2 = self._build_valid_entry(prev_hash=e1["hash"], timestamp="2026-02-20T10:01:00.000Z")
+        client = TestClient(app)
+        response = client.post("/analytics/evidence/verify", json=[e1, e2])
+        assert response.status_code == 200
+        assert response.json()["valid"] is True
+        assert response.json()["entries_checked"] == 2
+
+    def test_invalid_tampered_hash(self) -> None:
+        entry = self._build_valid_entry()
+        entry["hash"] = "tampered"
+        client = TestClient(app)
+        response = client.post("/analytics/evidence/verify", json=[entry])
+        data = response.json()
+        assert data["valid"] is False
+        assert data["failed_index"] == 0
+
+    def test_invalid_broken_prev_hash_chain(self) -> None:
+        e1 = self._build_valid_entry()
+        e2 = self._build_valid_entry(prev_hash=e1["hash"], timestamp="2026-02-20T10:01:00.000Z")
+        e2["prev_hash"] = "broken_link"
+        client = TestClient(app)
+        response = client.post("/analytics/evidence/verify", json=[e1, e2])
+        data = response.json()
+        assert data["valid"] is False
+        assert data["failed_index"] == 1

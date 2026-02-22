@@ -166,13 +166,7 @@ async def cast_vote(
         payload={"approved_cluster_ids": [str(v) for v in approved_cluster_ids]},
     )
     await session.commit()
-    await channel_confirm_vote(user, session)
     return vote, "recorded"
-
-
-async def channel_confirm_vote(user: User, session: AsyncSession) -> None:
-    """Placeholder for sending vote confirmation via channel."""
-    pass
 
 
 async def close_and_tally(*, session: AsyncSession, cycle: VotingCycle) -> VotingCycle:

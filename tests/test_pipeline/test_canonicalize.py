@@ -24,7 +24,7 @@ def _make_mock_session() -> AsyncMock:
     return session
 
 
-def _mock_llm_response(text: str = "", model: str = "claude-sonnet-latest") -> LLMResponse:
+def _mock_llm_response(text: str = "", model: str = "claude-sonnet-4-20250514") -> LLMResponse:
     if not text:
         text = json.dumps({
             "title": "Housing Reform",
@@ -81,7 +81,7 @@ async def test_model_version_and_prompt_version_set() -> None:
     session = _make_mock_session()
     items = [{"id": str(uuid4()), "raw_text": "text", "language": "fa"}]
     candidates = await canonicalize_batch(session=session, submissions=items, llm_router=router)  # type: ignore[arg-type]
-    assert candidates[0].model_version == "claude-sonnet-latest"
+    assert candidates[0].model_version == "claude-sonnet-4-20250514"
     assert len(candidates[0].prompt_version) > 0
 
 

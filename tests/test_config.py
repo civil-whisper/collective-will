@@ -143,7 +143,7 @@ def test_major_email_providers_override(monkeypatch: pytest.MonkeyPatch) -> None
 # --- 15. Tier model IDs are config-backed and overridable ---
 def test_tier_models_config_backed(monkeypatch: pytest.MonkeyPatch) -> None:
     settings = _make_settings(monkeypatch)
-    assert settings.canonicalization_model == "claude-sonnet-latest"
+    assert settings.canonicalization_model == "claude-sonnet-4-20250514"
 
     overridden = _make_settings(monkeypatch, CANONICALIZATION_MODEL="custom-model")
     assert overridden.canonicalization_model == "custom-model"
@@ -152,7 +152,7 @@ def test_tier_models_config_backed(monkeypatch: pytest.MonkeyPatch) -> None:
 # --- 16. farsi_messages_fallback_model is set ---
 def test_farsi_messages_fallback_model_set(monkeypatch: pytest.MonkeyPatch) -> None:
     settings = _make_settings(monkeypatch)
-    assert settings.farsi_messages_fallback_model == "claude-haiku-latest"
+    assert settings.farsi_messages_fallback_model == "claude-sonnet-4-20250514"
 
     overridden = _make_settings(monkeypatch, FARSI_MESSAGES_FALLBACK_MODEL="other")
     assert overridden.farsi_messages_fallback_model == "other"
@@ -167,8 +167,8 @@ def test_english_reasoning_fallback_model_set(monkeypatch: pytest.MonkeyPatch) -
 # --- 18. dispute_resolution_model and fallback configurable ---
 def test_dispute_resolution_model_configurable(monkeypatch: pytest.MonkeyPatch) -> None:
     settings = _make_settings(monkeypatch)
-    assert settings.dispute_resolution_model == "claude-opus-latest"
-    assert settings.dispute_resolution_fallback_model == "claude-sonnet-latest"
+    assert settings.dispute_resolution_model == "claude-opus-4-20250514"
+    assert settings.dispute_resolution_fallback_model == "claude-sonnet-4-20250514"
 
     overridden = _make_settings(
         monkeypatch,

@@ -1,14 +1,13 @@
 services:
   postgres:
     image: pgvector/pgvector:pg15
+    restart: unless-stopped
     environment:
       POSTGRES_USER: collective
       POSTGRES_PASSWORD: ${DB_PASSWORD}
       POSTGRES_DB: collective_will
-    ports:
-      - "5432:5432"
     volumes:
-      - ./data/postgres:/var/lib/postgresql/data
+      - pgdata:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U collective"]
       interval: 10s
@@ -17,18 +16,17 @@ services:
 
   evolution:
     image: atendai/evolution-api:latest
+    restart: unless-stopped
     environment:
       AUTHENTICATION_API_KEY: ${EVOLUTION_API_KEY}
       DATABASE_ENABLED: "false"
     ports:
-      - "8080:8080"
+      - "${EVOLUTION_PORT:-8080}:8080"
     volumes:
-      - ./data/evolution:/evolution/instances
+      - evolution_data:/evolution/instances
 
   migrate:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: ghcr.io/civil-whisper/collective-will-backend:latest
     command: uv run alembic upgrade head
     env_file:
       - .env
@@ -39,29 +37,24 @@ services:
         condition: service_healthy
 
   backend:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    command: uv run uvicorn src.api.main:app --host 0.0.0.0 --port 8000 --reload
+    image: ghcr.io/civil-whisper/collective-will-backend:latest
+    restart: unless-stopped
+    command: uv run uvicorn src.api.main:app --host 0.0.0.0 --port 8000
     env_file:
       - .env
     environment:
       DATABASE_URL: postgresql+asyncpg://collective:${DB_PASSWORD}@postgres:5432/collective_will
     ports:
-      - "8000:8000"
+      - "${BACKEND_PORT:-8000}:8000"
     depends_on:
       postgres:
         condition: service_healthy
       migrate:
         condition: service_completed_successfully
-    volumes:
-      - .:/app
-      - backend-venv:/app/.venv
 
   scheduler:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: ghcr.io/civil-whisper/collective-will-backend:latest
+    restart: unless-stopped
     command: uv run python -m src.scheduler
     env_file:
       - .env
@@ -72,21 +65,15 @@ services:
         condition: service_healthy
       migrate:
         condition: service_completed_successfully
-    volumes:
-      - .:/app
-      - scheduler-venv:/app/.venv
 
   web:
-    build:
-      context: ./web
-      dockerfile: Dockerfile
-      args:
-        NEXT_PUBLIC_API_BASE_URL: http://localhost:8000
+    image: ghcr.io/civil-whisper/collective-will-web:latest
+    restart: unless-stopped
     ports:
-      - "3000:3000"
+      - "${WEB_PORT:-3000}:3000"
     depends_on:
       - backend
 
 volumes:
-  backend-venv:
-  scheduler-venv:
+  pgdata:
+  evolution_data:

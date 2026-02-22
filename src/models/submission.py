@@ -62,7 +62,7 @@ class PolicyCandidate(Base):
     )
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     title_en: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    domain: Mapped[PolicyDomain] = mapped_column(nullable=False, default=PolicyDomain.OTHER)
+    domain: Mapped[PolicyDomain] = mapped_column(String(32), nullable=False, default=PolicyDomain.OTHER)
     summary: Mapped[str] = mapped_column(String, nullable=False)
     summary_en: Mapped[str | None] = mapped_column(String, nullable=True)
     stance: Mapped[str] = mapped_column(String(16), nullable=False)

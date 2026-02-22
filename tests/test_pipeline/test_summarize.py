@@ -38,7 +38,7 @@ class FakeRouter:
     async def complete(self, *, tier: str, prompt: str, **kwargs: object) -> LLMResponse:
         self.calls.append(tier)
         return LLMResponse(
-            text=self._text, model="claude-sonnet-latest", input_tokens=10, output_tokens=5, cost_usd=0.0
+            text=self._text, model="claude-sonnet-4-20250514", input_tokens=10, output_tokens=5, cost_usd=0.0
         )
 
 

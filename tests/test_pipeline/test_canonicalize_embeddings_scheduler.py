@@ -25,7 +25,7 @@ class FakeRouter:
     async def complete(self, *, tier: str, prompt: str, timeout_s: float = 60.0, **kwargs: object) -> LLMResponse:
         return LLMResponse(
             text='{"title":"Policy","domain":"economy","summary":"s","stance":"unclear","entities":[],"confidence":0.5,"ambiguity_flags":[]}',
-            model="claude-sonnet-latest",
+            model="claude-sonnet-4-20250514",
             input_tokens=1,
             output_tokens=1,
             cost_usd=0.0,
