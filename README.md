@@ -1,24 +1,27 @@
-# Coding Docs Pack
+# Collective Will
 
-Copy everything in this folder into your new repo root.
+## Repository Structure
 
-## Included
+- `docs/` — all project documentation
+  - `docs/agent-context/` — implementation contracts (30 tasks across database, pipeline, messaging, website)
+  - `docs/decision-rationale/` — decision rationale and guardrails
+  - `docs/mvp-specification.md`
+  - `docs/llm-strategy.md`
+  - `docs/infrastructure-guide.md`
+  - `docs/roadmap.md`
+  - `docs/v0-precoding-checklist.md`
+  - `docs/CONTRIBUTING.md`
+  - `docs/DECISION_LOCKS.md`
+- `src/` — Python backend (FastAPI, SQLAlchemy, pipeline)
+- `web/` — Next.js frontend (i18n, analytics, dashboard)
+- `migrations/` — Alembic database migrations
+- `tests/` — Backend test suite
+- `AGENTS.md` — Agent bootstrap rules
+- `.env.example` — Environment variable template
 
-- `agent-context/` (implementation contracts)
-- `decision-rationale/` (decision rationale + guardrails)
-- `mvp-specification.md`
-- `llm-strategy.md`
-- `v0-precoding-checklist.md`
-- `infrastructure-guide.md`
-- `roadmap.md`
-- `.env.example`
-- `AGENTS.md`
-- `CONTRIBUTING.md`
-- `DECISION_LOCKS.md`
+## Getting Started
 
-## First Steps in New Repo
-
-1. Place this pack at repo root.
-2. Keep `.env.example` as template and create local `.env` (do not commit).
-3. Start implementation from `agent-context/database/01-project-scaffold.md`.
-4. Keep any behavior change synchronized across `agent-context` and `decision-rationale`.
+1. Copy `.env.example` to `.env` and fill in values.
+2. Run `docker-compose up` for local development (Postgres + backend).
+3. In `web/`, run `npm install && npm run dev` for the frontend.
+4. Run `pytest` for backend tests, `npm test` in `web/` for frontend tests.

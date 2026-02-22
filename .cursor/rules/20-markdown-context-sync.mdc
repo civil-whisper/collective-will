@@ -8,7 +8,7 @@ alwaysApply: false
 
 When editing architecture or implementation guidance:
 
-- Keep `agent-context/**` focused on implementation contracts.
-- Keep `decision-rationale/**` focused on why and guardrails.
+- Keep `docs/agent-context/**` focused on implementation contracts.
+- Keep `docs/decision-rationale/**` focused on why and guardrails.
 - Preserve the shared context precedence documented in `AGENTS.md`.
 - Avoid introducing contradictions across `AGENTS.md`, context docs, and decision docs.

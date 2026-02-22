@@ -11,5 +11,5 @@ When changing infrastructure or schema migration files:
 - Preserve append-only evidence logging and hash-chain compatibility.
 - Keep sensitive identifier boundaries intact (no raw external IDs in core tables).
 - Keep schema changes backward-safe for rolling deployments when possible.
-- Document rationale in `decision-rationale/**` when a migration changes architecture assumptions.
+- Document rationale in `docs/decision-rationale/**` when a migration changes architecture assumptions.
 - Keep environment-specific values in config/secrets, not hardcoded in migration or compose files.

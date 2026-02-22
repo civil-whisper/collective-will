@@ -2,10 +2,10 @@
 
 When implementing in the new repo, use this precedence order:
 
-1. `agent-context/CONTEXT-shared.md` (global ground truth)
-2. `agent-context/**` (module-level implementation contracts)
-3. `decision-rationale/**` (why + guardrails for trade-offs)
-4. `mvp-specification.md` (product/system context)
+1. `docs/agent-context/CONTEXT-shared.md` (global ground truth)
+2. `docs/agent-context/**` (module-level implementation contracts)
+3. `docs/decision-rationale/**` (why + guardrails for trade-offs)
+4. `docs/mvp-specification.md` (product/system context)
 
 ## Hard Requirements
 

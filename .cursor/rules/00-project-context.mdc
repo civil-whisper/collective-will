@@ -7,9 +7,9 @@ alwaysApply: true
 
 Before implementing, anchor decisions to `AGENTS.md` and follow this order:
 
-1. `agent-context/CONTEXT-shared.md`
-2. `agent-context/**`
-3. `decision-rationale/**`
-4. `mvp-specification.md`
+1. `docs/agent-context/CONTEXT-shared.md`
+2. `docs/agent-context/**`
+3. `docs/decision-rationale/**`
+4. `docs/mvp-specification.md`
 
 If sources conflict, higher-precedence sources win. Keep all changes consistent with the hard requirements in `AGENTS.md`.

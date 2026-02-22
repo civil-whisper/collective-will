@@ -2,9 +2,9 @@
 
 This coding package is context-locked. Any implementation or spec changes must stay aligned with:
 
-- `agent-context/**`
-- `decision-rationale/**`
-- `mvp-specification.md`
+- `docs/agent-context/**`
+- `docs/decision-rationale/**`
+- `docs/mvp-specification.md`
 
 ## Alignment Rules
 
@@ -15,7 +15,7 @@ This coding package is context-locked. Any implementation or spec changes must s
 
 ## PR Checklist
 
-- [ ] Implementation matches `agent-context` contracts.
+- [ ] Implementation matches `docs/agent-context` contracts.
 - [ ] Rationale stays synchronized for any decision-level change.
 - [ ] Tests added/updated for changed behavior.
 - [ ] No secrets or personal identifiers introduced.

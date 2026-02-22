@@ -1,0 +1,56 @@
+[project]
+name = "collective-will"
+version = "0.1.0"
+description = "Collective Will v0 backend and web stack"
+requires-python = ">=3.11"
+dependencies = [
+    "alembic",
+    "asyncpg",
+    "fastapi",
+    "hdbscan",
+    "httpx",
+    "numpy",
+    "pgvector",
+    "pydantic",
+    "pydantic-settings",
+    "python-dotenv",
+    "scikit-learn",
+    "sqlalchemy[asyncio]",
+    "uvicorn[standard]",
+]
+
+[dependency-groups]
+dev = [
+    "mypy",
+    "pytest",
+    "pytest-asyncio",
+    "ruff",
+]
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "ASYNC", "SIM"]
+ignore = ["B008"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+warn_unused_configs = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+disallow_any_generics = true
+no_implicit_optional = true
+check_untyped_defs = true
+plugins = ["pydantic.mypy"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["pgvector", "pgvector.sqlalchemy", "hdbscan"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
