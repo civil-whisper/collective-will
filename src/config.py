@@ -42,6 +42,9 @@ class Settings(BaseSettings):
     )
     dispute_resolution_confidence_threshold: float = 0.75
 
+    resend_api_key: str | None = None
+    email_from: str = "onboarding@resend.dev"
+
     witness_publish_enabled: bool = False
     witness_api_url: str = "https://api.witness.co"
     witness_api_key: str | None = None

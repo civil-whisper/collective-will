@@ -36,7 +36,7 @@ Steps:
 12. Log account-creation velocity metrics (per IP, per domain, global) for abuse monitoring dashboards
 13. Return `{"status": "magic_link_sent"}`
 
-For v0, email sending can be a stub (log the link) — actual email integration is an infrastructure concern.
+Email sending uses Resend (REST API via httpx). When `RESEND_API_KEY` is set, real emails are delivered; otherwise magic links are logged to console (dev mode). The sender module is at `src/email/sender.py` with bilingual HTML templates (Farsi/English based on locale).
 
 ### GET /api/auth/verify
 

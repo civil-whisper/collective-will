@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import secrets
 from datetime import UTC, datetime
 
@@ -9,8 +10,11 @@ from src.config import get_settings
 from src.db.evidence import append_evidence
 from src.db.queries import create_user, get_user_by_email
 from src.db.verification_tokens import consume_token, lookup_token, store_token
+from src.email.sender import send_magic_link_email
 from src.handlers.abuse import check_signup_limits
 from src.models.user import User, UserCreate
+
+logger = logging.getLogger(__name__)
 
 MAGIC_LINK_EXPIRY_MINUTES = 15
 LINKING_CODE_EXPIRY_MINUTES = 60
@@ -39,20 +43,13 @@ async def subscribe_email(
 
     existing = await get_user_by_email(session, email)
     if existing is not None:
-        token = create_magic_link_token()
-        await store_token(
+        user = existing
+    else:
+        user = await create_user(
             session,
-            token=token,
-            email=email,
-            token_type="magic_link",
-            expiry_minutes=MAGIC_LINK_EXPIRY_MINUTES,
+            UserCreate(email=email, locale=locale, messaging_account_ref=messaging_account_ref),
         )
-        return existing, token
 
-    user = await create_user(
-        session,
-        UserCreate(email=email, locale=locale, messaging_account_ref=messaging_account_ref),
-    )
     token = create_magic_link_token()
     await store_token(
         session,
@@ -64,9 +61,16 @@ async def subscribe_email(
 
     settings = get_settings()
     magic_link = f"{settings.app_public_base_url}/verify?token={token}"
-    import logging
 
-    logging.getLogger(__name__).info("Magic link for %s: %s", email, magic_link)
+    sent = await send_magic_link_email(
+        to=email,
+        magic_link_url=magic_link,
+        locale=locale,
+        resend_api_key=settings.resend_api_key,
+        email_from=settings.email_from,
+    )
+    if not sent:
+        logger.warning("Failed to send magic link email to %s; token still valid", email)
 
     await session.commit()
     return user, token

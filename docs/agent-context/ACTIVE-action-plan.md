@@ -247,6 +247,26 @@ Inspiration: [Plausible Analytics](https://plausible.io/plausible.io) — clean,
     - Updated `navbar.test.tsx` (9 tests)
     - Updated `messages.test.ts` (8 tests)
 
+### P0 — Real Email Sending (Resend)
+
+36. [done] Implement email sender module (`src/email/sender.py`)
+    - Async Resend API integration via httpx (no new dependencies)
+    - Bilingual HTML + plain-text templates (Farsi/English)
+    - Console fallback when `RESEND_API_KEY` is unset (preserves dev experience)
+    - Email failure does not crash signup flow (logs warning, token still valid)
+
+37. [done] Wire email sending into identity handler
+    - Replaced `logging.info` stub with `send_magic_link_email()` call
+    - Both new-user and existing-user (re-verify) paths now send email
+    - Added `resend_api_key` and `email_from` to `Settings`
+
+38. [done] Tests for email sending (12 new tests + 1 updated)
+    - Template content tests (HTML/plain-text, both locales, expiry notice)
+    - API call tests (correct payload, auth header)
+    - Error handling (API error, network error)
+    - Console fallback (no API key, empty API key)
+    - Updated identity test to mock email sender
+
 ## Definition of Done (This Cycle)
 
 - No CI/CD job performs paid LLM API calls

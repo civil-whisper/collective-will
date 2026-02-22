@@ -238,6 +238,7 @@ prev_hash: str                      # previous entry's hash (chain)
 | **Testing** | pytest (Python), vitest or jest (TypeScript) |
 | **Linting** | ruff (Python), eslint (TypeScript) |
 | **Type checking** | mypy strict (Python) |
+| **Transactional email** | Resend (REST API via httpx). Default from: `onboarding@resend.dev`; switch to `noreply@collectivewill.org` when DNS verified. Console fallback when `RESEND_API_KEY` unset. |
 | **Containerization** | Docker Compose |
 
 ---

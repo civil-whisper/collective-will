@@ -36,6 +36,7 @@ def test_linking_code_expiry_is_60_minutes() -> None:
 
 
 @pytest.mark.asyncio
+@patch("src.handlers.identity.send_magic_link_email", new_callable=AsyncMock, return_value=True)
 @patch("src.handlers.identity.store_token", new_callable=AsyncMock)
 @patch("src.handlers.identity.check_signup_limits", new_callable=AsyncMock, return_value=(True, None))
 @patch("src.handlers.identity.get_user_by_email", new_callable=AsyncMock, return_value=None)
@@ -47,8 +48,11 @@ async def test_subscribe_creates_user(
     mock_get: AsyncMock,
     mock_limits: AsyncMock,
     mock_store: AsyncMock,
+    mock_send_email: AsyncMock,
 ) -> None:
     mock_settings.return_value.app_public_base_url = "https://test.example.com"
+    mock_settings.return_value.resend_api_key = None
+    mock_settings.return_value.email_from = "test@resend.dev"
     new_user = MagicMock()
     new_user.id = uuid4()
     mock_create.return_value = new_user
@@ -61,6 +65,7 @@ async def test_subscribe_creates_user(
     assert token is not None
     mock_create.assert_called_once()
     mock_store.assert_called_once()
+    mock_send_email.assert_called_once()
 
 
 @pytest.mark.asyncio
