@@ -9,8 +9,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends gcc g++ && rm -
 RUN addgroup --system appgroup && adduser --system --ingroup appgroup appuser
 ENV HOME=/tmp
 
-COPY pyproject.toml ./
-RUN uv sync --no-dev
+COPY pyproject.toml uv.lock ./
+RUN uv sync --no-dev --frozen
 
 COPY . .
 RUN chown -R appuser:appgroup /app /tmp/.cache

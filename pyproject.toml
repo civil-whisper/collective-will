@@ -14,7 +14,7 @@ dependencies = [
     "fastapi",
     "hdbscan",
     "httpx",
-    "numpy",
+    "numpy<2",
     "pgvector",
     "pydantic",
     "pydantic-settings",
