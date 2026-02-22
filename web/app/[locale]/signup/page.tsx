@@ -25,7 +25,7 @@ export default function SignupPage() {
         email,
         locale,
         requester_ip: "0.0.0.0",
-        messaging_account_ref: "web-signup",
+        messaging_account_ref: `web-${crypto.randomUUID()}`,
       });
       setStatus("idle");
       setStep("sent");

@@ -20,7 +20,7 @@ export function SubscribeForm() {
         email,
         locale,
         requester_ip: "127.0.0.1",
-        messaging_account_ref: "web-signup",
+        messaging_account_ref: `web-${crypto.randomUUID()}`,
       });
       setStatus("success");
     } catch {
