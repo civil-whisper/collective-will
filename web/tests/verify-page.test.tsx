@@ -26,9 +26,9 @@ describe("VerifyPage", () => {
       render(<VerifyPage />);
     });
     await waitFor(() => {
-      expect(screen.getByRole("heading")).toHaveTextContent("An error occurred");
+      expect(screen.getByRole("heading")).toHaveTextContent("Verification Failed");
     });
-    expect(screen.getByText(/token is invalid or expired/i)).toBeTruthy();
+    expect(screen.getByText(/this link is invalid/i)).toBeTruthy();
   });
 
   it("shows loading state initially with a valid token", () => {
@@ -38,7 +38,7 @@ describe("VerifyPage", () => {
       vi.fn().mockReturnValue(new Promise(() => {})),
     );
     render(<VerifyPage />);
-    expect(screen.getByText("Loading...")).toBeTruthy();
+    expect(screen.getByText("Verifying your email...")).toBeTruthy();
   });
 
   it("shows success after API verification", async () => {
@@ -99,7 +99,29 @@ describe("VerifyPage", () => {
       expect(screen.getByRole("heading")).toHaveTextContent("Email Verified!");
     });
     expect(screen.getByText("LINK-XYZ-123")).toBeTruthy();
-    expect(screen.getByText(/send this code to the bot/i)).toBeTruthy();
+    expect(screen.getByText(/send this code to our telegram bot/i)).toBeTruthy();
+  });
+
+  it("shows Telegram bot link when linking code is present", async () => {
+    mockSearchParams = new URLSearchParams("token=valid-token");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({status: "LINK-ABC"}),
+      }),
+    );
+
+    await act(async () => {
+      render(<VerifyPage />);
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText("LINK-ABC")).toBeTruthy();
+    });
+    const botLink = screen.getByText("Open Telegram Bot");
+    expect(botLink).toBeTruthy();
+    expect(botLink.closest("a")?.getAttribute("href")).toContain("t.me/");
   });
 
   it("does not display linking code when status is 'verified'", async () => {
@@ -119,7 +141,7 @@ describe("VerifyPage", () => {
     await waitFor(() => {
       expect(screen.getByRole("heading")).toHaveTextContent("Email Verified!");
     });
-    expect(screen.queryByText(/send this code to the bot/i)).toBeNull();
+    expect(screen.queryByText(/send this code to our telegram bot/i)).toBeNull();
   });
 
   it("shows error when API call fails", async () => {
@@ -138,8 +160,41 @@ describe("VerifyPage", () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByRole("heading")).toHaveTextContent("An error occurred");
+      expect(screen.getByRole("heading")).toHaveTextContent("Verification Failed");
     });
-    expect(screen.getByText(/token is invalid or expired/i)).toBeTruthy();
+    expect(screen.getByText(/this link is invalid/i)).toBeTruthy();
+  });
+
+  it("shows step indicator with email completed and telegram active on success", async () => {
+    mockSearchParams = new URLSearchParams("token=valid-token");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({status: "CODE123"}),
+      }),
+    );
+
+    await act(async () => {
+      render(<VerifyPage />);
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText("Verify Email")).toBeTruthy();
+      expect(screen.getByText("Connect Telegram")).toBeTruthy();
+    });
+  });
+
+  it("links back to signup on error", async () => {
+    await act(async () => {
+      render(<VerifyPage />);
+    });
+
+    await waitFor(() => {
+      expect(screen.getByRole("heading")).toHaveTextContent("Verification Failed");
+    });
+    const allLinks = screen.getAllByRole("link");
+    const signupLink = allLinks.find((el) => el.getAttribute("href")?.includes("/signup"));
+    expect(signupLink).toBeTruthy();
   });
 });

@@ -14,7 +14,8 @@
     "loading": "Loading...",
     "error": "An error occurred",
     "login": "Sign In",
-    "logout": "Sign Out"
+    "logout": "Sign Out",
+    "signup": "Sign Up"
   },
   "landing": {
     "headline": "What do Iranians want? Help us find out.",
@@ -31,7 +32,42 @@
     "step3": "Community votes on priorities",
     "step4": "Results are public and auditable",
     "trustTitle": "Everything is auditable",
-    "trustDescription": "Every step is logged. Nothing is hidden."
+    "trustDescription": "Every step is logged. Nothing is hidden.",
+    "joinCta": "Join Now"
+  },
+  "signup": {
+    "title": "Create Your Account",
+    "subtitle": "Two steps to get started. No passwords, no phone numbers.",
+    "stepEmail": "Verify Email",
+    "stepTelegram": "Connect Telegram",
+    "emailLabel": "Email address",
+    "emailPlaceholder": "you@example.com",
+    "emailSubmit": "Send Verification Link",
+    "emailSending": "Sending...",
+    "emailSent": "Check your email!",
+    "emailSentDescription": "We sent a verification link to {email}. Click the link to continue to step 2.",
+    "emailSentTip": "Didn't receive it? Check your spam folder or try again.",
+    "emailResend": "Resend",
+    "emailError": "Could not send verification link. Please try again.",
+    "rateLimited": "Too many attempts. Please try again later.",
+    "whyEmail": "Your email is used for verification only. We never share it.",
+    "whyTelegram": "Telegram lets you submit concerns and vote directly from the app."
+  },
+  "verify": {
+    "verifying": "Verifying your email...",
+    "emailVerified": "Email Verified!",
+    "nowConnectTelegram": "Now connect your Telegram account to start participating.",
+    "linkingCodeLabel": "Your linking code",
+    "linkingCodeInstruction": "Send this code to our Telegram bot to complete your signup:",
+    "openBot": "Open Telegram Bot",
+    "codeCopied": "Copied!",
+    "copyCode": "Copy",
+    "codeExpiry": "This code expires in 60 minutes.",
+    "errorTitle": "Verification Failed",
+    "errorExpired": "This link has expired. Please sign up again to get a new one.",
+    "errorInvalid": "This link is invalid. Please sign up again.",
+    "alreadyHaveAccount": "Already have an account?",
+    "signIn": "Sign In"
   },
   "dashboard": {
     "title": "Dashboard",

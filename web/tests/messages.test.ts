@@ -52,8 +52,37 @@ describe("translation keys parity", () => {
     expect(fa.landing.howItWorks).toBeTruthy();
     expect(fa.landing.step1).toBeTruthy();
     expect(fa.landing.step4).toBeTruthy();
+    expect(fa.landing.joinCta).toBeTruthy();
     expect(en.landing.headline).toBeTruthy();
     expect(en.landing.successMessage).toBeTruthy();
+    expect(en.landing.joinCta).toBeTruthy();
+  });
+
+  it("contains signup page keys", () => {
+    expect(fa.signup.title).toBeTruthy();
+    expect(fa.signup.stepEmail).toBeTruthy();
+    expect(fa.signup.stepTelegram).toBeTruthy();
+    expect(fa.signup.emailSubmit).toBeTruthy();
+    expect(fa.signup.emailSent).toBeTruthy();
+    expect(fa.signup.emailSentDescription).toBeTruthy();
+    expect(fa.signup.whyEmail).toBeTruthy();
+    expect(fa.signup.whyTelegram).toBeTruthy();
+    expect(en.signup.title).toBeTruthy();
+    expect(en.signup.emailSubmit).toBeTruthy();
+    expect(en.signup.emailSent).toBeTruthy();
+  });
+
+  it("contains verify page keys", () => {
+    expect(fa.verify.verifying).toBeTruthy();
+    expect(fa.verify.emailVerified).toBeTruthy();
+    expect(fa.verify.linkingCodeInstruction).toBeTruthy();
+    expect(fa.verify.openBot).toBeTruthy();
+    expect(fa.verify.errorTitle).toBeTruthy();
+    expect(fa.verify.errorExpired).toBeTruthy();
+    expect(fa.verify.errorInvalid).toBeTruthy();
+    expect(en.verify.emailVerified).toBeTruthy();
+    expect(en.verify.openBot).toBeTruthy();
+    expect(en.verify.errorTitle).toBeTruthy();
   });
 
   it("contains dashboard keys", () => {

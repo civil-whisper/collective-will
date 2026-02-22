@@ -9,7 +9,8 @@ import {LanguageSwitcher} from "./LanguageSwitcher";
 
 export function NavBar() {
   const t = useTranslations("nav");
-  const appTitle = useTranslations("common")("appTitle");
+  const common = useTranslations("common");
+  const appTitle = common("appTitle");
   const locale = useLocale();
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -53,6 +54,12 @@ export function NavBar() {
               {link.label}
             </Link>
           ))}
+          <Link
+            href={`/${locale}/signup`}
+            className="ms-2 rounded-lg bg-accent px-4 py-1.5 text-sm font-semibold text-white transition-colors hover:bg-accent-hover"
+          >
+            {common("signup")}
+          </Link>
           <div className="ms-3 border-s border-gray-200 ps-3 dark:border-slate-700">
             <LanguageSwitcher />
           </div>
@@ -97,6 +104,13 @@ export function NavBar() {
               </Link>
             ))}
           </div>
+          <Link
+            href={`/${locale}/signup`}
+            onClick={() => setMenuOpen(false)}
+            className="mt-2 block rounded-lg bg-accent px-4 py-2 text-center text-sm font-semibold text-white transition-colors hover:bg-accent-hover"
+          >
+            {common("signup")}
+          </Link>
           <div className="mt-3 border-t border-gray-200 pt-3 dark:border-slate-700">
             <LanguageSwitcher />
           </div>

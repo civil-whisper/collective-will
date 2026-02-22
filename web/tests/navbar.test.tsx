@@ -17,6 +17,13 @@ describe("NavBar", () => {
     expect(hrefs).toContain("/en/analytics/top-policies");
     expect(hrefs).toContain("/en/dashboard");
     expect(hrefs).toContain("/en/analytics/evidence");
+    expect(hrefs).toContain("/en/signup");
+  });
+
+  it("renders signup button", () => {
+    render(<NavBar />);
+    const signupLinks = screen.getAllByText("Sign Up");
+    expect(signupLinks.length).toBeGreaterThanOrEqual(1);
   });
 
   it("renders Home link text", () => {
