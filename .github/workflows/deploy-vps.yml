@@ -1,0 +1,38 @@
+name: Deploy to VPS
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Deploy target"
+        required: true
+        type: choice
+        options:
+          - staging
+          - production
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Copy deploy files to VPS
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          source: "deploy/docker-compose.prod.yml,deploy/deploy.sh,deploy/Caddyfile"
+          target: /opt/collective-will/repo-deploy
+          strip_components: 1
+
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            chmod +x /opt/collective-will/repo-deploy/deploy.sh
+            /opt/collective-will/repo-deploy/deploy.sh ${{ github.event.inputs.environment }} latest
