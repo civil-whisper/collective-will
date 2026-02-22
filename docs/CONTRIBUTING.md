@@ -19,3 +19,13 @@ This coding package is context-locked. Any implementation or spec changes must s
 - [ ] Rationale stays synchronized for any decision-level change.
 - [ ] Tests added/updated for changed behavior.
 - [ ] No secrets or personal identifiers introduced.
+
+## Local CI Parity
+
+Run the same backend checks used in GitHub CI before pushing:
+
+`bash scripts/ci-backend.sh`
+
+Notes:
+- The script enforces CI parity mode (`CI_PARITY=1`) and fails if required DB config is missing.
+- It can auto-start a local `pgvector` Postgres container when Docker is available.

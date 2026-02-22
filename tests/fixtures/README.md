@@ -12,3 +12,6 @@ It must stay deterministic and provider-free.
    - `uv run pytest tests/test_pipeline/test_pipeline_cached_replay.py -q`
 
 Do not require paid LLM calls in CI.
+
+To run the same backend checks as GitHub CI locally:
+- `bash scripts/ci-backend.sh`

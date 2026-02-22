@@ -4,12 +4,11 @@ import os
 from collections.abc import AsyncIterator
 
 import pytest
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from src import models  # noqa: F401
 from src.db.connection import Base
-
-TEST_DATABASE_URL = os.getenv("TEST_DATABASE_URL")
 
 
 @pytest.fixture(autouse=True)
@@ -28,21 +27,26 @@ def _default_env(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def requires_test_db() -> bool:
-    return bool(TEST_DATABASE_URL and TEST_DATABASE_URL.startswith("postgresql+asyncpg://"))
+    test_database_url = os.getenv("TEST_DATABASE_URL")
+    return bool(test_database_url and test_database_url.startswith("postgresql+asyncpg://"))
 
 
 @pytest.fixture(scope="session")
 def test_database_url() -> str:
+    test_database_url = os.getenv("TEST_DATABASE_URL")
     if not requires_test_db():
+        if os.getenv("CI_PARITY") == "1":
+            pytest.fail("CI parity mode requires TEST_DATABASE_URL to be set to a Postgres asyncpg URL")
         pytest.skip("TEST_DATABASE_URL not set for postgres integration tests")
-    assert TEST_DATABASE_URL is not None
-    return TEST_DATABASE_URL
+    assert test_database_url is not None
+    return test_database_url
 
 
 @pytest.fixture
 async def db_session(test_database_url: str) -> AsyncIterator[AsyncSession]:
     engine = create_async_engine(test_database_url, future=True)
     async with engine.begin() as conn:
+        await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
         await conn.run_sync(Base.metadata.drop_all)
         await conn.run_sync(Base.metadata.create_all)
 
