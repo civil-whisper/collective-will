@@ -14,16 +14,8 @@ services:
       timeout: 5s
       retries: 5
 
-  evolution:
-    image: atendai/evolution-api:latest
-    restart: unless-stopped
-    environment:
-      AUTHENTICATION_API_KEY: ${EVOLUTION_API_KEY}
-      DATABASE_ENABLED: "false"
-    ports:
-      - "${EVOLUTION_PORT:-8080}:8080"
-    volumes:
-      - evolution_data:/evolution/instances
+  # evolution (WhatsApp via Evolution API) is deferred to post-MVP.
+  # Re-add when anonymous SIM operations are ready.
 
   migrate:
     image: ghcr.io/civil-whisper/collective-will-backend:latest
@@ -76,4 +68,3 @@ services:
 
 volumes:
   pgdata:
-  evolution_data:
