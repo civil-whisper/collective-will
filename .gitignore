@@ -18,6 +18,7 @@ node_modules/
 .next/
 coverage/
 dist/
+*.tsbuildinfo
 
 # Data
 data/
