@@ -69,6 +69,7 @@ describe("SignupPage", () => {
     const body = JSON.parse(options.body);
     expect(body.email).toBe("test@example.com");
     expect(body.locale).toBe("en");
+    expect(body.messaging_account_ref).toMatch(/^web-[0-9a-f-]{36}$/);
   });
 
   it("shows error message when API fails", async () => {

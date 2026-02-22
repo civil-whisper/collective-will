@@ -92,5 +92,24 @@ describe("SubscribeForm", () => {
     const body = JSON.parse(options.body);
     expect(body.email).toBe("test@example.com");
     expect(body.locale).toBe("en");
+    expect(body.messaging_account_ref).toMatch(/^web-[0-9a-f-]{36}$/);
+  });
+
+  it("generates unique messaging_account_ref per submission", async () => {
+    render(<SubscribeForm />);
+    const input = screen.getByRole("textbox");
+
+    fireEvent.change(input, {target: {value: "a@example.com"}});
+    fireEvent.submit(screen.getByRole("button").closest("form")!);
+    await waitFor(() => expect(fetch).toHaveBeenCalledTimes(1));
+
+    fireEvent.change(input, {target: {value: "b@example.com"}});
+    fireEvent.submit(screen.getByRole("button").closest("form")!);
+    await waitFor(() => expect(fetch).toHaveBeenCalledTimes(2));
+
+    const calls = (fetch as ReturnType<typeof vi.fn>).mock.calls;
+    const ref1 = JSON.parse(calls[0][1].body).messaging_account_ref;
+    const ref2 = JSON.parse(calls[1][1].body).messaging_account_ref;
+    expect(ref1).not.toBe(ref2);
   });
 });
