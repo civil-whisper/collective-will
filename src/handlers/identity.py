@@ -60,7 +60,8 @@ async def subscribe_email(
     )
 
     settings = get_settings()
-    magic_link = f"{settings.app_public_base_url}/verify?token={token}"
+    link_locale = locale if locale in ("en", "fa") else "en"
+    magic_link = f"{settings.app_public_base_url}/{link_locale}/verify?token={token}"
 
     sent = await send_magic_link_email(
         to=email,
