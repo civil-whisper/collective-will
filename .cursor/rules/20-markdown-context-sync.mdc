@@ -1,0 +1,14 @@
+---
+description: Keep architecture and decision docs synchronized
+globs: **/*.md
+alwaysApply: false
+---
+
+# Context Documentation Sync
+
+When editing architecture or implementation guidance:
+
+- Keep `agent-context/**` focused on implementation contracts.
+- Keep `decision-rationale/**` focused on why and guardrails.
+- Preserve the shared context precedence documented in `AGENTS.md`.
+- Avoid introducing contradictions across `AGENTS.md`, context docs, and decision docs.

@@ -1,0 +1,15 @@
+---
+description: Load repository context hierarchy before implementation
+alwaysApply: true
+---
+
+# Repository Context Precedence
+
+Before implementing, anchor decisions to `AGENTS.md` and follow this order:
+
+1. `agent-context/CONTEXT-shared.md`
+2. `agent-context/**`
+3. `decision-rationale/**`
+4. `mvp-specification.md`
+
+If sources conflict, higher-precedence sources win. Keep all changes consistent with the hard requirements in `AGENTS.md`.

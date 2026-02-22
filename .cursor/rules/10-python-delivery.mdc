@@ -1,0 +1,13 @@
+---
+description: Python delivery discipline for backend work
+globs: **/*.py
+alwaysApply: false
+---
+
+# Python Delivery Discipline
+
+- Keep typing strict and explicit for service, ORM, and schema boundaries.
+- Use explicit conversions between ORM models and API/domain schemas.
+- Add or update tests for each implemented task.
+- Keep business logic model-agnostic; route LLM selection through configuration.
+- Never include secrets, personal identities, or raw sensitive identifiers in code or fixtures.
