@@ -2,23 +2,27 @@
 # Set DOMAIN env var or replace these placeholders before use.
 
 {$DOMAIN} {
-	handle_path /api/auth/subscribe {
+	handle /api/auth/subscribe {
+		uri strip_prefix /api
 		reverse_proxy localhost:8000
 	}
 
-	handle_path /api/auth/verify/* {
+	handle /api/auth/verify/* {
+		uri strip_prefix /api
 		reverse_proxy localhost:8000
 	}
 
-	handle_path /api/auth/web-session {
+	handle /api/auth/web-session {
+		uri strip_prefix /api
 		reverse_proxy localhost:8000
 	}
 
-	handle_path /api/auth/* {
+	handle /api/auth/* {
 		reverse_proxy localhost:3000
 	}
 
-	handle_path /api/* {
+	handle /api/* {
+		uri strip_prefix /api
 		reverse_proxy localhost:8000
 	}
 
@@ -29,23 +33,27 @@
 
 # Staging: staging.yourdomain.com
 staging.{$DOMAIN} {
-	handle_path /api/auth/subscribe {
+	handle /api/auth/subscribe {
+		uri strip_prefix /api
 		reverse_proxy localhost:8100
 	}
 
-	handle_path /api/auth/verify/* {
+	handle /api/auth/verify/* {
+		uri strip_prefix /api
 		reverse_proxy localhost:8100
 	}
 
-	handle_path /api/auth/web-session {
+	handle /api/auth/web-session {
+		uri strip_prefix /api
 		reverse_proxy localhost:8100
 	}
 
-	handle_path /api/auth/* {
+	handle /api/auth/* {
 		reverse_proxy localhost:3100
 	}
 
-	handle_path /api/* {
+	handle /api/* {
+		uri strip_prefix /api
 		reverse_proxy localhost:8100
 	}
 
