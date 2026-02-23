@@ -66,6 +66,7 @@ services:
       NEXTAUTH_URL: ${APP_PUBLIC_BASE_URL}
       NEXTAUTH_SECRET: ${WEB_ACCESS_TOKEN_SECRET}
       AUTH_TRUST_HOST: "true"
+      OPS_CONSOLE_SHOW_IN_NAV: ${OPS_CONSOLE_SHOW_IN_NAV:-false}
     ports:
       - "${WEB_PORT:-3000}:3000"
     depends_on:

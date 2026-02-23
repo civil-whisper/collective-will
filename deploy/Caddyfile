@@ -2,6 +2,10 @@
 # Set DOMAIN env var or replace these placeholders before use.
 
 {$DOMAIN} {
+	handle_path /api/auth/* {
+		reverse_proxy localhost:3000
+	}
+
 	handle_path /api/* {
 		reverse_proxy localhost:8000
 	}
@@ -13,6 +17,10 @@
 
 # Staging: staging.yourdomain.com
 staging.{$DOMAIN} {
+	handle_path /api/auth/* {
+		reverse_proxy localhost:3100
+	}
+
 	handle_path /api/* {
 		reverse_proxy localhost:8100
 	}

@@ -34,5 +34,17 @@ jobs:
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           script: |
+            set -euo pipefail
             chmod +x /opt/collective-will/repo-deploy/deploy.sh
             /opt/collective-will/repo-deploy/deploy.sh ${{ github.event.inputs.environment }} latest
+
+            CADDY_SRC="/opt/collective-will/repo-deploy/Caddyfile"
+            CADDY_DEST="/etc/caddy/Caddyfile"
+            SUDO=""
+            if command -v sudo >/dev/null 2>&1; then
+              SUDO="sudo"
+            fi
+
+            $SUDO cp "$CADDY_SRC" "$CADDY_DEST"
+            $SUDO caddy validate --config "$CADDY_DEST"
+            $SUDO systemctl reload caddy || $SUDO systemctl restart caddy

@@ -21,12 +21,13 @@ export default async function LocaleLayout({children, params}: Props) {
   const {locale} = await params;
   const messages = await getMessages();
   const direction = locale === "fa" ? "rtl" : "ltr";
+  const showOpsLink = process.env.OPS_CONSOLE_SHOW_IN_NAV === "true";
 
   return (
     <html lang={locale} dir={direction} className={inter.variable}>
       <body className="min-h-screen bg-gray-50 font-sans text-gray-900 antialiased dark:bg-slate-900 dark:text-slate-100">
         <NextIntlClientProvider locale={locale} messages={messages}>
-          <NavBar />
+          <NavBar showOpsLink={showOpsLink} />
           <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
             {children}
           </main>

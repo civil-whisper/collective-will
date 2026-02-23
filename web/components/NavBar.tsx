@@ -7,14 +7,17 @@ import {useState} from "react";
 
 import {LanguageSwitcher} from "./LanguageSwitcher";
 
-export function NavBar() {
+type NavBarProps = {
+  showOpsLink: boolean;
+};
+
+export function NavBar({showOpsLink}: NavBarProps) {
   const t = useTranslations("nav");
   const common = useTranslations("common");
   const appTitle = common("appTitle");
   const locale = useLocale();
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
-  const showOpsLink = process.env.NEXT_PUBLIC_OPS_CONSOLE_SHOW_IN_NAV === "true";
 
   const links = [
     {href: `/${locale}`, label: t("home")},
