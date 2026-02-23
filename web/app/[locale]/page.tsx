@@ -1,4 +1,4 @@
-import {useTranslations, useLocale} from "next-intl";
+import {getTranslations, getLocale} from "next-intl/server";
 import Link from "next/link";
 
 import {auth} from "@/lib/auth";
@@ -39,9 +39,9 @@ const STEPS = [
 ];
 
 export default async function LandingPage() {
-  const t = useTranslations("landing");
-  const nav = useTranslations("nav");
-  const locale = useLocale();
+  const t = await getTranslations("landing");
+  const nav = await getTranslations("nav");
+  const locale = await getLocale();
   const session = await auth();
   const isLoggedIn = !!session?.user;
 
