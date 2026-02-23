@@ -59,7 +59,7 @@ type OpsPageProps = {
   searchParams?: Promise<{cid?: string; level?: string; type?: string}>;
 };
 
-export default async function OpsPage({searchParams}: OpsPageProps = {}) {
+export default async function OpsPage({searchParams}: OpsPageProps) {
   const t = await getTranslations("ops");
   const locale = await getLocale();
   const query = searchParams ? await searchParams : {};

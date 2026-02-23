@@ -86,7 +86,7 @@ describe("OpsPage", () => {
       vi.fn().mockResolvedValue({ok: false, status: 404, json: () => Promise.resolve({})}),
     );
 
-    const jsx = await OpsPage();
+    const jsx = await OpsPage({searchParams: Promise.resolve({})});
     render(jsx);
     expect(screen.getByText(/ops console is disabled/i)).toBeTruthy();
   });

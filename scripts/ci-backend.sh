@@ -15,6 +15,14 @@ export ENVIRONMENT="${ENVIRONMENT:-test}"
 export GENERATE_PIPELINE_CACHE="${GENERATE_PIPELINE_CACHE:-0}"
 export CI_PARITY=1
 
+# Required Settings fields that are not needed as real secrets in CI tests.
+# CI runners do not have a local .env, so provide deterministic placeholders.
+export APP_PUBLIC_BASE_URL="${APP_PUBLIC_BASE_URL:-http://localhost:3000}"
+export ANTHROPIC_API_KEY="${ANTHROPIC_API_KEY:-test-anthropic-key}"
+export OPENAI_API_KEY="${OPENAI_API_KEY:-test-openai-key}"
+export DEEPSEEK_API_KEY="${DEEPSEEK_API_KEY:-test-deepseek-key}"
+export EVOLUTION_API_KEY="${EVOLUTION_API_KEY:-test-evolution-key}"
+
 cleanup() {
   if [[ "$STARTED_LOCAL_DB" -eq 1 && "$KEEP_LOCAL_CI_DB" != "1" ]]; then
     docker rm -f "$DB_CONTAINER_NAME" >/dev/null 2>&1 || true
