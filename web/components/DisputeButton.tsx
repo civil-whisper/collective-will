@@ -21,7 +21,7 @@ export function DisputeButton({submissionId, disabled}: Props) {
     event.preventDefault();
     setStatus("loading");
     try {
-      await apiPost(`/user/dashboard/disputes/${submissionId}`, {
+      await apiPost(`/api/user/dashboard/disputes/${submissionId}`, {
         entity_type: disputeType,
         entity_id: submissionId,
         dispute_type: disputeType,

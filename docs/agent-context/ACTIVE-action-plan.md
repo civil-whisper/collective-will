@@ -267,6 +267,23 @@ Inspiration: [Plausible Analytics](https://plausible.io/plausible.io) — clean,
     - Console fallback (no API key, empty API key)
     - Updated identity test to mock email sender
 
+### P1 — Ops Observability Console
+
+Design rationale: `docs/decision-rationale/website/09-ops-debug-console.md`
+
+39. [done] Add `/ops` diagnostics console (dev/staging first)
+    - Add feature-flagged `/ops` page and optional nav tab
+    - Add backend `/ops/status`, `/ops/events`, and `/ops/jobs` endpoints
+    - Keep production mode admin-gated and hidden unless explicitly enabled
+    - Expose structured redacted diagnostics, not raw container logs
+    - Add i18n + tests for access control, filtering, and redaction
+    - Add request correlation IDs (`X-Request-Id`) and include them in ops event traces
+
+40. [done] Unify authenticated web API auth across dashboard and ops
+    - Standardized on backend-verified bearer tokens for `/user/*` and `/ops/*`
+    - Removed client-trusted email-header identity path for authenticated access control
+    - Added shared backend/web auth helpers to keep auth behavior consistent across tabs
+
 ## Definition of Done (This Cycle)
 
 - No CI/CD job performs paid LLM API calls

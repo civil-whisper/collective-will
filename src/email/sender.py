@@ -9,13 +9,22 @@ logger = logging.getLogger(__name__)
 RESEND_API_URL = "https://api.resend.com/emails"
 
 
-def _build_magic_link_html(magic_link_url: str, locale: str) -> tuple[str, str]:
+def _to_fa_digits(value: int) -> str:
+    return str(value).translate(str.maketrans("0123456789", "۰۱۲۳۴۵۶۷۸۹"))
+
+
+def _build_magic_link_html(
+    magic_link_url: str,
+    locale: str,
+    *,
+    expiry_minutes: int,
+) -> tuple[str, str]:
     if locale == "fa":
         subject = "تأیید ایمیل - اراده جمعی"
         heading = "تأیید ایمیل شما"
         body_text = "برای تأیید ایمیل و ادامه ثبت‌نام، روی دکمه زیر کلیک کنید."
         button_text = "تأیید ایمیل"
-        expiry_text = "این لینک تا ۱۵ دقیقه معتبر است."
+        expiry_text = f"این لینک تا {_to_fa_digits(expiry_minutes)} دقیقه معتبر است."
         ignore_text = "اگر شما این درخواست را نداده‌اید، این ایمیل را نادیده بگیرید."
         direction = "rtl"
     else:
@@ -23,7 +32,7 @@ def _build_magic_link_html(magic_link_url: str, locale: str) -> tuple[str, str]:
         heading = "Verify your email"
         body_text = "Click the button below to verify your email and continue signing up."
         button_text = "Verify Email"
-        expiry_text = "This link expires in 15 minutes."
+        expiry_text = f"This link expires in {expiry_minutes} minutes."
         ignore_text = "If you didn't request this, you can safely ignore this email."
         direction = "ltr"
 
@@ -56,17 +65,17 @@ def _build_magic_link_html(magic_link_url: str, locale: str) -> tuple[str, str]:
     return subject, html
 
 
-def _build_plain_text(magic_link_url: str, locale: str) -> str:
+def _build_plain_text(magic_link_url: str, locale: str, *, expiry_minutes: int) -> str:
     if locale == "fa":
         return (
             f"تأیید ایمیل - اراده جمعی\n\n"
             f"برای تأیید ایمیل خود روی لینک زیر کلیک کنید:\n{magic_link_url}\n\n"
-            f"این لینک تا ۱۵ دقیقه معتبر است."
+            f"این لینک تا {_to_fa_digits(expiry_minutes)} دقیقه معتبر است."
         )
     return (
         f"Verify your email - Collective Will\n\n"
         f"Click the link below to verify your email:\n{magic_link_url}\n\n"
-        f"This link expires in 15 minutes."
+        f"This link expires in {expiry_minutes} minutes."
     )
 
 
@@ -77,6 +86,8 @@ async def send_magic_link_email(
     locale: str = "fa",
     resend_api_key: str | None,
     email_from: str,
+    expiry_minutes: int,
+    http_timeout_seconds: float,
 ) -> bool:
     """Send a magic link verification email.
 
@@ -86,8 +97,8 @@ async def send_magic_link_email(
         logger.info("Magic link for %s: %s (email sending disabled — no RESEND_API_KEY)", to, magic_link_url)
         return True
 
-    subject, html = _build_magic_link_html(magic_link_url, locale)
-    plain_text = _build_plain_text(magic_link_url, locale)
+    subject, html = _build_magic_link_html(magic_link_url, locale, expiry_minutes=expiry_minutes)
+    plain_text = _build_plain_text(magic_link_url, locale, expiry_minutes=expiry_minutes)
 
     payload = {
         "from": email_from,
@@ -98,7 +109,7 @@ async def send_magic_link_email(
     }
 
     try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
+        async with httpx.AsyncClient(timeout=http_timeout_seconds) as client:
             response = await client.post(
                 RESEND_API_URL,
                 json=payload,

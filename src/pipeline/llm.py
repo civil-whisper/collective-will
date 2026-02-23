@@ -18,11 +18,6 @@ TASK_TIERS: dict[str, tuple[str, str]] = {
     "dispute_resolution": ("dispute_resolution_model", "dispute_resolution_fallback_model"),
 }
 
-TRANSIENT_STATUS_CODES = {429, 500, 502, 503}
-NON_RETRIABLE_STATUS_CODES = {400, 401}
-MAX_RETRIES = 3
-EMBED_BATCH_SIZE = 64
-
 TierName = Literal["canonicalization", "farsi_messages", "english_reasoning", "dispute_resolution"]
 
 
@@ -44,6 +39,32 @@ class LLMRouter:
     def __init__(self, settings: Settings | None = None) -> None:
         self.settings = settings or get_settings()
         self.total_cost_usd = 0.0
+        self._transient_status_codes = self.settings.llm_transient_status_code_set()
+        self._non_retriable_status_codes = self.settings.llm_non_retriable_status_code_set()
+
+    def _completion_call_params(
+        self,
+        *,
+        max_tokens: int | None,
+        temperature: float | None,
+        timeout_s: float | None,
+    ) -> tuple[int, float, float]:
+        return (
+            max_tokens if max_tokens is not None else self.settings.llm_default_max_tokens,
+            temperature if temperature is not None else self.settings.llm_default_temperature,
+            timeout_s if timeout_s is not None else self.settings.llm_completion_timeout_seconds,
+        )
+
+    def _embedding_call_params(
+        self,
+        *,
+        dimensions: int | None,
+        timeout_s: float | None,
+    ) -> tuple[int, float]:
+        return (
+            dimensions if dimensions is not None else self.settings.llm_embedding_dimensions,
+            timeout_s if timeout_s is not None else self.settings.llm_embedding_timeout_seconds,
+        )
 
     def _resolve_tier_models(self, tier: str) -> tuple[str, str | None]:
         if tier not in TASK_TIERS:
@@ -71,10 +92,15 @@ class LLMRouter:
         model: str,
         prompt: str,
         system_prompt: str | None = None,
-        max_tokens: int = 1024,
-        temperature: float = 0.0,
-        timeout_s: float = 60.0,
+        max_tokens: int | None = None,
+        temperature: float | None = None,
+        timeout_s: float | None = None,
     ) -> dict[str, Any]:
+        max_tokens, temperature, timeout_s = self._completion_call_params(
+            max_tokens=max_tokens,
+            temperature=temperature,
+            timeout_s=timeout_s,
+        )
         provider = self._provider_for_model(model)
         async with httpx.AsyncClient(timeout=timeout_s) as client:
             if provider == "anthropic":
@@ -126,12 +152,19 @@ class LLMRouter:
         model: str,
         prompt: str,
         system_prompt: str | None = None,
-        max_tokens: int = 1024,
-        temperature: float = 0.0,
-        timeout_s: float = 60.0,
+        max_tokens: int | None = None,
+        temperature: float | None = None,
+        timeout_s: float | None = None,
     ) -> dict[str, Any]:
+        max_tokens, temperature, timeout_s = self._completion_call_params(
+            max_tokens=max_tokens,
+            temperature=temperature,
+            timeout_s=timeout_s,
+        )
         last_exc: Exception | None = None
-        for attempt in range(MAX_RETRIES):
+        retry_count = max(1, self.settings.llm_max_retries)
+        backoff_base = self.settings.llm_completion_retry_backoff_base_seconds
+        for attempt in range(retry_count):
             try:
                 return await self._call_completion_api(
                     model=model,
@@ -142,16 +175,16 @@ class LLMRouter:
                     timeout_s=timeout_s,
                 )
             except httpx.HTTPStatusError as exc:
-                if exc.response.status_code in NON_RETRIABLE_STATUS_CODES:
+                if exc.response.status_code in self._non_retriable_status_codes:
                     raise
-                if exc.response.status_code in TRANSIENT_STATUS_CODES:
+                if exc.response.status_code in self._transient_status_codes:
                     last_exc = exc
-                    await asyncio.sleep(0.1 * (2**attempt))
+                    await asyncio.sleep(backoff_base * (2**attempt))
                     continue
                 raise
             except (httpx.TimeoutException, httpx.ConnectError) as exc:
                 last_exc = exc
-                await asyncio.sleep(0.1 * (2**attempt))
+                await asyncio.sleep(backoff_base * (2**attempt))
                 continue
         raise last_exc or RuntimeError(f"Retries exhausted for model={model}")
 
@@ -161,9 +194,9 @@ class LLMRouter:
         tier: TierName,
         prompt: str,
         system_prompt: str | None = None,
-        max_tokens: int = 1024,
-        temperature: float = 0.0,
-        timeout_s: float = 60.0,
+        max_tokens: int | None = None,
+        temperature: float | None = None,
+        timeout_s: float | None = None,
     ) -> LLMResponse:
         primary, fallback = self._resolve_tier_models(tier)
         models = [primary] + ([fallback] if fallback else [])
@@ -199,9 +232,9 @@ class LLMRouter:
         model: str,
         prompt: str,
         system_prompt: str | None = None,
-        max_tokens: int = 1024,
-        temperature: float = 0.0,
-        timeout_s: float = 60.0,
+        max_tokens: int | None = None,
+        temperature: float | None = None,
+        timeout_s: float | None = None,
     ) -> LLMResponse:
         payload = await self._call_with_retries(
             model=model,
@@ -223,8 +256,14 @@ class LLMRouter:
         )
 
     async def _call_embedding_api(
-        self, *, model: str, texts: list[str], dimensions: int = 1024, timeout_s: float = 60.0
+        self,
+        *,
+        model: str,
+        texts: list[str],
+        dimensions: int | None = None,
+        timeout_s: float | None = None,
     ) -> list[list[float]]:
+        dimensions, timeout_s = self._embedding_call_params(dimensions=dimensions, timeout_s=timeout_s)
         provider = self._provider_for_model(model)
         async with httpx.AsyncClient(timeout=timeout_s) as client:
             if provider == "mistral":
@@ -252,14 +291,15 @@ class LLMRouter:
             data = response.json().get("data", [])
             return [item["embedding"] for item in data]
 
-    async def embed(self, texts: list[str], timeout_s: float = 60.0) -> EmbeddingResult:
+    async def embed(self, texts: list[str], timeout_s: float | None = None) -> EmbeddingResult:
         models = [self.settings.embedding_model, self.settings.embedding_fallback_model]
+        batch_size = max(1, self.settings.llm_embed_batch_size)
         errors: list[Exception] = []
         for model in models:
             try:
                 all_vectors: list[list[float]] = []
-                for i in range(0, len(texts), EMBED_BATCH_SIZE):
-                    batch = texts[i : i + EMBED_BATCH_SIZE]
+                for i in range(0, len(texts), batch_size):
+                    batch = texts[i : i + batch_size]
                     vectors = await self._call_embedding_with_retries(
                         model=model, texts=batch, timeout_s=timeout_s
                     )
@@ -275,18 +315,25 @@ class LLMRouter:
         raise RuntimeError(f"All embedding models failed: {errors}")
 
     async def _call_embedding_with_retries(
-        self, *, model: str, texts: list[str], timeout_s: float = 60.0
+        self,
+        *,
+        model: str,
+        texts: list[str],
+        timeout_s: float | None = None,
     ) -> list[list[float]]:
+        _, timeout_s = self._embedding_call_params(dimensions=None, timeout_s=timeout_s)
         last_exc: Exception | None = None
-        for attempt in range(MAX_RETRIES):
+        retry_count = max(1, self.settings.llm_max_retries)
+        backoff_base = self.settings.llm_embedding_retry_backoff_base_seconds
+        for attempt in range(retry_count):
             try:
                 return await self._call_embedding_api(model=model, texts=texts, timeout_s=timeout_s)
             except httpx.HTTPStatusError as exc:
-                if exc.response.status_code in NON_RETRIABLE_STATUS_CODES:
+                if exc.response.status_code in self._non_retriable_status_codes:
                     raise
-                if exc.response.status_code in TRANSIENT_STATUS_CODES:
+                if exc.response.status_code in self._transient_status_codes:
                     last_exc = exc
-                    await asyncio.sleep(0.5 * (2**attempt))
+                    await asyncio.sleep(backoff_base * (2**attempt))
                     continue
                 raise
             except (httpx.TimeoutException, httpx.ConnectError, RuntimeError) as exc:

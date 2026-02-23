@@ -91,7 +91,7 @@ async def publish_daily_merkle_root(
 
     payload = {"day": day.isoformat(), "root": root}
     headers = {"Authorization": f"Bearer {settings.witness_api_key}"}
-    async with httpx.AsyncClient(timeout=20.0) as client:
+    async with httpx.AsyncClient(timeout=settings.witness_http_timeout_seconds) as client:
         response = await client.post(f"{settings.witness_api_url}/anchors", json=payload, headers=headers)
         response.raise_for_status()
         receipt_value = response.json().get("id")

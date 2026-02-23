@@ -56,7 +56,7 @@ def hash_submission(text: str) -> str:
 
 ## Constraints
 
-- Do NOT process or canonicalize the submission here. That happens in the pipeline module (batch, every 6 hours).
+- Do NOT process or canonicalize the submission here. That happens in the pipeline module on a config-backed batch interval (`PIPELINE_INTERVAL_HOURS`, default 6 hours).
 - Do NOT send the user's raw text to any external API in this handler.
 - The user_id in the evidence store payload is the internal UUID, NOT the WhatsApp ID.
 - If any step fails (DB write, evidence append), the submission should not be partially saved. Use a transaction.

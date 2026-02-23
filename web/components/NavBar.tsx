@@ -14,6 +14,7 @@ export function NavBar() {
   const locale = useLocale();
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
+  const showOpsLink = process.env.NEXT_PUBLIC_OPS_CONSOLE_SHOW_IN_NAV === "true";
 
   const links = [
     {href: `/${locale}`, label: t("home")},
@@ -21,6 +22,7 @@ export function NavBar() {
     {href: `/${locale}/analytics/top-policies`, label: t("topPolicies")},
     {href: `/${locale}/dashboard`, label: t("dashboard")},
     {href: `/${locale}/analytics/evidence`, label: t("audit")},
+    ...(showOpsLink ? [{href: `/${locale}/ops`, label: t("ops")}] : []),
   ];
 
   const isActive = (href: string) => pathname === href;

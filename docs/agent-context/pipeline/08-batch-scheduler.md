@@ -10,7 +10,7 @@
 - `database/04-evidence-store` (append_evidence)
 
 ## Goal
-Create the background scheduler that runs the full processing pipeline every 6 hours: canonicalize pending submissions, compute embeddings, cluster, check variance, summarize, and build agenda.
+Create the background scheduler that runs the full processing pipeline on a config-backed interval (`PIPELINE_INTERVAL_HOURS`, default 6 hours): canonicalize pending submissions, compute embeddings, cluster, check variance, summarize, and build agenda.
 
 ## Files to create
 
@@ -22,7 +22,7 @@ Create the background scheduler that runs the full processing pipeline every 6 h
 
 ```python
 async def run_pipeline() -> PipelineResult:
-    """Run the full processing pipeline. Called every 6 hours."""
+    """Run the full processing pipeline. Called on config-backed scheduler cadence."""
 ```
 
 Steps (in order):
@@ -63,7 +63,7 @@ async def scheduler_main():
             log_pipeline_result(result)
         except Exception as e:
             log_pipeline_error(e)
-        await asyncio.sleep(6 * 3600)  # 6 hours
+        await asyncio.sleep(settings.pipeline_interval_hours * 3600)
 ```
 
 Run as a separate process: `python -m src.scheduler`

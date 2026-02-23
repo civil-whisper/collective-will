@@ -16,9 +16,19 @@ class Settings(BaseSettings):
     evolution_api_key: str
     evolution_api_url: str = "http://localhost:8080"
     telegram_bot_token: str | None = None
+    cors_allow_origins: str = "http://localhost:3000"
+    telegram_http_timeout_seconds: float = 30.0
+    whatsapp_http_timeout_seconds: float = 30.0
+    email_http_timeout_seconds: float = 10.0
+    witness_http_timeout_seconds: float = 20.0
 
     min_account_age_hours: int = 48
     min_cluster_size: int = 5
+    cluster_min_samples: int = 1
+    cluster_random_seed: int = 7
+    cluster_variance_min_candidates: int = 20
+    cluster_variance_stability_threshold: float = 0.6
+    cluster_variance_random_seeds: str = "7,11,13"
     min_preballot_endorsements: int = 5
     max_signups_per_domain_per_day: int = 3
     max_signups_per_ip_per_day: int = 10
@@ -26,8 +36,25 @@ class Settings(BaseSettings):
     burst_quarantine_window_minutes: int = 5
     major_email_providers: str = "gmail.com,outlook.com,yahoo.com,protonmail.com"
     voting_cycle_hours: int = 48
+    pipeline_interval_hours: float = 6.0
+    pipeline_min_interval_hours: float = 0.01
     max_submissions_per_day: int = 5
     require_contribution_for_vote: bool = True
+    max_vote_submissions_per_cycle: int = 2
+    signup_domain_diversity_threshold: int = 5
+    magic_link_expiry_minutes: int = 15
+    linking_code_expiry_minutes: int = 60
+    web_session_code_expiry_minutes: int = 10
+    web_access_token_expiry_hours: int = 24 * 30
+    web_access_token_secret: str = "change-me-in-production"
+    dispute_metrics_lookback_days: int = 7
+    dispute_rate_tuning_threshold: float = 0.05
+    dispute_disagreement_tuning_threshold: float = 0.30
+    ops_console_enabled: bool = False
+    ops_console_show_in_nav: bool = False
+    ops_console_require_admin: bool = True
+    ops_admin_emails: str = ""
+    ops_event_buffer_size: int = 500
 
     canonicalization_model: str = "claude-sonnet-4-20250514"
     canonicalization_fallback_model: str = "claude-sonnet-4-20250514"
@@ -51,6 +78,23 @@ class Settings(BaseSettings):
 
     embedding_model: str = "text-embedding-3-large"
     embedding_fallback_model: str = "mistral-embed"
+    llm_max_retries: int = 3
+    llm_completion_retry_backoff_base_seconds: float = 0.1
+    llm_embedding_retry_backoff_base_seconds: float = 0.5
+    llm_embed_batch_size: int = 64
+    llm_default_max_tokens: int = 1024
+    llm_default_temperature: float = 0.0
+    llm_completion_timeout_seconds: float = 60.0
+    llm_embedding_timeout_seconds: float = 60.0
+    llm_embedding_dimensions: int = 1024
+    llm_transient_status_codes: str = "429,500,502,503"
+    llm_non_retriable_status_codes: str = "400,401"
+    dispute_ensemble_temperature: float = 0.1
+
+    db_pool_size: int = 5
+    db_max_overflow: int = 10
+    db_pool_timeout_seconds: int = 30
+    db_echo_sql: bool = False
 
     model_config = SettingsConfigDict(env_file=".env", case_sensitive=False, extra="ignore")
 
@@ -70,6 +114,21 @@ class Settings(BaseSettings):
             for item in self.dispute_resolution_ensemble_models.split(",")
             if item.strip()
         ]
+
+    def ops_admin_email_list(self) -> list[str]:
+        return [item.strip().lower() for item in self.ops_admin_emails.split(",") if item.strip()]
+
+    def cors_allow_origin_list(self) -> list[str]:
+        return [item.strip() for item in self.cors_allow_origins.split(",") if item.strip()]
+
+    def cluster_variance_seed_list(self) -> list[int]:
+        return [int(item.strip()) for item in self.cluster_variance_random_seeds.split(",") if item.strip()]
+
+    def llm_transient_status_code_set(self) -> set[int]:
+        return {int(item.strip()) for item in self.llm_transient_status_codes.split(",") if item.strip()}
+
+    def llm_non_retriable_status_code_set(self) -> set[int]:
+        return {int(item.strip()) for item in self.llm_non_retriable_status_codes.split(",") if item.strip()}
 
 
 @lru_cache(maxsize=1)

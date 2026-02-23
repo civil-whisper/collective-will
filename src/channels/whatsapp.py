@@ -25,6 +25,7 @@ class WhatsAppChannel(BaseChannel):
         settings = get_settings()
         self.api_url = api_url or settings.evolution_api_url
         self.api_key = api_key or settings.evolution_api_key
+        self.http_timeout_seconds = settings.whatsapp_http_timeout_seconds
         self._session = session
 
     async def parse_webhook(self, payload: dict[str, Any]) -> UnifiedMessage | None:
@@ -60,7 +61,7 @@ class WhatsAppChannel(BaseChannel):
         headers = {"apikey": self.api_key}
         body = {"number": wa_id, "text": message.text}
         try:
-            async with httpx.AsyncClient(timeout=30.0) as client:
+            async with httpx.AsyncClient(timeout=self.http_timeout_seconds) as client:
                 response = await client.post(url, headers=headers, json=body)
                 response.raise_for_status()
             return True

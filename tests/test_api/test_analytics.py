@@ -13,7 +13,7 @@ from src.api.main import app
 from src.db.connection import get_db
 from src.db.evidence import EvidenceLogEntry
 from src.models.cluster import Cluster
-from src.models.submission import PolicyDomain
+from src.models.submission import PolicyCandidate, PolicyDomain
 from src.models.vote import VotingCycle
 
 
@@ -31,9 +31,23 @@ def _make_cluster(**overrides: Any) -> MagicMock:
     cluster.summary = overrides.get("summary", "Test cluster")
     cluster.domain = overrides.get("domain", PolicyDomain.ECONOMY)
     cluster.member_count = overrides.get("member_count", 5)
+    cluster.approval_count = overrides.get("approval_count", 0)
     cluster.variance_flag = overrides.get("variance_flag", False)
     cluster.created_at = overrides.get("created_at", datetime.now(UTC))
     return cluster
+
+
+def _make_candidate(**overrides: Any) -> MagicMock:
+    candidate = MagicMock(spec=PolicyCandidate)
+    candidate.id = overrides.get("id", uuid4())
+    candidate.title = overrides.get("title", "Candidate")
+    candidate.title_en = overrides.get("title_en", "Candidate")
+    candidate.summary = overrides.get("summary", "Summary")
+    candidate.summary_en = overrides.get("summary_en", "Summary")
+    candidate.domain = overrides.get("domain", PolicyDomain.ECONOMY)
+    candidate.confidence = overrides.get("confidence", 0.8)
+    candidate.created_at = overrides.get("created_at", datetime.now(UTC))
+    return candidate
 
 
 def _make_evidence_entry(**overrides: Any) -> MagicMock:
@@ -81,6 +95,7 @@ class TestClusters:
             assert data[0]["summary"] == "Reform A"
             assert data[0]["domain"] == "governance"
             assert data[0]["member_count"] == 10
+            assert data[0]["approval_count"] == 0
             assert data[0]["variance_flag"] is True
         finally:
             app.dependency_overrides.pop(get_db, None)
@@ -94,6 +109,73 @@ class TestClusters:
             response = client.get("/analytics/clusters")
             assert response.status_code == 200
             assert len(response.json()) == 2
+        finally:
+            app.dependency_overrides.pop(get_db, None)
+
+
+class TestStats:
+    def test_returns_aggregate_stats(self) -> None:
+        session = AsyncMock()
+
+        voters_result = MagicMock()
+        voters_result.scalar_one.return_value = 3
+
+        submissions_result = MagicMock()
+        submissions_result.scalar_one.return_value = 11
+
+        pending_result = MagicMock()
+        pending_result.scalar_one.return_value = 4
+
+        cycle = MagicMock(spec=VotingCycle)
+        cycle.id = uuid4()
+        cycle_result = MagicMock()
+        cycle_result.scalars.return_value = MagicMock(first=MagicMock(return_value=cycle))
+
+        session.execute.side_effect = [voters_result, submissions_result, pending_result, cycle_result]
+        app.dependency_overrides[get_db] = lambda: session
+        try:
+            client = TestClient(app)
+            response = client.get("/analytics/stats")
+            assert response.status_code == 200
+            data = response.json()
+            assert data["total_voters"] == 3
+            assert data["total_submissions"] == 11
+            assert data["pending_submissions"] == 4
+            assert data["current_cycle"] == str(cycle.id)
+        finally:
+            app.dependency_overrides.pop(get_db, None)
+
+
+class TestUnclustered:
+    def test_returns_unclustered_candidates(self) -> None:
+        clustered_candidate_id = uuid4()
+        unclustered_candidate_id = uuid4()
+        candidate = _make_candidate(id=unclustered_candidate_id, title="Housing access")
+
+        session = AsyncMock()
+
+        clusters_result = MagicMock()
+        clusters_result.scalars.return_value = MagicMock(
+            all=MagicMock(return_value=[[clustered_candidate_id]])
+        )
+
+        count_result = MagicMock()
+        count_result.scalar_one.return_value = 1
+
+        candidates_result = MagicMock()
+        candidates_result.scalars.return_value = MagicMock(all=MagicMock(return_value=[candidate]))
+
+        session.execute.side_effect = [clusters_result, count_result, candidates_result]
+        app.dependency_overrides[get_db] = lambda: session
+        try:
+            client = TestClient(app)
+            response = client.get("/analytics/unclustered")
+            assert response.status_code == 200
+            data = response.json()
+            assert data["total"] == 1
+            assert len(data["items"]) == 1
+            assert data["items"][0]["id"] == str(unclustered_candidate_id)
+            assert data["items"][0]["title"] == "Housing access"
         finally:
             app.dependency_overrides.pop(get_db, None)
 

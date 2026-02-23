@@ -5,7 +5,8 @@
     "dashboard": "Dashboard",
     "about": "About",
     "audit": "Audit",
-    "topPolicies": "Top Policies"
+    "topPolicies": "Top Policies",
+    "ops": "Ops"
   },
   "common": {
     "appTitle": "Collective Will",
@@ -108,6 +109,36 @@
     "totalEntries": "Total Entries",
     "search": "Search",
     "rank": "Rank",
-    "totalVoters": "Total Voters"
+    "totalVoters": "Total Voters",
+    "totalSubmissions": "Total Submissions",
+    "pendingSubmissions": "{count} submissions are pending AI processing.",
+    "unclusteredCandidates": "Unclustered Candidates",
+    "noUnclusteredCandidates": "No unclustered candidates right now."
+  },
+  "ops": {
+    "title": "Ops Console",
+    "subtitle": "Runtime diagnostics and recent system activity",
+    "health": "Health",
+    "events": "Recent Events",
+    "traceFilterTitle": "Trace by Request ID",
+    "requestIdLabel": "Request ID",
+    "requestIdPlaceholder": "Paste X-Request-Id (e.g. trace-id-ops)",
+    "applyFilter": "Apply",
+    "clearFilter": "Clear",
+    "quickFilters": "Quick filters",
+    "allLevels": "All levels",
+    "errorsOnly": "Errors",
+    "warningsOnly": "Warnings",
+    "infoOnly": "Info",
+    "allEvents": "All events",
+    "failedRequests": "Failed requests",
+    "completedRequests": "Completed requests",
+    "jobs": "Background Jobs",
+    "status": "Status",
+    "lastRun": "Last run",
+    "noEvents": "No events captured yet.",
+    "noEventsWithFilters": "No events match the current filters.",
+    "noJobs": "No job activity available yet.",
+    "unavailable": "Ops console is disabled or you do not have access."
   }
 }

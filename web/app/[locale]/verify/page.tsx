@@ -3,9 +3,11 @@
 import {useSearchParams} from "next/navigation";
 import {useCallback, useEffect, useState} from "react";
 import {useTranslations, useLocale} from "next-intl";
+import {signIn} from "next-auth/react";
 import Link from "next/link";
 
 import {apiPost} from "@/lib/api";
+import {setUserEmailCookie} from "@/lib/user-session";
 import {Card} from "@/components/ui";
 
 export default function VerifyPage() {
@@ -25,9 +27,19 @@ export default function VerifyPage() {
       setErrorDetail("invalid");
       return;
     }
-    apiPost<{status: string}>(`/auth/verify/${token}`, {})
+    apiPost<{status: string; email?: string; web_session_code?: string}>(`/auth/verify/${token}`, {})
       .then((result) => {
         setStatus("success");
+        if (result.email) {
+          setUserEmailCookie(result.email);
+        }
+        if (result.email && result.web_session_code) {
+          void signIn("credentials", {
+            email: result.email,
+            webSessionCode: result.web_session_code,
+            redirect: false,
+          });
+        }
         if (result.status && result.status !== "verified") {
           setLinkingCode(result.status);
         }

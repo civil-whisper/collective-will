@@ -31,6 +31,7 @@ These are locked. Do not deviate.
 | **Identity** | Email magic-link + WhatsApp account linking. No phone verification, no OAuth, no vouching. Signup controls: exempt major email providers from per-domain cap; enforce `MAX_SIGNUPS_PER_DOMAIN_PER_DAY=3` for non-major domains; enforce per-IP signup cap (`MAX_SIGNUPS_PER_IP_PER_DAY`) and keep telemetry signals (domain diversity, disposable-domain scoring, velocity logs). |
 | **Sealed account mapping** | Store messaging linkage as random opaque account refs (UUIDv4). Raw platform IDs (Telegram chat_id, WhatsApp wa_id) live only in the `sealed_account_mappings` DB table and are stripped from logs/exports. The sealed mapping is persisted to database (not in-memory) so it survives restarts. |
 | **Auth token persistence** | Magic link tokens and linking codes are stored in the `verification_tokens` DB table with expiry timestamps. No in-memory token storage — tokens must survive process restarts and be shared across background workers. |
+| **Authenticated web API identity** | `/user/*` and `/ops/*` must use backend-verified bearer tokens derived from the magic-link web session flow. Do not trust client-provided identity headers (for example `x-user-email`) for authenticated access control. Keep bearer signing secret backend-only via `WEB_ACCESS_TOKEN_SECRET`. |
 | **Submission eligibility** | Verified account + account age >= 48 hours in production. Threshold is config-backed via `MIN_ACCOUNT_AGE_HOURS` (default `48`) so test/dev can override lower values. |
 | **Vote eligibility** | Verified account + age >= 48h + at least 1 accepted contribution in production. Accepted contribution = processed submission OR pre-ballot policy endorsement signature. Age threshold config-backed via `MIN_ACCOUNT_AGE_HOURS` (default `48`). Contribution requirement config-backed via `REQUIRE_CONTRIBUTION_FOR_VOTE` (default `true`). Staging/test can override both. |
 | **Pre-ballot signatures** | Multi-stage approval is required before ballot: clusters must pass size threshold and collect enough distinct endorsement signatures (`MIN_PREBALLOT_ENDORSEMENTS`, default `5`) before entering final approval ballot. |
@@ -39,6 +40,7 @@ These are locked. Do not deviate.
 | **Adjudication autonomy** | Individual votes, disputes, and quarantine outcomes are resolved by autonomous agentic workflows (primary model + fallback/ensemble as needed). Humans do not manually decide per-item outcomes; human actions are limited to architecture, policy tuning, and risk-management incidents. |
 | **Evidence store** | PostgreSQL append-only hash-chain. No UPDATE/DELETE. |
 | **External anchoring** | Merkle root computation is required in v0 (daily). Publishing that root to Witness.co is optional and config-driven. |
+| **Ops observability console** | Add a separate `/ops` diagnostics surface for runtime health/events. In dev/staging it may appear in top navigation; in production it must be admin-auth gated and feature-flagged. Show structured, redacted operational events (health checks, recent errors, job status, webhook/email transport status), not raw container logs. |
 | **Infrastructure** | Njalla domain is registered (WHOIS privacy). Primary hosting is 1984.is VPS. Production traffic must pass through a reverse-proxy edge (Cloudflare or OVH DDoS) with origin IP kept private, and an operator failover playbook + standby VPS must be documented. |
 
 ### Abuse Thresholds
@@ -330,7 +332,7 @@ collective-will/
 - Messaging account linking with opaque account refs (Telegram now; WhatsApp mapping path prepared)
 - Canonicalization (Claude Sonnet, cloud)
 - Embeddings (quality-first cloud model in v0; cost-optimized model switch later via config)
-- Clustering (HDBSCAN, local, batch every 6h)
+- Clustering (HDBSCAN, local, batch on a config-backed interval via `PIPELINE_INTERVAL_HOURS`, default 6h)
 - Pre-ballot endorsement/signature stage for cluster qualification
 - Approval voting via Telegram during MVP build/testing
 - Public analytics dashboard (no login wall)
@@ -338,6 +340,7 @@ collective-will/
 - Evidence store (hash-chain in Postgres)
 - Farsi + English UI (RTL support)
 - Audit evidence explorer
+- Ops observability console (`/ops`) for redacted runtime diagnostics in dev/staging, with optional admin-only production mode
 - Abuse controls (rate limits, quarantine)
 
 ## What's Out of Scope (v0)
@@ -351,6 +354,7 @@ collective-will/
 - Blockchain anchoring (required)
 - Mobile app
 - Demographic collection
+- Public/anonymous access to raw runtime or Docker/container logs
 
 ---
 

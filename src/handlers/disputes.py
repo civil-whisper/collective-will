@@ -123,8 +123,9 @@ async def _record_dispute_metrics(
     escalated: bool,
     confidence: float,
 ) -> None:
+    settings = get_settings()
     now = datetime.now(UTC)
-    lookback_start = now - timedelta(days=7)
+    lookback_start = now - timedelta(days=settings.dispute_metrics_lookback_days)
 
     submission_count_result = await session.execute(
         select(func.count(Submission.id)).where(Submission.created_at >= lookback_start)
@@ -158,7 +159,7 @@ async def _record_dispute_metrics(
         entity_type="dispute",
         entity_id=submission_id,
         payload={
-            "lookback_days": 7,
+            "lookback_days": settings.dispute_metrics_lookback_days,
             "submission_count": submission_count,
             "dispute_open_count": dispute_open_count,
             "resolved_count": resolved_count,
@@ -171,14 +172,20 @@ async def _record_dispute_metrics(
         },
     )
 
-    if dispute_rate > 0.05 or disagreement_rate > 0.30:
+    if (
+        dispute_rate > settings.dispute_rate_tuning_threshold
+        or disagreement_rate > settings.dispute_disagreement_tuning_threshold
+    ):
         await append_evidence(
             session=session,
             event_type="dispute_tuning_recommended",
             entity_type="dispute",
             entity_id=submission_id,
             payload={
-                "thresholds": {"dispute_rate": 0.05, "disagreement_rate": 0.30},
+                "thresholds": {
+                    "dispute_rate": settings.dispute_rate_tuning_threshold,
+                    "disagreement_rate": settings.dispute_disagreement_tuning_threshold,
+                },
                 "observed": {"dispute_rate": dispute_rate, "disagreement_rate": disagreement_rate},
                 "recommended_action": "tune_model_prompt_policy",
             },
@@ -190,11 +197,16 @@ async def _run_ensemble(
     llm_router: LLMRouter,
     prompt: str,
     models: list[str],
+    temperature: float,
 ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     decisions: list[dict[str, Any]] = []
     for model in models:
         try:
-            completion = await llm_router.complete_with_model(model=model, prompt=prompt, temperature=0.1)
+            completion = await llm_router.complete_with_model(
+                model=model,
+                prompt=prompt,
+                temperature=temperature,
+            )
             parsed = _parse_candidate_payload(completion.text)
             decisions.append(_normalize_decision(parsed, completion, prompt))
         except Exception:
@@ -246,6 +258,7 @@ async def resolve_submission_dispute(
             llm_router=router,
             prompt=prompt,
             models=ensemble_models,
+            temperature=settings.dispute_ensemble_temperature,
         )
         await append_evidence(
             session=session,

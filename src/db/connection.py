@@ -24,10 +24,10 @@ def get_engine() -> AsyncEngine:
     settings = get_settings()
     return create_async_engine(
         settings.database_url,
-        pool_size=5,
-        max_overflow=10,
-        pool_timeout=30,
-        echo=False,
+        pool_size=settings.db_pool_size,
+        max_overflow=settings.db_max_overflow,
+        pool_timeout=settings.db_pool_timeout_seconds,
+        echo=settings.db_echo_sql,
     )
 
 

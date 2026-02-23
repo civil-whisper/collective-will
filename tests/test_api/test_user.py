@@ -12,6 +12,7 @@ from src.db.connection import get_db
 from src.models.submission import Submission
 from src.models.user import User
 from src.models.vote import Vote
+from src.security.web_auth import create_web_access_token
 
 
 def _make_user(**overrides: Any) -> MagicMock:
@@ -55,6 +56,11 @@ def _session_returning_user_then(user: MagicMock | None, second_scalars: list[An
     return session
 
 
+def _auth_headers(email: str = "test@example.com") -> dict[str, str]:
+    token = create_web_access_token(email=email)
+    return {"Authorization": f"Bearer {token}"}
+
+
 class TestListSubmissions:
     def test_returns_401_without_user_header(self) -> None:
         session = AsyncMock()
@@ -76,7 +82,7 @@ class TestListSubmissions:
             client = TestClient(app)
             response = client.get(
                 "/user/dashboard/submissions",
-                headers={"x-user-email": "unknown@example.com"},
+                headers=_auth_headers("unknown@example.com"),
             )
             assert response.status_code == 401
             assert "unknown user" in response.json()["detail"]
@@ -91,7 +97,7 @@ class TestListSubmissions:
             client = TestClient(app)
             response = client.get(
                 "/user/dashboard/submissions",
-                headers={"x-user-email": "test@example.com"},
+                headers=_auth_headers(),
             )
             assert response.status_code == 200
             assert response.json() == []
@@ -108,7 +114,7 @@ class TestListSubmissions:
             client = TestClient(app)
             response = client.get(
                 "/user/dashboard/submissions",
-                headers={"x-user-email": "test@example.com"},
+                headers=_auth_headers(),
             )
             assert response.status_code == 200
             data = response.json()
@@ -140,7 +146,7 @@ class TestListVotes:
             client = TestClient(app)
             response = client.get(
                 "/user/dashboard/votes",
-                headers={"x-user-email": "test@example.com"},
+                headers=_auth_headers(),
             )
             assert response.status_code == 200
             assert response.json() == []
@@ -158,7 +164,7 @@ class TestListVotes:
             client = TestClient(app)
             response = client.get(
                 "/user/dashboard/votes",
-                headers={"x-user-email": "test@example.com"},
+                headers=_auth_headers(),
             )
             data = response.json()
             assert len(data) == 1
@@ -190,7 +196,7 @@ class TestOpenDispute:
             client = TestClient(app)
             response = client.post(
                 "/user/dashboard/disputes/not-a-uuid",
-                headers={"x-user-email": "test@example.com"},
+                headers=_auth_headers(),
             )
             assert response.status_code == 400
             assert "invalid submission id" in response.json()["detail"]
@@ -210,7 +216,7 @@ class TestOpenDispute:
             client = TestClient(app)
             response = client.post(
                 f"/user/dashboard/disputes/{uuid4()}",
-                headers={"x-user-email": "test@example.com"},
+                headers=_auth_headers(),
             )
             assert response.status_code == 404
             assert "submission not found" in response.json()["detail"]
@@ -236,7 +242,7 @@ class TestOpenDispute:
                 client = TestClient(app)
                 response = client.post(
                     f"/user/dashboard/disputes/{sub_id}",
-                    headers={"x-user-email": "test@example.com"},
+                    headers=_auth_headers(),
                 )
                 assert response.status_code == 200
                 assert response.json()["status"] == "under_automated_review"
@@ -269,7 +275,7 @@ class TestOpenDispute:
                 client = TestClient(app)
                 client.post(
                     f"/user/dashboard/disputes/{sub_id}",
-                    headers={"x-user-email": "test@example.com"},
+                    headers=_auth_headers(),
                 )
                 session.commit.assert_called_once()
         finally:

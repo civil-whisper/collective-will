@@ -1,9 +1,11 @@
 import Link from "next/link";
 import {getLocale, getTranslations} from "next-intl/server";
+import {redirect} from "next/navigation";
 
 import {DisputeButton} from "@/components/DisputeButton";
 import {DisputeStatus} from "@/components/DisputeStatus";
 import {apiGet} from "@/lib/api";
+import {buildBearerHeaders, getBackendAccessToken} from "@/lib/backend-auth";
 import {PageShell, MetricCard, Card, DomainBadge, StatusBadge} from "@/components/ui";
 
 type Submission = {
@@ -31,12 +33,16 @@ type Vote = {
   approved_cluster_ids?: string[];
 };
 
-async function getSubmissions(): Promise<Submission[]> {
-  return apiGet<Submission[]>("/user/dashboard/submissions").catch(() => []);
+async function getSubmissions(accessToken: string): Promise<Submission[]> {
+  return apiGet<Submission[]>("/user/dashboard/submissions", {
+    headers: buildBearerHeaders(accessToken),
+  }).catch(() => []);
 }
 
-async function getVotes(): Promise<Vote[]> {
-  return apiGet<Vote[]>("/user/dashboard/votes").catch(() => []);
+async function getVotes(accessToken: string): Promise<Vote[]> {
+  return apiGet<Vote[]>("/user/dashboard/votes", {
+    headers: buildBearerHeaders(accessToken),
+  }).catch(() => []);
 }
 
 const STATUS_VARIANT: Record<string, "success" | "warning" | "info" | "neutral"> = {
@@ -47,9 +53,16 @@ const STATUS_VARIANT: Record<string, "success" | "warning" | "info" | "neutral">
 };
 
 export default async function DashboardPage() {
+  const accessToken = await getBackendAccessToken();
   const t = await getTranslations("dashboard");
   const locale = await getLocale();
-  const [submissions, votes] = await Promise.all([getSubmissions(), getVotes()]);
+  if (!accessToken) {
+    redirect(`/${locale}/sign-in`);
+  }
+  const [submissions, votes] = await Promise.all([
+    getSubmissions(accessToken),
+    getVotes(accessToken),
+  ]);
 
   return (
     <PageShell title={t("title")}>

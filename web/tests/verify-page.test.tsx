@@ -3,6 +3,7 @@ import {render, screen, waitFor} from "@testing-library/react";
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest";
 
 let mockSearchParams = new URLSearchParams();
+const mockSignIn = vi.hoisted(() => vi.fn());
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({push: vi.fn(), replace: vi.fn(), back: vi.fn()}),
@@ -10,11 +11,16 @@ vi.mock("next/navigation", () => ({
   useSearchParams: () => mockSearchParams,
 }));
 
+vi.mock("next-auth/react", () => ({
+  signIn: mockSignIn,
+}));
+
 import VerifyPage from "../app/[locale]/verify/page";
 
 describe("VerifyPage", () => {
   beforeEach(() => {
     mockSearchParams = new URLSearchParams();
+    mockSignIn.mockReset();
   });
 
   afterEach(() => {
@@ -47,7 +53,7 @@ describe("VerifyPage", () => {
       "fetch",
       vi.fn().mockResolvedValue({
         ok: true,
-        json: () => Promise.resolve({status: "verified"}),
+        json: () => Promise.resolve({status: "verified", email: "user@example.com", web_session_code: "web-code"}),
       }),
     );
 
@@ -57,6 +63,11 @@ describe("VerifyPage", () => {
 
     await waitFor(() => {
       expect(screen.getByRole("heading")).toHaveTextContent("Email Verified!");
+    });
+    expect(mockSignIn).toHaveBeenCalledWith("credentials", {
+      email: "user@example.com",
+      webSessionCode: "web-code",
+      redirect: false,
     });
   });
 

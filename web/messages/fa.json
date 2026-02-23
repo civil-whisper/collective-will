@@ -5,7 +5,8 @@
     "dashboard": "داشبورد",
     "about": "درباره ما",
     "audit": "بررسی شواهد",
-    "topPolicies": "سیاست‌های برتر"
+    "topPolicies": "سیاست‌های برتر",
+    "ops": "عملیات"
   },
   "common": {
     "appTitle": "اراده جمعی",
@@ -108,6 +109,36 @@
     "totalEntries": "کل ورودی‌ها",
     "search": "جستجو",
     "rank": "رتبه",
-    "totalVoters": "کل رای‌دهندگان"
+    "totalVoters": "کل رای‌دهندگان",
+    "totalSubmissions": "کل ارسال‌ها",
+    "pendingSubmissions": "{count} ارسال در صف پردازش هوش مصنوعی است.",
+    "unclusteredCandidates": "نامزدهای خوشه‌بندی نشده",
+    "noUnclusteredCandidates": "فعلاً نامزد خوشه‌بندی‌نشده‌ای وجود ندارد."
+  },
+  "ops": {
+    "title": "کنسول عملیات",
+    "subtitle": "تشخیص وضعیت اجرا و فعالیت‌های اخیر سیستم",
+    "health": "سلامت سرویس‌ها",
+    "events": "رویدادهای اخیر",
+    "traceFilterTitle": "ردیابی با شناسه درخواست",
+    "requestIdLabel": "شناسه درخواست",
+    "requestIdPlaceholder": "X-Request-Id را وارد کنید",
+    "applyFilter": "اعمال",
+    "clearFilter": "حذف فیلتر",
+    "quickFilters": "فیلترهای سریع",
+    "allLevels": "همه سطح‌ها",
+    "errorsOnly": "فقط خطاها",
+    "warningsOnly": "فقط هشدارها",
+    "infoOnly": "اطلاعات",
+    "allEvents": "همه رویدادها",
+    "failedRequests": "درخواست‌های ناموفق",
+    "completedRequests": "درخواست‌های موفق",
+    "jobs": "کارهای پس‌زمینه",
+    "status": "وضعیت",
+    "lastRun": "آخرین اجرا",
+    "noEvents": "هنوز رویدادی ثبت نشده است.",
+    "noEventsWithFilters": "هیچ رویدادی با فیلترهای فعلی پیدا نشد.",
+    "noJobs": "هنوز اطلاعاتی از کارهای پس‌زمینه موجود نیست.",
+    "unavailable": "کنسول عملیات غیرفعال است یا دسترسی ندارید."
   }
 }

@@ -46,6 +46,12 @@ vi.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams(),
 }));
 
+vi.mock("next/headers", () => ({
+  cookies: async () => ({
+    get: (name: string) => (name === "cw_user_email" ? {value: "test@example.com"} : undefined),
+  }),
+}));
+
 vi.mock("next/link", () => ({
   default: ({href, children, ...rest}: {href: string; children: React.ReactNode; [key: string]: unknown}) => {
     const React = require("react");

@@ -1,16 +1,30 @@
 "use client";
 
 import {FormEvent, useState} from "react";
-import {signIn} from "next-auth/react";
+import {useLocale} from "next-intl";
 
 import {Card} from "@/components/ui";
+import {apiPost} from "@/lib/api";
 
 export default function SignInPage() {
   const [email, setEmail] = useState("");
+  const [status, setStatus] = useState<"idle" | "loading" | "sent" | "error">("idle");
+  const locale = useLocale();
 
   const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    await signIn("credentials", {email, callbackUrl: "/en/dashboard"});
+    setStatus("loading");
+    try {
+      await apiPost("/auth/subscribe", {
+        email,
+        locale,
+        requester_ip: "0.0.0.0",
+        messaging_account_ref: `web-${crypto.randomUUID()}`,
+      });
+      setStatus("sent");
+    } catch {
+      setStatus("error");
+    }
   };
 
   return (
@@ -18,7 +32,7 @@ export default function SignInPage() {
       <Card className="w-full max-w-sm">
         <h1 className="text-center text-xl font-bold">Sign in</h1>
         <p className="mt-1 text-center text-sm text-gray-500 dark:text-slate-400">
-          Enter your email to continue
+          Enter your email to receive a verification link
         </p>
         <form onSubmit={onSubmit} className="mt-6 space-y-4">
           <div>
@@ -37,11 +51,22 @@ export default function SignInPage() {
           </div>
           <button
             type="submit"
+            disabled={status === "loading"}
             className="w-full rounded-lg bg-accent px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-accent-hover"
           >
-            Continue
+            {status === "loading" ? "Sending..." : "Send verification link"}
           </button>
         </form>
+        {status === "sent" && (
+          <p className="mt-3 text-center text-sm text-green-600 dark:text-green-400">
+            Check your email for the sign-in link.
+          </p>
+        )}
+        {status === "error" && (
+          <p className="mt-3 text-center text-sm text-red-600 dark:text-red-400">
+            Could not send sign-in link. Please try again.
+          </p>
+        )}
       </Card>
     </div>
   );

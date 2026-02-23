@@ -2,6 +2,11 @@ import React from "react";
 import {render, screen} from "@testing-library/react";
 import {afterEach, describe, expect, it, vi} from "vitest";
 
+vi.mock("../lib/backend-auth", () => ({
+  getBackendAccessToken: vi.fn(async () => "test-access-token"),
+  buildBearerHeaders: vi.fn((token: string) => ({Authorization: `Bearer ${token}`})),
+}));
+
 import DashboardPage from "../app/[locale]/dashboard/page";
 
 function mockFetchSequence(...responses: unknown[]) {

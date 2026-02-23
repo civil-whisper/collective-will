@@ -72,8 +72,9 @@ async def check_signup_ip_rate(db: AsyncSession, requester_ip: str) -> RateLimit
 
 async def check_signup_domain_diversity_by_ip(db: AsyncSession, requester_ip: str) -> RateLimitResult:
     """Track and flag anomalous distinct email-domain count from one IP. v0: flag only, no block."""
+    settings = get_settings()
     domains = _IP_DOMAIN_TRACKER.get(requester_ip, set())
-    if len(domains) >= 5:
+    if len(domains) >= settings.signup_domain_diversity_threshold:
         logger.warning("High domain diversity from IP %s: %d domains", requester_ip, len(domains))
         return RateLimitResult(allowed=True, reason="high_domain_diversity_flagged")
     return RateLimitResult(allowed=True)
@@ -99,11 +100,12 @@ async def check_burst(db: AsyncSession, user_id: UUID) -> RateLimitResult:
 
 
 async def check_vote_change(db: AsyncSession, user_id: UUID, cycle_id: UUID) -> RateLimitResult:
+    settings = get_settings()
     result = await db.execute(
         select(func.count(Vote.id)).where(Vote.user_id == user_id, Vote.cycle_id == cycle_id)
     )
     count = int(result.scalar_one())
-    if count >= 2:
+    if count >= settings.max_vote_submissions_per_cycle:
         return RateLimitResult(allowed=False, reason="vote_change_limit")
     return RateLimitResult(allowed=True)
 

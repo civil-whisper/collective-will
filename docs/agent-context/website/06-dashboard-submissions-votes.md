@@ -105,7 +105,7 @@ interface UserVote {
 
 - No submissions: "شما هنوز نظری ارسال نکرده‌اید." / "You haven't submitted any concerns yet." + CTA to connect WhatsApp
 - No votes: "شما هنوز رای نداده‌اید." / "You haven't voted yet."
-- Pending submission: Show "در حال پردازش..." / "Processing..." with explanation that batch runs every 6 hours
+- Pending submission: Show "در حال پردازش..." / "Processing..." with explanation that pipeline batch cadence is config-backed (`PIPELINE_INTERVAL_HOURS`, default 6 hours)
 
 ## Constraints
 

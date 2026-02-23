@@ -125,7 +125,9 @@ async def test_check_signup_ip_rate_denies_above_cap(mock_settings: MagicMock) -
 
 
 @pytest.mark.asyncio
-async def test_domain_diversity_flags_high_count() -> None:
+@patch("src.handlers.abuse.get_settings")
+async def test_domain_diversity_flags_high_count(mock_settings: MagicMock) -> None:
+    mock_settings.return_value.signup_domain_diversity_threshold = 5
     _IP_DOMAIN_TRACKER["1.2.3.4"] = {"a.com", "b.com", "c.com", "d.com", "e.com"}
     db = AsyncMock()
     result = await check_signup_domain_diversity_by_ip(db, "1.2.3.4")
@@ -134,7 +136,9 @@ async def test_domain_diversity_flags_high_count() -> None:
 
 
 @pytest.mark.asyncio
-async def test_domain_diversity_normal() -> None:
+@patch("src.handlers.abuse.get_settings")
+async def test_domain_diversity_normal(mock_settings: MagicMock) -> None:
+    mock_settings.return_value.signup_domain_diversity_threshold = 5
     _IP_DOMAIN_TRACKER["1.2.3.4"] = {"a.com"}
     db = AsyncMock()
     result = await check_signup_domain_diversity_by_ip(db, "1.2.3.4")
@@ -184,7 +188,9 @@ async def test_check_burst_does_not_trigger(mock_settings: MagicMock) -> None:
 
 
 @pytest.mark.asyncio
-async def test_check_vote_change_first_allowed() -> None:
+@patch("src.handlers.abuse.get_settings")
+async def test_check_vote_change_first_allowed(mock_settings: MagicMock) -> None:
+    mock_settings.return_value.max_vote_submissions_per_cycle = 2
     db = AsyncMock()
     scalar_mock = MagicMock()
     scalar_mock.scalar_one.return_value = 1
@@ -195,7 +201,9 @@ async def test_check_vote_change_first_allowed() -> None:
 
 
 @pytest.mark.asyncio
-async def test_check_vote_change_second_denied() -> None:
+@patch("src.handlers.abuse.get_settings")
+async def test_check_vote_change_second_denied(mock_settings: MagicMock) -> None:
+    mock_settings.return_value.max_vote_submissions_per_cycle = 2
     db = AsyncMock()
     scalar_mock = MagicMock()
     scalar_mock.scalar_one.return_value = 2

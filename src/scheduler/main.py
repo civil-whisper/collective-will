@@ -71,7 +71,7 @@ async def run_pipeline(*, session: AsyncSession, llm_router: LLMRouter | None = 
                 session,
                 data=VotingCycleCreate(
                     started_at=datetime.now(UTC),
-                    ends_at=datetime.now(UTC) + timedelta(days=7),
+                    ends_at=datetime.now(UTC) + timedelta(hours=settings.voting_cycle_hours),
                     status="active",
                     cluster_ids=[],
                     results=None,
@@ -82,7 +82,8 @@ async def run_pipeline(*, session: AsyncSession, llm_router: LLMRouter | None = 
                 candidates=db_candidates,
                 cycle_id=cycle.id,
                 min_cluster_size=settings.min_cluster_size,
-                random_seed=7,
+                min_samples=settings.cluster_min_samples,
+                random_seed=settings.cluster_random_seed,
             )
             db_clusters: list[Cluster] = []
             for item in clustering.clusters:
@@ -131,8 +132,13 @@ async def _run_daily_anchoring(*, session: AsyncSession, router: LLMRouter) -> N
     await publish_daily_merkle_root(root, datetime.now(UTC).date(), settings, session=session)
 
 
-async def scheduler_loop(*, session_factory, interval_hours: int = 6) -> None:  # type: ignore[no-untyped-def]
+async def scheduler_loop(
+    *,
+    session_factory,
+    interval_hours: float,
+    min_interval_hours: float,
+) -> None:  # type: ignore[no-untyped-def]
     while True:
         async with session_factory() as session:
             await run_pipeline(session=session)
-        await asyncio.sleep(interval_hours * 3600)
+        await asyncio.sleep(max(interval_hours, min_interval_hours) * 3600)

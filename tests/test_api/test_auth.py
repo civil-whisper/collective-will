@@ -152,12 +152,14 @@ class TestVerify:
             with patch(
                 "src.api.routes.auth.verify_magic_link",
                 new_callable=AsyncMock,
-                return_value=(True, "linking-code-xyz"),
+                return_value=(True, "linking-code-xyz", "user@example.com", "web-session-code"),
             ):
                 client = TestClient(app)
                 response = client.post("/auth/verify/test-token-123")
                 assert response.status_code == 200
                 assert response.json()["status"] == "linking-code-xyz"
+                assert response.json()["email"] == "user@example.com"
+                assert response.json()["web_session_code"] == "web-session-code"
         finally:
             app.dependency_overrides.pop(get_db, None)
 
@@ -168,7 +170,7 @@ class TestVerify:
             with patch(
                 "src.api.routes.auth.verify_magic_link",
                 new_callable=AsyncMock,
-                return_value=(False, "invalid_token"),
+                return_value=(False, "invalid_token", None, None),
             ):
                 client = TestClient(app)
                 response = client.post("/auth/verify/bad-token")
@@ -184,7 +186,7 @@ class TestVerify:
             with patch(
                 "src.api.routes.auth.verify_magic_link",
                 new_callable=AsyncMock,
-                return_value=(False, "expired_token"),
+                return_value=(False, "expired_token", None, None),
             ):
                 client = TestClient(app)
                 response = client.post("/auth/verify/old-token")
@@ -197,11 +199,54 @@ class TestVerify:
         session = _mock_session()
         app.dependency_overrides[get_db] = lambda: session
         try:
-            mock_verify = AsyncMock(return_value=(True, "ok"))
+            mock_verify = AsyncMock(return_value=(True, "ok", "user@example.com", "web-code"))
             with patch("src.api.routes.auth.verify_magic_link", mock_verify):
                 client = TestClient(app)
                 client.post("/auth/verify/my-special-token")
                 mock_verify.assert_called_once()
                 assert mock_verify.call_args.kwargs["token"] == "my-special-token"
+        finally:
+            app.dependency_overrides.pop(get_db, None)
+
+
+class TestWebSession:
+    def test_web_session_success(self) -> None:
+        session = _mock_session()
+        app.dependency_overrides[get_db] = lambda: session
+        try:
+            with patch(
+                "src.api.routes.auth.exchange_web_session_code",
+                new_callable=AsyncMock,
+                return_value=(True, "access-token-abc"),
+            ):
+                client = TestClient(app)
+                response = client.post(
+                    "/auth/web-session",
+                    json={"email": "user@example.com", "code": "code-123"},
+                )
+                assert response.status_code == 200
+                body = response.json()
+                assert body["status"] == "ok"
+                assert body["email"] == "user@example.com"
+                assert body["access_token"] == "access-token-abc"
+        finally:
+            app.dependency_overrides.pop(get_db, None)
+
+    def test_web_session_invalid_code(self) -> None:
+        session = _mock_session()
+        app.dependency_overrides[get_db] = lambda: session
+        try:
+            with patch(
+                "src.api.routes.auth.exchange_web_session_code",
+                new_callable=AsyncMock,
+                return_value=(False, "invalid_code"),
+            ):
+                client = TestClient(app)
+                response = client.post(
+                    "/auth/web-session",
+                    json={"email": "user@example.com", "code": "bad"},
+                )
+                assert response.status_code == 400
+                assert response.json()["detail"] == "invalid_code"
         finally:
             app.dependency_overrides.pop(get_db, None)

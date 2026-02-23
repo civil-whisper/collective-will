@@ -68,6 +68,23 @@
 
 ---
 
+### D3A — Authenticated web API identity: backend-verified bearer tokens only
+
+**Context rule**: Authenticated website API access (`/user/*`, `/ops/*`) must use backend-verified bearer tokens from the magic-link web session flow. Client-provided identity headers are not trusted for access control.
+
+**Rationale**: Header/cookie-provided email identity is easy to spoof. A signed bearer token verified on every request creates a single consistent auth model across dashboard and ops surfaces.
+
+**Risk**: If bearer signing secret hygiene is weak (default value, frontend exposure, cross-env reuse), forged-token risk increases.
+
+**Guardrails**:
+1. Keep signing secret backend-only (`WEB_ACCESS_TOKEN_SECRET`), never exposed via `NEXT_PUBLIC_*`.
+2. Use strong random secret values and separate secrets per environment (dev/staging/prod).
+3. Treat secret rotation as a forced re-login event and document this operational behavior.
+
+**Verdict**: **Keep with guardrail**
+
+---
+
 ### D4 — WhatsApp ID storage: random opaque account ref + sealed mapping
 
 **Context rule**: Raw IDs isolated in sealed mapping, stripped from logs/exports.
@@ -354,6 +371,24 @@
 1. Add pre-persist PII checks in intake. If high-risk PII is detected, do not store the text; ask the user to remove personal identifiers and resend.
 2. Keep automated PII stripping in `pipeline/privacy.py` as a second safety layer for residual PII before downstream processing.
 3. In deletion flow, run automated PII scans and emit risk flags/metrics for policy tuning; no per-item human review path.
+
+**Verdict**: **Keep with guardrail**
+
+---
+
+### D21A — Ops observability console: `/ops` diagnostics separate from public audit
+
+**Context rule**: Add `/ops` runtime diagnostics surface for health/errors/events. In dev/staging it may be visible in top nav. In production it must be admin-gated and feature-flagged. Do not expose raw container logs.
+
+**Rationale**: Teams lose time tailing multiple service logs during early incidents. A unified diagnostics UI shortens mean-time-to-detect and mean-time-to-resolution while keeping core trust surfaces unchanged.
+
+**Risk**: A debug surface can leak secrets/PII or accidentally become a manual intervention path that violates governance constraints.
+
+**Guardrails**:
+1. Keep `/analytics/evidence` public and verification-focused; keep `/ops` operational and access-controlled.
+2. Expose structured, redacted events only (no direct `docker compose logs` streaming).
+3. Enforce production admin auth + feature flags before route exposure.
+4. Do not introduce per-item human adjudication controls through `/ops`.
 
 **Verdict**: **Keep with guardrail**
 

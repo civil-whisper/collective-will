@@ -11,10 +11,18 @@ export async function apiGet<T>(path: string, init?: RequestInit): Promise<T> {
   return (await response.json()) as T;
 }
 
-export async function apiPost<T>(path: string, body: object): Promise<T> {
+export async function apiPost<T>(path: string, body: object, init?: RequestInit): Promise<T> {
+  const mergedHeaders: Record<string, string> = {"content-type": "application/json"};
+  if (init?.headers) {
+    const extraHeaders = new Headers(init.headers);
+    extraHeaders.forEach((value, key) => {
+      mergedHeaders[key] = value;
+    });
+  }
   const response = await fetch(`${API_BASE}${path}`, {
+    ...init,
     method: "POST",
-    headers: {"content-type": "application/json"},
+    headers: mergedHeaders,
     body: JSON.stringify(body),
     cache: "no-store"
   });

@@ -9,15 +9,17 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.channels.base import BaseChannel
 from src.channels.types import OutboundMessage, UnifiedMessage
+from src.config import get_settings
 from src.db.sealed_mapping import get_or_create_account_ref, get_platform_id_by_ref
 
 logger = logging.getLogger(__name__)
 
 
 class TelegramChannel(BaseChannel):
-    def __init__(self, bot_token: str, session: AsyncSession) -> None:
+    def __init__(self, bot_token: str, session: AsyncSession, timeout_seconds: float | None = None) -> None:
+        settings = get_settings()
         self.api_url = f"https://api.telegram.org/bot{bot_token}"
-        self.client = httpx.AsyncClient(timeout=30.0)
+        self.client = httpx.AsyncClient(timeout=timeout_seconds or settings.telegram_http_timeout_seconds)
         self._session = session
 
     async def parse_webhook(self, payload: dict[str, Any]) -> UnifiedMessage | None:

@@ -17,19 +17,38 @@ type Cluster = {
 type CycleStats = {
   total_voters: number;
   total_submissions: number;
+  pending_submissions: number;
   current_cycle: string | null;
+};
+
+type UnclusteredItem = {
+  id: string;
+  title: string;
+  summary: string;
+  domain: string;
+  confidence: number;
+};
+
+type UnclusteredResponse = {
+  total: number;
+  items: UnclusteredItem[];
 };
 
 export default async function AnalyticsPage() {
   const t = await getTranslations("analytics");
   const locale = await getLocale();
 
-  const [clusters, stats] = await Promise.all([
+  const [clusters, stats, unclustered] = await Promise.all([
     apiGet<Cluster[]>("/analytics/clusters").catch(() => []),
     apiGet<CycleStats>("/analytics/stats").catch(() => ({
       total_voters: 0,
       total_submissions: 0,
+      pending_submissions: 0,
       current_cycle: null,
+    })),
+    apiGet<UnclusteredResponse>("/analytics/unclustered").catch(() => ({
+      total: 0,
+      items: [],
     })),
   ]);
 
@@ -76,16 +95,20 @@ export default async function AnalyticsPage() {
           value={clusters.length.toLocaleString()}
         />
         <MetricCard
-          label={t("memberCount")}
-          value={clusters.reduce((sum, c) => sum + c.member_count, 0).toLocaleString()}
+          label={t("totalSubmissions")}
+          value={stats.total_submissions.toLocaleString()}
         />
         <MetricCard
           label={t("unclustered")}
-          value={
-            clusters.filter((c) => c.variance_flag).length.toLocaleString()
-          }
+          value={unclustered.total.toLocaleString()}
         />
       </div>
+
+      {stats.pending_submissions > 0 && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
+          {t("pendingSubmissions", {count: stats.pending_submissions})}
+        </div>
+      )}
 
       {clusters.length === 0 ? (
         <div className="rounded-lg border border-gray-200 bg-white p-12 text-center dark:border-slate-700 dark:bg-slate-800">
@@ -138,6 +161,37 @@ export default async function AnalyticsPage() {
           </div>
         </>
       )}
+
+      <div>
+        <h2 className="mb-3 text-lg font-semibold">{t("unclusteredCandidates")}</h2>
+        {unclustered.items.length === 0 ? (
+          <div className="rounded-lg border border-gray-200 bg-white p-6 text-sm text-gray-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400">
+            {t("noUnclusteredCandidates")}
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {unclustered.items.map((item) => (
+              <div
+                key={item.id}
+                className="rounded-lg border border-gray-200 bg-white px-4 py-3 dark:border-slate-700 dark:bg-slate-800"
+              >
+                <div className="flex items-start justify-between gap-4">
+                  <div className="min-w-0 flex-1">
+                    <p className="font-medium">{item.title}</p>
+                    <p className="mt-1 text-sm text-gray-600 dark:text-slate-400">{item.summary}</p>
+                    <div className="mt-2">
+                      <DomainBadge domain={item.domain} />
+                    </div>
+                  </div>
+                  <div className="text-end text-xs text-gray-500 dark:text-slate-400">
+                    {Math.round(item.confidence * 100)}%
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
 
       {/* Footer links */}
       <div className="flex items-center gap-4 text-sm">

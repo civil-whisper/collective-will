@@ -30,8 +30,10 @@ describe("translation keys parity", () => {
     expect(fa.nav.dashboard).toBeTruthy();
     expect(fa.nav.about).toBeTruthy();
     expect(fa.nav.audit).toBeTruthy();
+    expect(fa.nav.ops).toBeTruthy();
     expect(en.nav.home).toBeTruthy();
     expect(en.nav.analytics).toBeTruthy();
+    expect(en.nav.ops).toBeTruthy();
   });
 
   it("contains required common keys", () => {

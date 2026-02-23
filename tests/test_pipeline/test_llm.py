@@ -5,7 +5,6 @@ import pytest
 
 from src.config import Settings
 from src.pipeline.llm import (
-    EMBED_BATCH_SIZE,
     LLMResponse,
     LLMRouter,
 )
@@ -187,18 +186,19 @@ async def test_embed_calls_primary() -> None:
 async def test_embed_splits_large_batch() -> None:
     router = LLMRouter(settings=_settings())
     call_count = 0
+    batch_size = router.settings.llm_embed_batch_size
 
     async def _fake(*, model: str, texts: list[str], timeout_s: float = 60.0) -> list[list[float]]:
         nonlocal call_count
         call_count += 1
-        assert len(texts) <= EMBED_BATCH_SIZE
+        assert len(texts) <= batch_size
         return [[0.1] for _ in texts]
 
     router._call_embedding_api = _fake  # type: ignore[method-assign]
-    texts = [f"text-{i}" for i in range(EMBED_BATCH_SIZE + 10)]
+    texts = [f"text-{i}" for i in range(batch_size + 10)]
     result = await router.embed(texts)
     assert call_count == 2
-    assert len(result.vectors) == EMBED_BATCH_SIZE + 10
+    assert len(result.vectors) == batch_size + 10
 
 
 # --- 14. Embedding fallback ---

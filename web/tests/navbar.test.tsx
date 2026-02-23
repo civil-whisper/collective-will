@@ -1,10 +1,14 @@
 import React from "react";
 import {render, screen, fireEvent} from "@testing-library/react";
-import {describe, expect, it} from "vitest";
+import {afterEach, describe, expect, it} from "vitest";
 
 import {NavBar} from "../components/NavBar";
 
 describe("NavBar", () => {
+  afterEach(() => {
+    delete process.env.NEXT_PUBLIC_OPS_CONSOLE_SHOW_IN_NAV;
+  });
+
   it("renders navigation with all expected links", () => {
     render(<NavBar />);
     const nav = screen.getByRole("navigation");
@@ -45,6 +49,12 @@ describe("NavBar", () => {
   it("renders Audit link text", () => {
     render(<NavBar />);
     expect(screen.getByText("Audit")).toBeTruthy();
+  });
+
+  it("renders Ops link when flag is enabled", () => {
+    process.env.NEXT_PUBLIC_OPS_CONSOLE_SHOW_IN_NAV = "true";
+    render(<NavBar />);
+    expect(screen.getByText("Ops")).toBeTruthy();
   });
 
   it("renders the language switcher buttons", () => {

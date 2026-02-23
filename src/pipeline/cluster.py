@@ -8,6 +8,7 @@ from uuid import UUID, uuid4
 import hdbscan
 import numpy as np
 
+from src.config import get_settings
 from src.models.cluster import ClusterCreate
 from src.models.submission import PolicyCandidate, PolicyDomain
 
@@ -33,6 +34,7 @@ def run_clustering(
     candidates: list[PolicyCandidate],
     cycle_id: UUID,
     min_cluster_size: int = 5,
+    min_samples: int = 1,
     random_seed: int = 42,
 ) -> ClusterRunResult:
     embeddings: list[list[float]] = []
@@ -49,11 +51,11 @@ def run_clustering(
             noise_candidate_ids=[candidate.id for candidate in embedded_candidates],
             run_id=run_id,
             random_seed=random_seed,
-            clustering_params={"min_cluster_size": min_cluster_size},
+            clustering_params={"min_cluster_size": min_cluster_size, "min_samples": min_samples},
         )
 
     arr = np.array(embeddings, dtype=float)
-    clusterer = hdbscan.HDBSCAN(min_cluster_size=min_cluster_size, min_samples=1)
+    clusterer = hdbscan.HDBSCAN(min_cluster_size=min_cluster_size, min_samples=min_samples)
     labels = clusterer.fit_predict(arr)
 
     groups: dict[int, list[PolicyCandidate]] = defaultdict(list)
@@ -84,7 +86,7 @@ def run_clustering(
                 variance_flag=False,
                 run_id=run_id,
                 random_seed=random_seed,
-                clustering_params={"min_cluster_size": min_cluster_size},
+                clustering_params={"min_cluster_size": min_cluster_size, "min_samples": min_samples},
                 approval_count=0,
             )
         )
@@ -94,7 +96,7 @@ def run_clustering(
         noise_candidate_ids=noise_ids,
         run_id=run_id,
         random_seed=random_seed,
-        clustering_params={"min_cluster_size": min_cluster_size},
+        clustering_params={"min_cluster_size": min_cluster_size, "min_samples": min_samples},
     )
 
 
@@ -102,20 +104,28 @@ def variance_check(
     *,
     candidates: list[PolicyCandidate],
     cycle_id: UUID,
-    min_cluster_size: int = 5,
-    stability_threshold: float = 0.6,
+    min_cluster_size: int | None = None,
+    stability_threshold: float | None = None,
 ) -> list[bool]:
-    if len(candidates) < 20:
+    settings = get_settings()
+    effective_min_cluster_size = min_cluster_size or settings.min_cluster_size
+    effective_stability_threshold = (
+        stability_threshold
+        if stability_threshold is not None
+        else settings.cluster_variance_stability_threshold
+    )
+    if len(candidates) < settings.cluster_variance_min_candidates:
         return [False] * len(candidates)
 
     runs = [
         run_clustering(
             candidates=candidates,
             cycle_id=cycle_id,
-            min_cluster_size=min_cluster_size,
+            min_cluster_size=effective_min_cluster_size,
+            min_samples=settings.cluster_min_samples,
             random_seed=seed,
         )
-        for seed in (7, 11, 13)
+        for seed in settings.cluster_variance_seed_list()
     ]
 
     cluster_members = [set(member for c in run.clusters for member in c.candidate_ids) for run in runs]
@@ -127,5 +137,5 @@ def variance_check(
             jaccards.append(1.0)
         else:
             jaccards.append(len(a & b) / max(len(a | b), 1))
-    stable = sum(jaccards) / len(jaccards) >= stability_threshold if jaccards else True
+    stable = sum(jaccards) / len(jaccards) >= effective_stability_threshold if jaccards else True
     return [not stable] * len(candidates)

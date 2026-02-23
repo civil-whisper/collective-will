@@ -56,7 +56,11 @@ async def telegram_webhook(
     except Exception as exc:
         raise HTTPException(status_code=400, detail="malformed json") from exc
 
-    channel = TelegramChannel(bot_token=settings.telegram_bot_token, session=session)
+    channel = TelegramChannel(
+        bot_token=settings.telegram_bot_token,
+        session=session,
+        timeout_seconds=settings.telegram_http_timeout_seconds,
+    )
     message = await channel.parse_webhook(payload)
     if message is None:
         return {"status": "ignored"}

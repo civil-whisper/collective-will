@@ -94,7 +94,7 @@ describe("DisputeButton", () => {
     });
 
     const [url, options] = (fetch as ReturnType<typeof vi.fn>).mock.calls[0];
-    expect(url).toContain("/user/dashboard/disputes/sub-42");
+    expect(url).toContain("/api/user/dashboard/disputes/sub-42");
     const body = JSON.parse(options.body);
     expect(body.dispute_type).toBe("cluster_assignment");
     expect(body.reason).toBe("Wrong cluster");

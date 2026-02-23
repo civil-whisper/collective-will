@@ -15,6 +15,17 @@ def test_engine_created(monkeypatch: pytest.MonkeyPatch) -> None:
     assert engine.pool.size() == 5  # type: ignore[attr-defined]
 
 
+def test_engine_pool_size_is_config_backed(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("DB_POOL_SIZE", "7")
+    from src.config import get_settings
+
+    get_settings.cache_clear()
+    connection.get_engine.cache_clear()
+    connection.get_sessionmaker.cache_clear()
+    engine = connection.get_engine()
+    assert engine.pool.size() == 7  # type: ignore[attr-defined]
+
+
 @pytest.mark.asyncio
 async def test_get_db_yields_session(test_database_url: str, monkeypatch: pytest.MonkeyPatch) -> None:
     engine = create_async_engine(test_database_url)

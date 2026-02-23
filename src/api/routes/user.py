@@ -3,10 +3,11 @@ from __future__ import annotations
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.api.authn import require_user_from_bearer
 from src.db.connection import get_db
 from src.db.evidence import append_evidence
 from src.handlers.disputes import resolve_submission_dispute
@@ -17,25 +18,11 @@ from src.models.vote import Vote
 router = APIRouter()
 
 
-async def _require_user(
-    session: AsyncSession,
-    x_user_email: str | None,
-) -> User:
-    if not x_user_email:
-        raise HTTPException(status_code=401, detail="missing user context")
-    result = await session.execute(select(User).where(User.email == x_user_email))
-    user = result.scalar_one_or_none()
-    if user is None:
-        raise HTTPException(status_code=401, detail="unknown user")
-    return user
-
-
 @router.get("/dashboard/submissions")
 async def list_submissions(
+    user: Annotated[User, Depends(require_user_from_bearer)],
     session: AsyncSession = Depends(get_db),
-    x_user_email: Annotated[str | None, Header()] = None,
 ) -> list[dict[str, str]]:
-    user = await _require_user(session, x_user_email)
     result = await session.execute(
         select(Submission).where(Submission.user_id == user.id).order_by(Submission.created_at.desc())
     )
@@ -48,22 +35,27 @@ async def list_submissions(
 
 @router.get("/dashboard/votes")
 async def list_votes(
+    user: Annotated[User, Depends(require_user_from_bearer)],
     session: AsyncSession = Depends(get_db),
-    x_user_email: Annotated[str | None, Header()] = None,
-) -> list[dict[str, str]]:
-    user = await _require_user(session, x_user_email)
+) -> list[dict[str, object]]:
     result = await session.execute(select(Vote).where(Vote.user_id == user.id).order_by(Vote.created_at.desc()))
     rows = result.scalars().all()
-    return [{"id": str(row.id), "cycle_id": str(row.cycle_id)} for row in rows]
+    return [
+        {
+            "id": str(row.id),
+            "cycle_id": str(row.cycle_id),
+            "approved_cluster_ids": [str(cluster_id) for cluster_id in row.approved_cluster_ids],
+        }
+        for row in rows
+    ]
 
 
 @router.post("/dashboard/disputes/{submission_id}")
 async def open_dispute(
     submission_id: str,
+    user: Annotated[User, Depends(require_user_from_bearer)],
     session: AsyncSession = Depends(get_db),
-    x_user_email: Annotated[str | None, Header()] = None,
 ) -> dict[str, str]:
-    user = await _require_user(session, x_user_email)
     try:
         submission_uuid = UUID(submission_id)
     except ValueError as exc:

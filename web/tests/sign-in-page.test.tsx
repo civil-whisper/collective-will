@@ -1,20 +1,19 @@
 import React from "react";
 import {render, screen, fireEvent} from "@testing-library/react";
-import {describe, expect, it, vi} from "vitest";
-
-const mockSignIn = vi.hoisted(() => vi.fn());
-vi.mock("next-auth/react", () => ({
-  signIn: mockSignIn,
-}));
+import {afterEach, describe, expect, it, vi} from "vitest";
 
 import SignInPage from "../app/[locale]/sign-in/page";
 
 describe("SignInPage", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it("renders heading, email input, and submit button", () => {
     render(<SignInPage />);
     expect(screen.getByRole("heading", {level: 1})).toHaveTextContent("Sign in");
     expect(screen.getByRole("textbox")).toBeTruthy();
-    expect(screen.getByRole("button", {name: /continue/i})).toBeTruthy();
+    expect(screen.getByRole("button", {name: /send verification link/i})).toBeTruthy();
   });
 
   it("has a required email input", () => {
@@ -31,27 +30,33 @@ describe("SignInPage", () => {
     expect(input.value).toBe("user@example.com");
   });
 
-  it("calls signIn with credentials provider on form submit", () => {
-    mockSignIn.mockClear();
+  it("submits email to subscribe endpoint", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({status: "pending_verification"}),
+      }),
+    );
     render(<SignInPage />);
     const input = screen.getByRole("textbox");
     fireEvent.change(input, {target: {value: "test@example.com"}});
-    fireEvent.submit(screen.getByRole("button", {name: /continue/i}).closest("form")!);
+    fireEvent.submit(screen.getByRole("button", {name: /send verification link/i}).closest("form")!);
 
-    expect(mockSignIn).toHaveBeenCalledWith("credentials", {
+    await screen.findByText(/check your email/i);
+    expect(fetch).toHaveBeenCalledWith(
+      "http://localhost:8000/auth/subscribe",
+      expect.objectContaining({
+        method: "POST",
+        cache: "no-store",
+      }),
+    );
+    const [, options] = (fetch as ReturnType<typeof vi.fn>).mock.calls[0];
+    expect(JSON.parse(options.body)).toEqual({
       email: "test@example.com",
-      callbackUrl: "/en/dashboard",
-    });
-  });
-
-  it("calls signIn with empty email if not filled in", () => {
-    mockSignIn.mockClear();
-    render(<SignInPage />);
-    fireEvent.submit(screen.getByRole("button", {name: /continue/i}).closest("form")!);
-
-    expect(mockSignIn).toHaveBeenCalledWith("credentials", {
-      email: "",
-      callbackUrl: "/en/dashboard",
+      locale: "en",
+      requester_ip: "0.0.0.0",
+      messaging_account_ref: expect.stringMatching(/^web-/),
     });
   });
 });

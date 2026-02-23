@@ -16,35 +16,35 @@ LINK = "https://example.com/verify?token=abc123"
 
 class TestBuildMagicLinkHtml:
     def test_english_template_contains_link(self) -> None:
-        subject, html = _build_magic_link_html(LINK, "en")
+        subject, html = _build_magic_link_html(LINK, "en", expiry_minutes=15)
         assert LINK in html
         assert "Verify your email" in subject
         assert "Verify Email" in html
         assert 'dir="ltr"' in html
 
     def test_farsi_template_contains_link(self) -> None:
-        subject, html = _build_magic_link_html(LINK, "fa")
+        subject, html = _build_magic_link_html(LINK, "fa", expiry_minutes=15)
         assert LINK in html
         assert "تأیید ایمیل" in subject
         assert 'dir="rtl"' in html
 
     def test_template_has_expiry_notice_en(self) -> None:
-        _, html = _build_magic_link_html(LINK, "en")
+        _, html = _build_magic_link_html(LINK, "en", expiry_minutes=15)
         assert "15 minutes" in html
 
     def test_template_has_expiry_notice_fa(self) -> None:
-        _, html = _build_magic_link_html(LINK, "fa")
+        _, html = _build_magic_link_html(LINK, "fa", expiry_minutes=15)
         assert "۱۵ دقیقه" in html
 
 
 class TestBuildPlainText:
     def test_english_plain_text(self) -> None:
-        text = _build_plain_text(LINK, "en")
+        text = _build_plain_text(LINK, "en", expiry_minutes=15)
         assert LINK in text
         assert "15 minutes" in text
 
     def test_farsi_plain_text(self) -> None:
-        text = _build_plain_text(LINK, "fa")
+        text = _build_plain_text(LINK, "fa", expiry_minutes=15)
         assert LINK in text
         assert "۱۵ دقیقه" in text
 
@@ -59,6 +59,8 @@ class TestSendMagicLinkEmail:
                 locale="en",
                 resend_api_key=None,
                 email_from="test@resend.dev",
+                expiry_minutes=15,
+                http_timeout_seconds=10.0,
             )
         assert result is True
         mock_logger.info.assert_called_once()
@@ -73,6 +75,8 @@ class TestSendMagicLinkEmail:
                 locale="en",
                 resend_api_key="",
                 email_from="test@resend.dev",
+                expiry_minutes=15,
+                http_timeout_seconds=10.0,
             )
         assert result is True
         mock_logger.info.assert_called_once()
@@ -97,6 +101,8 @@ class TestSendMagicLinkEmail:
                 locale="en",
                 resend_api_key="re_test_key",
                 email_from="noreply@example.com",
+                expiry_minutes=15,
+                http_timeout_seconds=10.0,
             )
 
         assert result is True
@@ -130,6 +136,8 @@ class TestSendMagicLinkEmail:
                 locale="en",
                 resend_api_key="re_test_key",
                 email_from="noreply@example.com",
+                expiry_minutes=15,
+                http_timeout_seconds=10.0,
             )
 
         assert result is False
@@ -149,6 +157,8 @@ class TestSendMagicLinkEmail:
                 locale="en",
                 resend_api_key="re_test_key",
                 email_from="noreply@example.com",
+                expiry_minutes=15,
+                http_timeout_seconds=10.0,
             )
 
         assert result is False
@@ -172,6 +182,8 @@ class TestSendMagicLinkEmail:
                 locale="fa",
                 resend_api_key="re_test_key",
                 email_from="noreply@example.com",
+                expiry_minutes=15,
+                http_timeout_seconds=10.0,
             )
 
         payload = mock_client.post.call_args[1]["json"]
