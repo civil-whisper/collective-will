@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 import hashlib
+import inspect
 import json
 from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import DateTime, String, select
+from sqlalchemy import DateTime, String, func, select
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -15,6 +16,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 from src.db.connection import Base
 
 GENESIS_PREV_HASH = "genesis"
+EVIDENCE_CHAIN_LOCK_KEY = 704281913
 VALID_EVENT_TYPES = {
     "submission_received",
     "candidate_created",
@@ -91,6 +93,14 @@ async def append_evidence(
         raise ValueError(f"Invalid event_type: {event_type}")
 
     async with session.begin_nested():
+        # Serialize append operations so concurrent writers cannot reuse the same prev_hash.
+        bind = session.get_bind()
+        if inspect.isawaitable(bind):
+            bind = await bind
+        dialect_name = getattr(getattr(bind, "dialect", None), "name", None)
+        if dialect_name == "postgresql":
+            await session.execute(select(func.pg_advisory_xact_lock(EVIDENCE_CHAIN_LOCK_KEY)))
+
         last_result = await session.execute(
             select(EvidenceLogEntry).order_by(EvidenceLogEntry.id.desc()).limit(1).with_for_update()
         )
