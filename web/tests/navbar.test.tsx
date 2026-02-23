@@ -20,10 +20,16 @@ describe("NavBar", () => {
     expect(hrefs).toContain("/en/signup");
   });
 
-  it("renders signup button", () => {
+  it("renders signup button when not logged in", () => {
     render(<NavBar showOpsLink={false} />);
     const signupLinks = screen.getAllByText("Sign Up");
     expect(signupLinks.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("renders user email instead of signup when logged in", () => {
+    render(<NavBar showOpsLink={false} userEmail="test@example.com" />);
+    expect(screen.getAllByText("test@example.com").length).toBeGreaterThanOrEqual(1);
+    expect(screen.queryByText("Sign Up")).toBeNull();
   });
 
   it("renders Home link text", () => {

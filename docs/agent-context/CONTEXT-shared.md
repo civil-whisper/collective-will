@@ -80,6 +80,117 @@ PII safety rule: run automated pre-persist PII detection on incoming submissions
 
 ---
 
+## Web Authentication Flow
+
+End-to-end login process. All agents modifying auth, deploy, or frontend routing must
+understand this flow.
+
+### Signup / Sign-In (Passwordless Magic Link)
+
+```
+Browser                    Caddy                 Backend (FastAPI)       Resend API
+  │                          │                        │                      │
+  │ POST /api/auth/subscribe │                        │                      │
+  │─────────────────────────>│ uri strip_prefix /api  │                      │
+  │                          │──POST /auth/subscribe─>│                      │
+  │                          │                        │─ rate-limit check    │
+  │                          │                        │─ create/get user     │
+  │                          │                        │─ store magic_link    │
+  │                          │                        │  token (15 min)      │
+  │                          │                        │──send email─────────>│
+  │                          │<──{status, token}──────│                      │
+  │<─────────────────────────│                        │                      │
+  │ "Check your email"       │                        │                      │
+```
+
+### Email Verification → Session Establishment
+
+```
+Browser (magic link click)  Caddy                 Backend            NextAuth (web:3000)
+  │                          │                        │                    │
+  │ GET /{locale}/verify?token=T                      │                    │
+  │─────────────────────────>│────────────────────────────────────────────>│
+  │                          │                     (Next.js page served)   │
+  │                          │                        │                    │
+  │ POST /api/auth/verify/T  │                        │                    │
+  │─────────────────────────>│ uri strip_prefix /api  │                    │
+  │                          │──POST /auth/verify/T──>│                    │
+  │                          │                        │─ validate token    │
+  │                          │                        │─ mark email_verified│
+  │                          │                        │─ create linking_code│
+  │                          │                        │  (8 chars, 60 min) │
+  │                          │                        │─ create web_session │
+  │                          │                        │  code (24ch, 10min)│
+  │                          │                        │─ consume magic_link│
+  │<─────────{linking_code, email, web_session_code}──│                    │
+  │                          │                        │                    │
+  │ signIn("credentials", {email, webSessionCode})    │                    │
+  │─────────────────────────>│ handle /api/auth/*     │                    │
+  │                          │──────────────────────────────────(full path)>│
+  │                          │                        │   authorize() calls│
+  │                          │                        │<──POST /auth/      │
+  │                          │                        │   web-session      │
+  │                          │                        │   (internal, via   │
+  │                          │                        │   BACKEND_API_     │
+  │                          │                        │   BASE_URL)        │
+  │                          │                        │─ validate code     │
+  │                          │                        │─ verify email match│
+  │                          │                        │─ create bearer     │
+  │                          │                        │  token (30 days)   │
+  │                          │                        │──{access_token}───>│
+  │                          │                        │                    │─ store in JWT session
+  │<─────────────────────────│<───────────set session cookie───────────────│
+  │                          │                        │                    │
+  │ router.refresh()         │                        │                    │
+  │ (NavBar updates to show email)                    │                    │
+```
+
+### Token Types
+
+| Token | Purpose | Expiry | Storage |
+|-------|---------|--------|---------|
+| `magic_link` | Email verification URL | 15 min | `verification_tokens` DB table |
+| `linking_code` | Telegram account linking | 60 min | `verification_tokens` DB table |
+| `web_session` | One-time code exchanged for bearer token | 10 min | `verification_tokens` DB table |
+| Bearer (access) token | Authenticated API access | 30 days | Signed with `WEB_ACCESS_TOKEN_SECRET` (HMAC-SHA256), stored in NextAuth JWT cookie |
+
+### Caddy Routing for `/api/auth/*`
+
+The `/api/auth/*` namespace is split between two services:
+
+- **Backend** (FastAPI): `/api/auth/subscribe`, `/api/auth/verify/*`, `/api/auth/web-session`
+- **Web** (NextAuth): all other `/api/auth/*` (session, callback, csrf, etc.)
+
+Use `handle` + `uri strip_prefix /api` for backend routes. **Never use `handle_path`** for
+these — it strips the entire matched prefix, breaking the backend routing.
+NextAuth routes keep their full `/api/auth/...` path (no stripping).
+
+### Server-Side vs Client-Side API Base
+
+| Context | Environment variable | Resolved value |
+|---------|---------------------|----------------|
+| Client-side (browser JS) | `NEXT_PUBLIC_API_BASE_URL` (build-time) | `/api` → goes through Caddy |
+| Server-side (NextAuth authorize) | `BACKEND_API_BASE_URL` (runtime) | `http://backend:8000` → direct container network |
+| Server-side (SSR pages, ops) | `BACKEND_API_BASE_URL` via `resolveApiBase()` | `http://backend:8000` → direct container network |
+
+The `web/lib/api.ts` helper auto-selects: `BACKEND_API_BASE_URL` on the server,
+`NEXT_PUBLIC_API_BASE_URL` in the browser.
+
+### Ops Console Access
+
+- Same bearer-token auth as dashboard — no separate admin credentials
+- Staging: `OPS_CONSOLE_REQUIRE_ADMIN=false` (any authenticated user)
+- Production: `OPS_CONSOLE_REQUIRE_ADMIN=true` + `OPS_ADMIN_EMAILS` list
+- Feature-flagged via `OPS_CONSOLE_ENABLED` and `OPS_CONSOLE_SHOW_IN_NAV`
+
+### NavBar Session Awareness
+
+The server layout calls `auth()` and passes `userEmail` to NavBar as a prop.
+When logged in: shows user email. When not: shows "Sign Up" button.
+After verification, `router.refresh()` re-renders the server layout to update NavBar.
+
+---
+
 ## Active Implementation Plan
 
 Execution priorities for the current remediation cycle are tracked in:

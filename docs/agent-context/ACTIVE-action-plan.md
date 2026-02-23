@@ -284,6 +284,30 @@ Design rationale: `docs/decision-rationale/website/09-ops-debug-console.md`
     - Removed client-trusted email-header identity path for authenticated access control
     - Added shared backend/web auth helpers to keep auth behavior consistent across tabs
 
+### P0 — Auth & Deploy Routing Fixes
+
+41. [done] Fix Caddy reverse-proxy path stripping
+    - Changed `handle_path` → `handle` + `uri strip_prefix /api` for backend auth routes
+    - `handle_path` was stripping the entire matched prefix (e.g., `/api/auth/subscribe` → `/`),
+      so all signup/verify/web-session and NextAuth endpoints returned errors
+    - NextAuth routes now pass through with full `/api/auth/*` path (no stripping)
+    - Documented Caddy routing pattern in `deploy/README.md`
+
+42. [done] Fix server-side API base resolution
+    - `web/lib/api.ts` now checks `BACKEND_API_BASE_URL` on server side (like auth-config already did)
+    - Fixes Ops page, dashboard, and all SSR API calls that couldn't reach `http://backend:8000`
+    - Fixed disputes route handler to use `resolveServerApiBase()` instead of hardcoded base
+
+43. [done] Make NavBar session-aware
+    - Layout passes `userEmail` from server-side `auth()` to NavBar
+    - Shows email when logged in, "Sign Up" when not
+    - Added test for logged-in vs logged-out navbar state
+
+44. [done] Fix verify page session establishment
+    - `signIn()` call is now awaited (was fire-and-forget)
+    - On success: sets `loggedIn` state, calls `router.refresh()` to update NavBar
+    - Added "Go to Dashboard" button after successful verification
+
 ## Definition of Done (This Cycle)
 
 - No CI/CD job performs paid LLM API calls

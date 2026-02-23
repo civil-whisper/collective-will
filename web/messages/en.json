@@ -68,7 +68,8 @@
     "errorExpired": "This link has expired. Please sign up again to get a new one.",
     "errorInvalid": "This link is invalid. Please sign up again.",
     "alreadyHaveAccount": "Already have an account?",
-    "signIn": "Sign In"
+    "signIn": "Sign In",
+    "goToDashboard": "Go to Dashboard"
   },
   "dashboard": {
     "title": "Dashboard",

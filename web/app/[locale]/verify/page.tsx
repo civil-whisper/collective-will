@@ -1,6 +1,6 @@
 "use client";
 
-import {useSearchParams} from "next/navigation";
+import {useSearchParams, useRouter} from "next/navigation";
 import {useCallback, useEffect, useState} from "react";
 import {useTranslations, useLocale} from "next-intl";
 import {signIn} from "next-auth/react";
@@ -16,10 +16,12 @@ export default function VerifyPage() {
   const t = useTranslations("verify");
   const signupT = useTranslations("signup");
   const locale = useLocale();
+  const router = useRouter();
   const [status, setStatus] = useState<"verifying" | "success" | "error">("verifying");
   const [errorDetail, setErrorDetail] = useState<"expired" | "invalid">("invalid");
   const [linkingCode, setLinkingCode] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [loggedIn, setLoggedIn] = useState(false);
 
   useEffect(() => {
     if (!token) {
@@ -28,17 +30,21 @@ export default function VerifyPage() {
       return;
     }
     apiPost<{status: string; email?: string; web_session_code?: string}>(`/auth/verify/${token}`, {})
-      .then((result) => {
+      .then(async (result) => {
         setStatus("success");
         if (result.email) {
           setUserEmailCookie(result.email);
         }
         if (result.email && result.web_session_code) {
-          void signIn("credentials", {
+          const signInResult = await signIn("credentials", {
             email: result.email,
             webSessionCode: result.web_session_code,
             redirect: false,
           });
+          if (signInResult?.ok) {
+            setLoggedIn(true);
+            router.refresh();
+          }
         }
         if (result.status && result.status !== "verified") {
           setLinkingCode(result.status);
@@ -49,7 +55,7 @@ export default function VerifyPage() {
         const message = err instanceof Error ? err.message : "";
         setErrorDetail(message.includes("expired") ? "expired" : "invalid");
       });
-  }, [token]);
+  }, [token, router]);
 
   const handleCopy = useCallback(() => {
     if (!linkingCode) return;
@@ -113,6 +119,15 @@ export default function VerifyPage() {
                 <h1 className="mt-4 text-lg font-bold">{t("emailVerified")}</h1>
                 <p className="mt-1 text-sm text-gray-500 dark:text-slate-400">{t("nowConnectTelegram")}</p>
               </div>
+
+              {loggedIn && (
+                <Link
+                  href={`/${locale}/dashboard`}
+                  className="inline-block w-full rounded-lg bg-accent px-6 py-2.5 text-center text-sm font-semibold text-white transition-colors hover:bg-accent-hover"
+                >
+                  {t("goToDashboard")}
+                </Link>
+              )}
 
               {linkingCode && (
                 <>

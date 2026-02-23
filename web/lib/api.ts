@@ -1,7 +1,13 @@
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
+function resolveApiBase(): string {
+  if (typeof window === "undefined") {
+    const backend = process.env.BACKEND_API_BASE_URL?.trim();
+    if (backend) return backend.replace(/\/+$/, "");
+  }
+  return process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
+}
 
 export async function apiGet<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${API_BASE}${path}`, {
+  const response = await fetch(`${resolveApiBase()}${path}`, {
     ...init,
     cache: "no-store"
   });
@@ -19,7 +25,7 @@ export async function apiPost<T>(path: string, body: object, init?: RequestInit)
       mergedHeaders[key] = value;
     });
   }
-  const response = await fetch(`${API_BASE}${path}`, {
+  const response = await fetch(`${resolveApiBase()}${path}`, {
     ...init,
     method: "POST",
     headers: mergedHeaders,

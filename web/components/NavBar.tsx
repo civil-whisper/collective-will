@@ -9,9 +9,10 @@ import {LanguageSwitcher} from "./LanguageSwitcher";
 
 type NavBarProps = {
   showOpsLink: boolean;
+  userEmail?: string;
 };
 
-export function NavBar({showOpsLink}: NavBarProps) {
+export function NavBar({showOpsLink, userEmail}: NavBarProps) {
   const t = useTranslations("nav");
   const common = useTranslations("common");
   const appTitle = common("appTitle");
@@ -59,12 +60,18 @@ export function NavBar({showOpsLink}: NavBarProps) {
               {link.label}
             </Link>
           ))}
-          <Link
-            href={`/${locale}/signup`}
-            className="ms-2 rounded-lg bg-accent px-4 py-1.5 text-sm font-semibold text-white transition-colors hover:bg-accent-hover"
-          >
-            {common("signup")}
-          </Link>
+          {userEmail ? (
+            <span className="ms-2 rounded-lg bg-gray-100 px-3 py-1.5 text-sm font-medium text-gray-700 dark:bg-slate-700 dark:text-slate-300">
+              {userEmail}
+            </span>
+          ) : (
+            <Link
+              href={`/${locale}/signup`}
+              className="ms-2 rounded-lg bg-accent px-4 py-1.5 text-sm font-semibold text-white transition-colors hover:bg-accent-hover"
+            >
+              {common("signup")}
+            </Link>
+          )}
           <div className="ms-3 border-s border-gray-200 ps-3 dark:border-slate-700">
             <LanguageSwitcher />
           </div>
@@ -109,13 +116,19 @@ export function NavBar({showOpsLink}: NavBarProps) {
               </Link>
             ))}
           </div>
-          <Link
-            href={`/${locale}/signup`}
-            onClick={() => setMenuOpen(false)}
-            className="mt-2 block rounded-lg bg-accent px-4 py-2 text-center text-sm font-semibold text-white transition-colors hover:bg-accent-hover"
-          >
-            {common("signup")}
-          </Link>
+          {userEmail ? (
+            <div className="mt-2 rounded-lg bg-gray-100 px-4 py-2 text-center text-sm font-medium text-gray-700 dark:bg-slate-700 dark:text-slate-300">
+              {userEmail}
+            </div>
+          ) : (
+            <Link
+              href={`/${locale}/signup`}
+              onClick={() => setMenuOpen(false)}
+              className="mt-2 block rounded-lg bg-accent px-4 py-2 text-center text-sm font-semibold text-white transition-colors hover:bg-accent-hover"
+            >
+              {common("signup")}
+            </Link>
+          )}
           <div className="mt-3 border-t border-gray-200 pt-3 dark:border-slate-700">
             <LanguageSwitcher />
           </div>

@@ -1,8 +1,7 @@
 import {NextRequest, NextResponse} from "next/server";
 
 import {buildBearerHeaders, getBackendAccessToken} from "@/lib/backend-auth";
-
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
+import {resolveServerApiBase} from "@/lib/auth-config";
 
 export async function POST(
   request: NextRequest,
@@ -15,7 +14,7 @@ export async function POST(
 
   const {submissionId} = await context.params;
   const body = await request.json();
-  const response = await fetch(`${API_BASE}/user/dashboard/disputes/${submissionId}`, {
+  const response = await fetch(`${resolveServerApiBase()}/user/dashboard/disputes/${submissionId}`, {
     method: "POST",
     headers: {
       "content-type": "application/json",
