@@ -3,6 +3,7 @@ import {render, screen, fireEvent, waitFor} from "@testing-library/react";
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest";
 
 import EvidencePage from "../app/[locale]/analytics/evidence/page";
+import {canonicalJson} from "../lib/evidence";
 
 const SAMPLE_ENTRIES = [
   {
@@ -239,14 +240,14 @@ describe("EvidencePage", () => {
       hash: "",
     };
     const material = {
-      entity_id: "entity-0",
-      entity_type: "test",
+      timestamp: "2026-02-20T10:00:00.000Z",
       event_type: "test_event",
+      entity_type: "test",
+      entity_id: "entity-0",
       payload: {index: 0},
       prev_hash: "genesis",
-      timestamp: "2026-02-20T10:00:00.000Z",
     };
-    const data = new TextEncoder().encode(JSON.stringify(material, Object.keys(material).sort()));
+    const data = new TextEncoder().encode(canonicalJson(material));
     const digest = await crypto.subtle.digest("SHA-256", data);
     entry.hash = Array.from(new Uint8Array(digest))
       .map((b) => b.toString(16).padStart(2, "0"))

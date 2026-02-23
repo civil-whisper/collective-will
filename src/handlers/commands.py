@@ -15,6 +15,14 @@ from src.models.user import User
 from src.models.vote import VotingCycle
 
 REGISTER_HINT = "برای شروع، لطفاً از طریق وبسایت ثبت‌نام کنید."
+USER_ALREADY_LINKED = (
+    "⚠️ حساب ایمیل شما قبلاً به یک اکانت تلگرام دیگر متصل شده است.\n"
+    "اگر نیاز به تغییر دارید، لطفاً با پشتیبانی تماس بگیرید."
+)
+ACCOUNT_ALREADY_LINKED = (
+    "⚠️ این اکانت تلگرام قبلاً به یک ایمیل دیگر متصل شده است.\n"
+    "هر اکانت تلگرام فقط می‌تواند به یک ایمیل متصل باشد."
+)
 
 STATUS_FA = "📊 وضعیت شما:\nارسالی‌ها: {count} ({pending} در انتظار)\nرای‌گیری فعال: {active}"
 HELP_FA = (
@@ -170,6 +178,12 @@ async def route_message(
         )
         if ok:
             return "account_linked"
+        if status == "user_already_linked":
+            await channel.send_message(OutboundMessage(recipient_ref=message.sender_ref, text=USER_ALREADY_LINKED))
+            return status
+        if status == "account_already_linked":
+            await channel.send_message(OutboundMessage(recipient_ref=message.sender_ref, text=ACCOUNT_ALREADY_LINKED))
+            return status
         await channel.send_message(OutboundMessage(recipient_ref=message.sender_ref, text=REGISTER_HINT))
         return "registration_prompted"
 

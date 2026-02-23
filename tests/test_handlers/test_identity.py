@@ -239,9 +239,11 @@ async def test_exchange_web_session_code_invalid(mock_lookup: AsyncMock) -> None
 @patch("src.handlers.identity.consume_token", new_callable=AsyncMock, return_value=True)
 @patch("src.handlers.identity.lookup_token", new_callable=AsyncMock, return_value=("test@example.com", False))
 @patch("src.handlers.identity.get_user_by_email", new_callable=AsyncMock)
+@patch("src.handlers.identity.get_user_by_messaging_ref", new_callable=AsyncMock, return_value=None)
 @patch("src.handlers.identity.append_evidence", new_callable=AsyncMock)
 async def test_resolve_linking_code_valid(
     mock_evidence: AsyncMock,
+    mock_get_by_ref: AsyncMock,
     mock_get: AsyncMock,
     mock_lookup: AsyncMock,
     mock_consume: AsyncMock,
@@ -260,6 +262,58 @@ async def test_resolve_linking_code_valid(
     assert user.messaging_account_ref == "opaque-ref"
     mock_consume.assert_called()
     mock_evidence.assert_called_once()
+
+
+@pytest.mark.asyncio
+@patch("src.handlers.identity.consume_token", new_callable=AsyncMock, return_value=True)
+@patch("src.handlers.identity.lookup_token", new_callable=AsyncMock, return_value=("test@example.com", False))
+@patch("src.handlers.identity.get_user_by_email", new_callable=AsyncMock)
+async def test_resolve_linking_code_user_already_linked(
+    mock_get: AsyncMock,
+    mock_lookup: AsyncMock,
+    mock_consume: AsyncMock,
+) -> None:
+    user = MagicMock()
+    user.id = uuid4()
+    user.messaging_account_ref = "existing-ref"
+    user.messaging_verified = True
+    mock_get.return_value = user
+    session = AsyncMock()
+
+    ok, status = await resolve_linking_code(session=session, code="code123", account_ref="new-ref")
+    assert ok is False
+    assert status == "user_already_linked"
+    assert user.messaging_account_ref == "existing-ref"
+    mock_consume.assert_called()
+
+
+@pytest.mark.asyncio
+@patch("src.handlers.identity.consume_token", new_callable=AsyncMock, return_value=True)
+@patch("src.handlers.identity.lookup_token", new_callable=AsyncMock, return_value=("test@example.com", False))
+@patch("src.handlers.identity.get_user_by_email", new_callable=AsyncMock)
+@patch("src.handlers.identity.get_user_by_messaging_ref", new_callable=AsyncMock)
+async def test_resolve_linking_code_account_already_linked(
+    mock_get_by_ref: AsyncMock,
+    mock_get: AsyncMock,
+    mock_lookup: AsyncMock,
+    mock_consume: AsyncMock,
+) -> None:
+    user = MagicMock()
+    user.id = uuid4()
+    user.messaging_account_ref = ""
+    user.messaging_verified = False
+    mock_get.return_value = user
+
+    other_user = MagicMock()
+    other_user.id = uuid4()
+    mock_get_by_ref.return_value = other_user
+    session = AsyncMock()
+
+    ok, status = await resolve_linking_code(session=session, code="code123", account_ref="taken-ref")
+    assert ok is False
+    assert status == "account_already_linked"
+    assert user.messaging_verified is False
+    mock_consume.assert_called()
 
 
 @pytest.mark.asyncio

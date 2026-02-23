@@ -16,6 +16,21 @@ async function sha256Hex(value: string): Promise<string> {
     .join("");
 }
 
+/**
+ * Matches Python's json.dumps(obj, sort_keys=True, separators=(",", ":"), ensure_ascii=False).
+ * Recursively sorts object keys at every nesting level.
+ */
+export function canonicalJson(value: unknown): string {
+  if (value === null || value === undefined) return "null";
+  if (typeof value === "number" || typeof value === "boolean") return JSON.stringify(value);
+  if (typeof value === "string") return JSON.stringify(value);
+  if (Array.isArray(value)) return "[" + value.map(canonicalJson).join(",") + "]";
+  const obj = value as Record<string, unknown>;
+  const keys = Object.keys(obj).sort();
+  const parts = keys.map((k) => JSON.stringify(k) + ":" + canonicalJson(obj[k]));
+  return "{" + parts.join(",") + "}";
+}
+
 export async function verifyChain(entries: EvidenceEntry[]): Promise<{valid: boolean; failedIndex?: number}> {
   let previous = "genesis";
   for (let index = 0; index < entries.length; index += 1) {
@@ -28,7 +43,7 @@ export async function verifyChain(entries: EvidenceEntry[]): Promise<{valid: boo
       payload: entry.payload,
       prev_hash: entry.prev_hash
     };
-    const serialized = JSON.stringify(material, Object.keys(material).sort());
+    const serialized = canonicalJson(material);
     const expected = await sha256Hex(serialized);
     if (entry.hash !== expected || entry.prev_hash !== previous) {
       return {valid: false, failedIndex: index};

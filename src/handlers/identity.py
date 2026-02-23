@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.config import get_settings
 from src.db.evidence import append_evidence
-from src.db.queries import create_user, get_user_by_email
+from src.db.queries import create_user, get_user_by_email, get_user_by_messaging_ref
 from src.db.verification_tokens import consume_token, lookup_token, store_token
 from src.email.sender import send_magic_link_email
 from src.handlers.abuse import check_signup_limits
@@ -180,6 +180,17 @@ async def resolve_linking_code(*, session: AsyncSession, code: str, account_ref:
     user = await get_user_by_email(session, email)
     if user is None:
         return False, "user_not_found"
+
+    if user.messaging_verified:
+        await consume_token(session, code, "linking_code")
+        await session.commit()
+        return False, "user_already_linked"
+
+    existing_holder = await get_user_by_messaging_ref(session, account_ref)
+    if existing_holder is not None and existing_holder.id != user.id:
+        await consume_token(session, code, "linking_code")
+        await session.commit()
+        return False, "account_already_linked"
 
     user.messaging_account_ref = account_ref
     user.messaging_verified = True

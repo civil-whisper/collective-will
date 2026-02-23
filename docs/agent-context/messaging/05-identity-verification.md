@@ -66,11 +66,14 @@ The backend provides two paths:
 2. **`link_whatsapp_account(user, account_ref)`** — direct linking for WhatsApp (post-MVP).
 
 Steps:
-1. Check that no other user is already linked to this `account_ref`
-2. Set `user.messaging_account_ref = account_ref` (opaque UUIDv4, never raw platform ID)
-3. Set `user.messaging_verified = True`
-4. Set `user.messaging_account_age` to current time
-5. Log `user_verified` event (type: `messaging_linked`) to evidence store
+1. If the user already has `messaging_verified=True` → reject with `user_already_linked` (prevents re-linking to a different messaging account)
+2. Check that no other user is already linked to this `account_ref` → reject with `account_already_linked` (enforces one-Telegram-one-user, providing implicit phone-number uniqueness for Sybil resistance)
+3. Set `user.messaging_account_ref = account_ref` (opaque UUIDv4, never raw platform ID)
+4. Set `user.messaging_verified = True`
+5. Set `user.messaging_account_age` to current time
+6. Log `user_verified` event (type: `messaging_linked`) to evidence store
+
+The bot (`route_message` in `src/handlers/commands.py`) surfaces both rejection cases with Farsi user-facing messages explaining the conflict.
 
 ### Linking code
 
@@ -112,5 +115,7 @@ Write tests in `tests/test_handlers/test_identity.py` and `tests/test_api/test_a
 - WhatsApp linking: expired code rejected
 - WhatsApp linking: code already used rejected
 - WhatsApp linking stores opaque account ref, not raw ID
+- Linking rejected when user already has a linked messaging account (`user_already_linked`)
+- Linking rejected when messaging account is already linked to another user (`account_already_linked`)
 - Evidence logged for both email verification and WhatsApp linking
 - Account-creation velocity metrics are emitted on subscribe attempts
