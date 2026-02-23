@@ -1,7 +1,8 @@
 import NextAuth, {type NextAuthConfig} from "next-auth";
 import Credentials from "next-auth/providers/credentials";
+import {resolveServerApiBase} from "@/lib/auth-config";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
+const API_BASE = resolveServerApiBase();
 
 export const authConfig: NextAuthConfig = {
   providers: [

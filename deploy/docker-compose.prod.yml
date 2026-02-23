@@ -61,6 +61,11 @@ services:
   web:
     image: ghcr.io/civil-whisper/collective-will-web:latest
     restart: unless-stopped
+    environment:
+      BACKEND_API_BASE_URL: http://backend:8000
+      NEXTAUTH_URL: ${APP_PUBLIC_BASE_URL}
+      NEXTAUTH_SECRET: ${WEB_ACCESS_TOKEN_SECRET}
+      AUTH_TRUST_HOST: "true"
     ports:
       - "${WEB_PORT:-3000}:3000"
     depends_on:
