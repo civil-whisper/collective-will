@@ -23,7 +23,7 @@ jobs:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
-          source: "deploy/docker-compose.prod.yml,deploy/deploy.sh,deploy/Caddyfile"
+          source: "deploy/docker-compose.prod.yml,deploy/deploy.sh,deploy/Caddyfile,deploy/public.env.staging,deploy/public.env.production"
           target: /opt/collective-will/repo-deploy
           strip_components: 1
 

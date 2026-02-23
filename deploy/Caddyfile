@@ -2,6 +2,18 @@
 # Set DOMAIN env var or replace these placeholders before use.
 
 {$DOMAIN} {
+	handle_path /api/auth/subscribe {
+		reverse_proxy localhost:8000
+	}
+
+	handle_path /api/auth/verify/* {
+		reverse_proxy localhost:8000
+	}
+
+	handle_path /api/auth/web-session {
+		reverse_proxy localhost:8000
+	}
+
 	handle_path /api/auth/* {
 		reverse_proxy localhost:3000
 	}
@@ -17,6 +29,18 @@
 
 # Staging: staging.yourdomain.com
 staging.{$DOMAIN} {
+	handle_path /api/auth/subscribe {
+		reverse_proxy localhost:8100
+	}
+
+	handle_path /api/auth/verify/* {
+		reverse_proxy localhost:8100
+	}
+
+	handle_path /api/auth/web-session {
+		reverse_proxy localhost:8100
+	}
+
 	handle_path /api/auth/* {
 		reverse_proxy localhost:3100
 	}
