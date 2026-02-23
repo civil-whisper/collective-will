@@ -148,8 +148,11 @@ async def test_record_dispute_metrics_recommends_tuning_on_high_rate() -> None:
     session = AsyncMock()
     session.execute.side_effect = [
         _count_result(100),
-        _count_result(8),
-        _payload_rows_result([{"escalated": True}, {"escalated": False}]),
+        _payload_rows_result([
+            {"escalated": True}, {"escalated": True}, {"escalated": True},
+            {"escalated": True}, {"escalated": True}, {"escalated": True},
+            {"escalated": True}, {"escalated": True},
+        ]),
     ]
 
     with patch("src.handlers.disputes.append_evidence", new_callable=AsyncMock) as mock_evidence:

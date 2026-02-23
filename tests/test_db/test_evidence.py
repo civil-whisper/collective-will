@@ -39,7 +39,7 @@ def _settings(**overrides: str) -> Settings:
 async def test_append_single_entry_hash_and_prev_hash(db_session: AsyncSession) -> None:
     entity_id = uuid4()
     entry = await append_evidence(
-        db_session, "user_created", "user", entity_id, {"email": "hash@example.com"}
+        db_session, "user_verified", "user", entity_id, {"method": "email_magic_link"}
     )
     await db_session.commit()
 
@@ -82,8 +82,8 @@ async def test_chain_linking_and_verification(db_session: AsyncSession) -> None:
 
 @pytest.mark.asyncio
 async def test_verify_chain_detects_payload_tamper(db_session: AsyncSession) -> None:
-    first = await append_evidence(db_session, "user_created", "user", uuid4(), {"a": 1})
-    await append_evidence(db_session, "user_verified", "user", uuid4(), {"b": 2})
+    first = await append_evidence(db_session, "user_verified", "user", uuid4(), {"a": 1})
+    await append_evidence(db_session, "submission_received", "submission", uuid4(), {"b": 2})
     await db_session.commit()
 
     await db_session.execute(
@@ -99,8 +99,8 @@ async def test_verify_chain_detects_payload_tamper(db_session: AsyncSession) -> 
 
 @pytest.mark.asyncio
 async def test_verify_chain_detects_metadata_tamper(db_session: AsyncSession) -> None:
-    first = await append_evidence(db_session, "user_created", "user", uuid4(), {"a": 1})
-    await append_evidence(db_session, "user_verified", "user", uuid4(), {"b": 2})
+    first = await append_evidence(db_session, "user_verified", "user", uuid4(), {"a": 1})
+    await append_evidence(db_session, "submission_received", "submission", uuid4(), {"b": 2})
     await db_session.commit()
 
     await db_session.execute(
@@ -136,7 +136,7 @@ def test_compute_entry_hash_deterministic() -> None:
     fixed_id = str(uuid4())
     hash_a = compute_entry_hash(
         timestamp_iso="2026-02-20T12:34:56.789Z",
-        event_type="user_created",
+        event_type="user_verified",
         entity_type="user",
         entity_id=fixed_id,
         payload={"z": 1, "a": 2},
@@ -144,7 +144,7 @@ def test_compute_entry_hash_deterministic() -> None:
     )
     hash_b = compute_entry_hash(
         timestamp_iso="2026-02-20T12:34:56.789Z",
-        event_type="user_created",
+        event_type="user_verified",
         entity_type="user",
         entity_id=fixed_id,
         payload={"z": 1, "a": 2},

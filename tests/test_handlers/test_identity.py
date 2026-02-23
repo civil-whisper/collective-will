@@ -349,4 +349,5 @@ async def test_link_whatsapp_stores_opaque_ref(mock_evidence: AsyncMock) -> None
     assert result.messaging_account_ref == "opaque-ref-123"
     mock_evidence.assert_called_once()
     evidence_payload = mock_evidence.call_args.kwargs.get("payload", {})
-    assert evidence_payload.get("account_ref") == "opaque-ref-123"
+    assert evidence_payload.get("method") == "whatsapp_linked"
+    assert "account_ref" not in evidence_payload

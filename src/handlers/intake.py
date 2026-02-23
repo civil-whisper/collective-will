@@ -67,7 +67,12 @@ async def handle_submission(
             event_type="submission_received",
             entity_type="user",
             entity_id=user.id,
-            payload={"status": "rejected_high_risk_pii", "reason_code": "high_risk_pii"},
+            payload={
+                "status": "rejected_high_risk_pii",
+                "reason_code": "high_risk_pii",
+                "user_id": str(user.id),
+                "language": user.locale,
+            },
         )
         await db.commit()
         await channel.send_message(OutboundMessage(recipient_ref=message.sender_ref, text=PII_WARNING_FA))
@@ -96,8 +101,10 @@ async def handle_submission(
         payload={
             "submission_id": str(submission.id),
             "user_id": str(user.id),
+            "raw_text": message.text,
+            "language": user.locale,
+            "status": submission.status,
             "hash": submission_hash,
-            "timestamp": datetime.now(UTC).isoformat(),
         },
     )
     await db.commit()
@@ -125,7 +132,12 @@ async def process_submission(
             event_type="submission_received",
             entity_type="user",
             entity_id=user.id,
-            payload={"status": "rejected_high_risk_pii", "reason_code": "high_risk_pii"},
+            payload={
+                "status": "rejected_high_risk_pii",
+                "reason_code": "high_risk_pii",
+                "user_id": str(user.id),
+                "language": user.locale,
+            },
         )
         await session.commit()
         return None, "pii_redact_and_resend"
@@ -149,7 +161,14 @@ async def process_submission(
         event_type="submission_received",
         entity_type="submission",
         entity_id=submission.id,
-        payload={"status": submission.status, "hash": submission_hash},
+        payload={
+            "submission_id": str(submission.id),
+            "user_id": str(user.id),
+            "raw_text": raw_text,
+            "language": user.locale,
+            "status": submission.status,
+            "hash": submission_hash,
+        },
     )
     await session.commit()
     return submission, ("accepted_flagged" if quarantined else "accepted")

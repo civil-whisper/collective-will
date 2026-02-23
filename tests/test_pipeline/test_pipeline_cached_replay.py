@@ -163,6 +163,8 @@ async def test_cached_fixture_pipeline_replay(db_session: AsyncSession, monkeypa
     assert checked > 0
 
     clusters_payload = await analytics_clusters(session=db_session)
-    evidence_payload = await analytics_evidence(session=db_session)
+    evidence_payload = await analytics_evidence(
+        session=db_session, entity_id=None, event_type=None, page=1, per_page=200,
+    )
     assert len(clusters_payload) == len(cycle_clusters)
-    assert any(entry["event_type"] == "candidate_created" for entry in evidence_payload)
+    assert any(entry["event_type"] == "candidate_created" for entry in evidence_payload["entries"])

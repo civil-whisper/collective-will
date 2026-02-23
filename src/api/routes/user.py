@@ -9,7 +9,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.authn import require_user_from_bearer
 from src.db.connection import get_db
-from src.db.evidence import append_evidence
 from src.handlers.disputes import resolve_submission_dispute
 from src.models.submission import Submission
 from src.models.user import User
@@ -67,13 +66,5 @@ async def open_dispute(
     if submission is None:
         raise HTTPException(status_code=404, detail="submission not found")
 
-    await append_evidence(
-        session=session,
-        event_type="dispute_opened",
-        entity_type="dispute",
-        entity_id=submission.id,
-        payload={"state": "dispute_open", "resolution_mode": "autonomous"},
-    )
-    await session.commit()
     await resolve_submission_dispute(session=session, submission=submission)
     return {"status": "under_automated_review"}

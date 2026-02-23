@@ -61,7 +61,7 @@ These are locked. Do not deviate.
 - Resolver can escalate to a stronger model or multi-model ensemble when confidence is low.
 - Dispute adjudication must use explicit confidence thresholds with fallback/ensemble paths when below threshold.
 - Scope dispute resolution to the disputed submission first (re-canonicalize that item); do not re-run full clustering mid-cycle for a single dispute.
-- Disputed items tagged (`dispute_open`, `dispute_resolved`) but never removed or suppressed.
+- Disputed items tracked via evidence chain (`dispute_resolved`, optionally `dispute_escalated`) but never removed or suppressed.
 - Resolution logged to evidence store. Resolution is by re-running pipeline, not manual content override.
 - Every adjudication action (primary decision, fallback/ensemble escalation, final resolution) must be evidence-logged.
 - Track dispute volume and resolver-disagreement metrics; if disputes exceed 5% of cycle submissions (or disagreement spikes), tune model/prompt/policy.
@@ -327,15 +327,56 @@ evidence_log_id: int
 ```
 id: int (BIGSERIAL)
 timestamp: datetime
-event_type: str                     # submission_received, candidate_created, cluster_created,
-                                    # cluster_updated, vote_cast, cycle_opened, cycle_closed,
-                                    # user_created, user_verified
+event_type: str                     # See valid event types below
 entity_type: str
 entity_id: UUID
-payload: dict                       # JSONB — full entity snapshot
+payload: dict                       # JSONB — enriched with human-readable context (see Evidence Payload Enrichment)
 hash: str                           # SHA-256(canonical JSON of {timestamp,event_type,entity_type,entity_id,payload,prev_hash})
 prev_hash: str                      # previous entry's hash (chain)
 ```
+
+Valid event types (enforced by `VALID_EVENT_TYPES` in `src/db/evidence.py`):
+```
+submission_received, candidate_created, cluster_created, cluster_updated,
+policy_endorsed, vote_cast, cycle_opened, cycle_closed, user_verified,
+dispute_escalated, dispute_resolved, dispute_metrics_recorded,
+dispute_tuning_recommended, anchor_computed
+```
+
+Removed event types (clean slate — no backward compatibility):
+- `user_created` — redundant; `user_verified` is the meaningful identity event
+- `dispute_opened` — redundant; disputes are immediately resolved, so only `dispute_resolved` (and optionally `dispute_escalated`) matter
+
+### Evidence Payload Enrichment
+
+All `append_evidence` payloads include human-readable context so the evidence chain is self-describing. Key fields per event type:
+
+| Event type | Required payload fields |
+|---|---|
+| `submission_received` | `submission_id`, `user_id`, `raw_text`, `language`, `status`, `hash` (or `status`+`reason_code` for PII rejections) |
+| `candidate_created` | `submission_id`, `title`, `summary`, `domain`, `stance`, `confidence`, `model_version`, `prompt_version` |
+| `cluster_updated` | `summary`, `summary_en`, `domain`, `member_count`, `candidate_ids`, `model_version` |
+| `vote_cast` | `user_id`, `cycle_id`, `approved_cluster_ids` |
+| `policy_endorsed` | `user_id`, `cluster_id` |
+| `cycle_opened` | `cycle_id`, `cluster_ids`, `starts_at`, `ends_at`, `cycle_duration_hours` |
+| `cycle_closed` | `total_voters`, `results` |
+| `user_verified` | `user_id`, `method` |
+| `dispute_resolved` | `submission_id`, `candidate_id`, `escalated`, `confidence`, `model_version`, `resolved_title`, `resolved_summary`, `resolution_seconds` |
+| `dispute_escalated` | `threshold`, `primary_model`, `primary_confidence`, `ensemble_models`, `selected_model`, `selected_confidence` |
+
+### Evidence PII Stripping
+
+The public `GET /analytics/evidence` endpoint strips PII keys from payloads before serving:
+- Stripped keys: `user_id`, `email`, `account_ref`, `wa_id`
+- `raw_text` is preserved (it's the civic concern, not PII)
+- Internal evidence entries retain `user_id` for audit integrity; it's only stripped from the public API response
+- This supports coercion resistance: no transferable proof linking a user to a specific action
+
+### Evidence API Contract
+
+- `GET /analytics/evidence` — paginated, with `entity_id`, `event_type`, `page`, `per_page` query params; returns `{total, page, per_page, entries}`
+- `GET /analytics/evidence/verify` — server-side chain verification; returns `{valid, entries_checked}`
+- Frontend evidence explorer uses server-side verify (no client-side hash recomputation); deep links to analytics pages via `entityLink()`
 
 ---
 

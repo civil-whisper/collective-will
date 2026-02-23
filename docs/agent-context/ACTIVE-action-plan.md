@@ -308,6 +308,69 @@ Design rationale: `docs/decision-rationale/website/09-ops-debug-console.md`
     - On success: sets `loggedIn` state, calls `router.refresh()` to update NavBar
     - Added "Go to Dashboard" button after successful verification
 
+### P0 — Audit Evidence Redesign
+
+Design rationale: Plan in `.cursor/plans/audit_evidence_redesign_2514d858.plan.md`
+
+Goal: Transform the evidence chain from opaque hash dumps into a meaningful,
+human-readable audit trail connected to analytics. Fresh start (no backward
+compatibility with old sparse payloads).
+
+**Phase 1 — Backend Payload Enrichment**
+
+45. [done] Enrich all `append_evidence` call sites with human-readable payload fields
+    - `intake.py`: `submission_received` → raw_text, language, status, submission_id, user_id
+    - `identity.py`: `user_verified` → user_id, method (removed account_ref PII)
+    - `voting.py`: `vote_cast` → user_id, cycle_id; `cycle_opened` → cycle_duration_hours
+    - `canonicalize.py`: `candidate_created` → submission_id, summary, stance
+    - `summarize.py`: `cluster_updated` → summary_en, domain, member_count, candidate_ids
+    - `disputes.py`: `dispute_resolved` → resolved_title, resolved_summary
+
+46. [done] Remove `dispute_opened` emission + clean up VALID_EVENT_TYPES
+    - Removed `dispute_opened` and `user_created` from `VALID_EVENT_TYPES`
+    - Removed `dispute_opened` evidence append from `src/api/routes/user.py`
+    - Updated `_record_dispute_metrics` to count `dispute_resolved` instead of `dispute_opened`
+
+**Phase 2 — API Improvements**
+
+47. [done] Add PII stripping to `GET /analytics/evidence`
+    - `strip_evidence_pii()` removes `user_id`, `email`, `account_ref`, `wa_id` from payloads
+    - Added pagination (`page`, `per_page`), `entity_id` and `event_type` query filters
+    - Response format: `{total, page, per_page, entries}`
+
+48. [done] Add server-side `GET /analytics/evidence/verify`
+    - Calls `db_verify_chain()` server-side; returns `{valid, entries_checked}`
+    - Replaced old POST client-verify endpoint
+
+**Phase 3 — Frontend Redesign**
+
+49. [done] Build `eventDescription()` mapper + i18n keys (en + fa)
+    - Maps all 14 event types to human-readable strings with template variables
+    - Added `analytics.events.*` keys in both `en.json` and `fa.json`
+    - Added filter category labels and UI text
+
+50. [done] Redesign evidence page with human-readable cards
+    - Category filter pills (Submissions, Policies, Votes, Disputes, Users, System)
+    - Smart default: deliberation events only, toggle to show all
+    - Collapsible entry cards with description, key-value fields, full payload, hash chain
+    - Entity filtering via `?entity=UUID` query param
+    - Deep links from entries to analytics pages
+
+**Phase 4 — Cross-Linking**
+
+51. [done] Add 'View Audit Trail' links on analytics pages
+    - Cluster detail page: audit trail link card
+    - Top policies page: audit trail icon per policy row
+
+**Tests & Docs**
+
+52. [done] Update all tests (154 frontend + 309 backend passing)
+    - Updated 7 backend test files for new payloads, event types, API format
+    - Rewrote evidence-page.test.tsx (17 tests) for redesigned page
+    - Updated setup.ts `makeTranslator` for nested keys + template substitution
+
+53. [done] Document volume nuke reset in deploy README
+
 ## Definition of Done (This Cycle)
 
 - No CI/CD job performs paid LLM API calls

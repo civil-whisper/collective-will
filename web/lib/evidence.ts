@@ -1,4 +1,5 @@
 export type EvidenceEntry = {
+  id: number;
   timestamp: string;
   event_type: string;
   entity_type: string;
@@ -6,6 +7,13 @@ export type EvidenceEntry = {
   payload: Record<string, unknown>;
   hash: string;
   prev_hash: string;
+};
+
+export type EvidenceResponse = {
+  total: number;
+  page: number;
+  per_page: number;
+  entries: EvidenceEntry[];
 };
 
 async function sha256Hex(value: string): Promise<string> {
@@ -51,4 +59,127 @@ export async function verifyChain(entries: EvidenceEntry[]): Promise<{valid: boo
     previous = entry.hash;
   }
   return {valid: true};
+}
+
+const DELIBERATION_EVENT_TYPES = new Set([
+  "submission_received",
+  "candidate_created",
+  "cluster_created",
+  "cluster_updated",
+  "vote_cast",
+  "policy_endorsed",
+  "cycle_opened",
+  "cycle_closed",
+  "dispute_escalated",
+  "dispute_resolved",
+]);
+
+export function isDeliberationEvent(eventType: string): boolean {
+  return DELIBERATION_EVENT_TYPES.has(eventType);
+}
+
+export type FilterCategory = "submissions" | "policies" | "votes" | "disputes" | "users" | "system";
+
+export const EVENT_CATEGORIES: Record<FilterCategory, string[]> = {
+  submissions: ["submission_received"],
+  policies: ["candidate_created", "cluster_created", "cluster_updated"],
+  votes: ["vote_cast", "policy_endorsed", "cycle_opened", "cycle_closed"],
+  disputes: ["dispute_escalated", "dispute_resolved"],
+  users: ["user_verified"],
+  system: ["anchor_computed", "dispute_metrics_recorded", "dispute_tuning_recommended"],
+};
+
+function truncate(text: string, max: number): string {
+  if (text.length <= max) return text;
+  return text.slice(0, max) + "...";
+}
+
+function str(v: unknown): string {
+  return typeof v === "string" ? v : String(v ?? "");
+}
+
+export function eventDescription(
+  entry: EvidenceEntry,
+  t: (key: string, values?: Record<string, string | number>) => string,
+): string {
+  const p = entry.payload;
+  switch (entry.event_type) {
+    case "submission_received": {
+      if (p.status === "rejected_high_risk_pii") return t("events.submissionRejectedPii");
+      const text = str(p.raw_text);
+      return text
+        ? t("events.submissionReceived", {text: truncate(text, 80)})
+        : t("events.submissionReceivedGeneric");
+    }
+    case "candidate_created":
+      return t("events.candidateCreated", {
+        title: truncate(str(p.title), 60),
+        domain: str(p.domain),
+        confidence: String(Math.round(Number(p.confidence ?? 0) * 100)),
+      });
+    case "cluster_created":
+    case "cluster_updated":
+      return t("events.clusterUpdated", {
+        summary: truncate(str(p.summary), 60),
+        memberCount: String(p.member_count ?? "?"),
+      });
+    case "vote_cast":
+      return t("events.voteCast", {
+        count: String((p.approved_cluster_ids as unknown[])?.length ?? 0),
+      });
+    case "policy_endorsed":
+      return t("events.policyEndorsed");
+    case "cycle_opened":
+      return t("events.cycleOpened", {
+        count: String((p.cluster_ids as unknown[])?.length ?? 0),
+      });
+    case "cycle_closed":
+      return t("events.cycleClosed", {
+        totalVoters: String(p.total_voters ?? 0),
+      });
+    case "dispute_escalated":
+      return t("events.disputeEscalated");
+    case "dispute_resolved":
+      return p.resolved_title
+        ? t("events.disputeResolved", {title: truncate(str(p.resolved_title), 60)})
+        : t("events.disputeResolvedGeneric");
+    case "user_verified":
+      return t("events.userVerified", {method: str(p.method)});
+    case "anchor_computed":
+      return t("events.anchorComputed", {
+        entryCount: String(p.entry_count ?? 0),
+      });
+    case "dispute_metrics_recorded":
+      return t("events.disputeMetrics");
+    case "dispute_tuning_recommended":
+      return t("events.disputeTuning");
+    default:
+      return entry.event_type;
+  }
+}
+
+export function entityLink(entry: EvidenceEntry, locale: string): string | null {
+  switch (entry.entity_type) {
+    case "cluster":
+      return `/${locale}/analytics/clusters/${entry.entity_id}`;
+    case "voting_cycle":
+      return `/${locale}/analytics/top-policies`;
+    case "vote":
+      return `/${locale}/analytics/top-policies`;
+    default:
+      return null;
+  }
+}
+
+export function relativeTime(isoTimestamp: string): string {
+  const now = Date.now();
+  const then = new Date(isoTimestamp).getTime();
+  const diffMs = now - then;
+  const diffMin = Math.floor(diffMs / 60_000);
+  if (diffMin < 1) return "just now";
+  if (diffMin < 60) return `${diffMin}m ago`;
+  const diffHours = Math.floor(diffMin / 60);
+  if (diffHours < 24) return `${diffHours}h ago`;
+  const diffDays = Math.floor(diffHours / 24);
+  return `${diffDays}d ago`;
 }

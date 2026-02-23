@@ -50,7 +50,14 @@ async def summarize_clusters(
             event_type="cluster_updated",
             entity_type="cluster",
             entity_id=cluster.id,
-            payload={"summary": cluster.summary, "model_version": completion.model},
+            payload={
+                "summary": cluster.summary,
+                "summary_en": cluster.summary_en,
+                "domain": cluster.domain.value if hasattr(cluster.domain, "value") else str(cluster.domain or "other"),
+                "member_count": len(cluster.candidate_ids),
+                "candidate_ids": [str(cid) for cid in cluster.candidate_ids],
+                "model_version": completion.model,
+            },
         )
     await session.flush()
     return clusters

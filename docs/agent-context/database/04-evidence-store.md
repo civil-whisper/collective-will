@@ -147,11 +147,31 @@ Behavior:
 
 ### Event types
 
-Valid event types (enforce via validation):
+Valid event types (enforced in `VALID_EVENT_TYPES` set in `src/db/evidence.py`):
 ```
 submission_received, candidate_created, cluster_created, cluster_updated,
-vote_cast, cycle_opened, cycle_closed, user_created, user_verified
+policy_endorsed, vote_cast, cycle_opened, cycle_closed, user_verified,
+dispute_escalated, dispute_resolved, dispute_metrics_recorded,
+dispute_tuning_recommended, anchor_computed
 ```
+
+Removed (no backward compatibility — staging data wiped for clean slate):
+- `user_created` — redundant with `user_verified`
+- `dispute_opened` — disputes resolve immediately, only `dispute_resolved`/`dispute_escalated` logged
+
+### Payload enrichment
+
+All `append_evidence` call sites include human-readable context fields so entries are self-describing.
+See `CONTEXT-shared.md` → "Evidence Payload Enrichment" for the per-event-type field contract.
+
+### PII stripping
+
+The public API endpoint (`GET /analytics/evidence`) strips `user_id`, `email`, `account_ref`, and `wa_id` from payloads via `strip_evidence_pii()` in `src/api/routes/analytics.py`. Internal DB entries retain all fields.
+
+### Evidence API
+
+- `GET /analytics/evidence?entity_id=&event_type=&page=&per_page=` — paginated with filtering
+- `GET /analytics/evidence/verify` — server-side `verify_chain()` call; returns `{valid, entries_checked}`
 
 ## Constraints
 

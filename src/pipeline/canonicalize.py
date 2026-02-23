@@ -128,8 +128,11 @@ async def canonicalize_batch(
             entity_type="submission",
             entity_id=submissions[idx]["id"],
             payload={
+                "submission_id": str(submissions[idx]["id"]),
                 "title": candidate.title,
+                "summary": candidate.summary,
                 "domain": candidate.domain.value,
+                "stance": candidate.stance,
                 "confidence": candidate.confidence,
                 "model_version": candidate.model_version,
                 "prompt_version": candidate.prompt_version,

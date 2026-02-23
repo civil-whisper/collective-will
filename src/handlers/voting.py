@@ -97,6 +97,7 @@ async def open_cycle(
             "cluster_ids": [str(c) for c in cluster_ids],
             "starts_at": now.isoformat(),
             "ends_at": (now + timedelta(hours=settings.voting_cycle_hours)).isoformat(),
+            "cycle_duration_hours": settings.voting_cycle_hours,
         },
     )
     await db.commit()
@@ -179,7 +180,11 @@ async def cast_vote(
         event_type="vote_cast",
         entity_type="vote",
         entity_id=vote.id,
-        payload={"approved_cluster_ids": [str(v) for v in approved_cluster_ids]},
+        payload={
+            "user_id": str(user.id),
+            "cycle_id": str(cycle.id),
+            "approved_cluster_ids": [str(v) for v in approved_cluster_ids],
+        },
     )
     await session.commit()
     return vote, "recorded"

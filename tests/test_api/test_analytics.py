@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import hashlib
-import json
 from datetime import UTC, datetime
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
@@ -247,97 +245,91 @@ class TestTopPolicies:
 
 class TestEvidence:
     def test_returns_empty_list(self) -> None:
-        session = _mock_session([])
+        session = AsyncMock()
+        count_result = MagicMock()
+        count_result.scalar_one.return_value = 0
+        entries_result = MagicMock()
+        entries_result.scalars.return_value = MagicMock(all=MagicMock(return_value=[]))
+        session.execute.side_effect = [count_result, entries_result]
         app.dependency_overrides[get_db] = lambda: session
         try:
             client = TestClient(app)
             response = client.get("/analytics/evidence")
             assert response.status_code == 200
-            assert response.json() == []
+            data = response.json()
+            assert data["entries"] == []
+            assert data["total"] == 0
+            assert data["page"] == 1
         finally:
             app.dependency_overrides.pop(get_db, None)
 
     def test_returns_formatted_entries(self) -> None:
         eid = uuid4()
         entry = _make_evidence_entry(entity_id=eid, hash="abc123", prev_hash="genesis")
-        session = _mock_session([entry])
+        session = AsyncMock()
+        count_result = MagicMock()
+        count_result.scalar_one.return_value = 1
+        entries_result = MagicMock()
+        entries_result.scalars.return_value = MagicMock(all=MagicMock(return_value=[entry]))
+        session.execute.side_effect = [count_result, entries_result]
         app.dependency_overrides[get_db] = lambda: session
         try:
             client = TestClient(app)
             response = client.get("/analytics/evidence")
             data = response.json()
-            assert len(data) == 1
-            assert data[0]["entity_id"] == str(eid)
-            assert data[0]["hash"] == "abc123"
-            assert data[0]["prev_hash"] == "genesis"
-            assert data[0]["event_type"] == "submission_received"
+            assert len(data["entries"]) == 1
+            assert data["entries"][0]["entity_id"] == str(eid)
+            assert data["entries"][0]["hash"] == "abc123"
+            assert data["entries"][0]["prev_hash"] == "genesis"
+            assert data["entries"][0]["event_type"] == "submission_received"
+        finally:
+            app.dependency_overrides.pop(get_db, None)
+
+    def test_strips_pii_from_payload(self) -> None:
+        eid = uuid4()
+        entry = _make_evidence_entry(
+            entity_id=eid,
+            payload={"status": "accepted", "user_id": "secret-uid", "raw_text": "my concern"},
+        )
+        session = AsyncMock()
+        count_result = MagicMock()
+        count_result.scalar_one.return_value = 1
+        entries_result = MagicMock()
+        entries_result.scalars.return_value = MagicMock(all=MagicMock(return_value=[entry]))
+        session.execute.side_effect = [count_result, entries_result]
+        app.dependency_overrides[get_db] = lambda: session
+        try:
+            client = TestClient(app)
+            response = client.get("/analytics/evidence")
+            payload = response.json()["entries"][0]["payload"]
+            assert "user_id" not in payload
+            assert payload["status"] == "accepted"
+            assert payload["raw_text"] == "my concern"
         finally:
             app.dependency_overrides.pop(get_db, None)
 
 
 class TestVerifyChain:
-    @staticmethod
-    def _build_valid_entry(prev_hash: str = "genesis", **overrides: Any) -> dict[str, Any]:
-        entry: dict[str, Any] = {
-            "timestamp": overrides.get("timestamp", "2026-02-20T10:00:00.000Z"),
-            "event_type": overrides.get("event_type", "test_event"),
-            "entity_type": overrides.get("entity_type", "test"),
-            "entity_id": overrides.get("entity_id", str(uuid4())),
-            "payload": overrides.get("payload", {"index": 0}),
-            "prev_hash": prev_hash,
-            "hash": "",
-        }
-        material = {
-            "timestamp": entry["timestamp"],
-            "event_type": entry["event_type"],
-            "entity_type": entry["entity_type"],
-            "entity_id": str(entry["entity_id"]).lower(),
-            "payload": entry["payload"],
-            "prev_hash": entry["prev_hash"],
-        }
-        serialized = json.dumps(material, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
-        entry["hash"] = hashlib.sha256(serialized.encode("utf-8")).hexdigest()
-        return entry
+    def test_verify_endpoint_returns_result(self) -> None:
+        from unittest.mock import patch
 
-    def test_valid_empty_chain(self) -> None:
-        client = TestClient(app)
-        response = client.post("/analytics/evidence/verify", json=[])
-        assert response.status_code == 200
-        data = response.json()
-        assert data["valid"] is True
-        assert data["entries_checked"] == 0
+        with patch("src.api.routes.analytics.db_verify_chain", new_callable=AsyncMock) as mock_verify:
+            mock_verify.return_value = (True, 5)
+            client = TestClient(app)
+            response = client.get("/analytics/evidence/verify")
+            assert response.status_code == 200
+            data = response.json()
+            assert data["valid"] is True
+            assert data["entries_checked"] == 5
 
-    def test_valid_single_entry(self) -> None:
-        entry = self._build_valid_entry()
-        client = TestClient(app)
-        response = client.post("/analytics/evidence/verify", json=[entry])
-        assert response.status_code == 200
-        assert response.json()["valid"] is True
+    def test_verify_endpoint_reports_invalid(self) -> None:
+        from unittest.mock import patch
 
-    def test_valid_multi_entry_chain(self) -> None:
-        e1 = self._build_valid_entry()
-        e2 = self._build_valid_entry(prev_hash=e1["hash"], timestamp="2026-02-20T10:01:00.000Z")
-        client = TestClient(app)
-        response = client.post("/analytics/evidence/verify", json=[e1, e2])
-        assert response.status_code == 200
-        assert response.json()["valid"] is True
-        assert response.json()["entries_checked"] == 2
-
-    def test_invalid_tampered_hash(self) -> None:
-        entry = self._build_valid_entry()
-        entry["hash"] = "tampered"
-        client = TestClient(app)
-        response = client.post("/analytics/evidence/verify", json=[entry])
-        data = response.json()
-        assert data["valid"] is False
-        assert data["failed_index"] == 0
-
-    def test_invalid_broken_prev_hash_chain(self) -> None:
-        e1 = self._build_valid_entry()
-        e2 = self._build_valid_entry(prev_hash=e1["hash"], timestamp="2026-02-20T10:01:00.000Z")
-        e2["prev_hash"] = "broken_link"
-        client = TestClient(app)
-        response = client.post("/analytics/evidence/verify", json=[e1, e2])
-        data = response.json()
-        assert data["valid"] is False
-        assert data["failed_index"] == 1
+        with patch("src.api.routes.analytics.db_verify_chain", new_callable=AsyncMock) as mock_verify:
+            mock_verify.return_value = (False, 3)
+            client = TestClient(app)
+            response = client.get("/analytics/evidence/verify")
+            assert response.status_code == 200
+            data = response.json()
+            assert data["valid"] is False
+            assert data["entries_checked"] == 3

@@ -127,7 +127,7 @@ async def verify_magic_link(
         event_type="user_verified",
         entity_type="user",
         entity_id=user.id,
-        payload={"method": "email_magic_link"},
+        payload={"method": "email_magic_link", "user_id": str(user.id)},
     )
     await session.commit()
     return True, linking_code, email, web_session_code
@@ -203,7 +203,7 @@ async def resolve_linking_code(*, session: AsyncSession, code: str, account_ref:
         event_type="user_verified",
         entity_type="user",
         entity_id=user.id,
-        payload={"method": "messaging_linked", "account_ref": account_ref},
+        payload={"method": "messaging_linked", "user_id": str(user.id)},
     )
     await session.commit()
     return True, "linked"
@@ -224,7 +224,7 @@ async def link_whatsapp_account(
         event_type="user_verified",
         entity_type="user",
         entity_id=user.id,
-        payload={"method": "whatsapp_linked", "account_ref": messaging_account_ref},
+        payload={"method": "whatsapp_linked", "user_id": str(user.id)},
     )
     await session.commit()
     await session.refresh(user)

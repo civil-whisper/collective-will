@@ -132,14 +132,6 @@ async def _record_dispute_metrics(
     )
     submission_count = int(submission_count_result.scalar_one())
 
-    dispute_open_count_result = await session.execute(
-        select(func.count(EvidenceLogEntry.id)).where(
-            EvidenceLogEntry.event_type == "dispute_opened",
-            EvidenceLogEntry.timestamp >= lookback_start,
-        )
-    )
-    dispute_open_count = int(dispute_open_count_result.scalar_one())
-
     dispute_resolved_rows = await session.execute(
         select(EvidenceLogEntry.payload).where(
             EvidenceLogEntry.event_type == "dispute_resolved",
@@ -149,8 +141,9 @@ async def _record_dispute_metrics(
     resolved_payloads = list(dispute_resolved_rows.scalars().all())
     resolved_count = len(resolved_payloads)
     escalated_count = sum(1 for item in resolved_payloads if bool(item.get("escalated")))
+    dispute_count = resolved_count
 
-    dispute_rate = dispute_open_count / submission_count if submission_count > 0 else 0.0
+    dispute_rate = dispute_count / submission_count if submission_count > 0 else 0.0
     disagreement_rate = escalated_count / resolved_count if resolved_count > 0 else 0.0
 
     await append_evidence(
@@ -161,7 +154,7 @@ async def _record_dispute_metrics(
         payload={
             "lookback_days": settings.dispute_metrics_lookback_days,
             "submission_count": submission_count,
-            "dispute_open_count": dispute_open_count,
+            "dispute_count": dispute_count,
             "resolved_count": resolved_count,
             "escalated_count": escalated_count,
             "dispute_rate": dispute_rate,
@@ -232,17 +225,7 @@ async def resolve_submission_dispute(
         .limit(1)
     )
     current_candidate = candidate_result.scalars().first()
-    open_entry_result = await session.execute(
-        select(EvidenceLogEntry)
-        .where(
-            EvidenceLogEntry.entity_type == "dispute",
-            EvidenceLogEntry.entity_id == submission.id,
-            EvidenceLogEntry.event_type == "dispute_opened",
-        )
-        .order_by(EvidenceLogEntry.id.desc())
-        .limit(1)
-    )
-    open_entry = open_entry_result.scalars().first()
+    dispute_start = datetime.now(UTC)
 
     prompt = _build_dispute_prompt(submission=submission, current_candidate=current_candidate)
     primary_completion = await router.complete(tier="dispute_resolution", prompt=prompt)
@@ -321,21 +304,15 @@ async def resolve_submission_dispute(
             "escalated": escalated,
             "confidence": final_decision["confidence"],
             "model_version": final_decision["model_version"],
-            "resolution_seconds": (
-                (datetime.now(UTC) - open_entry.timestamp).total_seconds()
-                if open_entry is not None
-                else None
-            ),
+            "resolved_title": final_decision["title"],
+            "resolved_summary": final_decision["summary"],
+            "resolution_seconds": (datetime.now(UTC) - dispute_start).total_seconds(),
         },
     )
     await _record_dispute_metrics(
         session=session,
         submission_id=submission.id,
-        resolution_seconds=(
-            (datetime.now(UTC) - open_entry.timestamp).total_seconds()
-            if open_entry is not None
-            else None
-        ),
+        resolution_seconds=(datetime.now(UTC) - dispute_start).total_seconds(),
         escalated=escalated,
         confidence=final_decision["confidence"],
     )

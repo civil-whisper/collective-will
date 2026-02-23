@@ -175,6 +175,22 @@ routes. `handle_path` strips the *entire* matched prefix, which breaks the backe
 routing. The backend expects paths like `/auth/subscribe`, so only `/api` should be
 stripped. NextAuth routes must keep their full `/api/auth/...` path.
 
+## Resetting Staging Data (Volume Nuke)
+
+To wipe all staging data (database, evidence chain) and start fresh:
+
+```bash
+cd /opt/collective-will/staging
+docker compose down -v
+docker compose up -d
+```
+
+The `-v` flag removes all Docker volumes including the PostgreSQL data.
+The `migrate` service will recreate the schema on startup.
+A fresh genesis entry will be created on the first evidence append.
+
+**Never run this on production without explicit confirmation.**
+
 ## Troubleshooting
 
 ```bash

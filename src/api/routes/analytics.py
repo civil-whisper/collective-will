@@ -1,19 +1,24 @@
 from __future__ import annotations
 
-import hashlib
-import json
 from typing import Any, cast
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.db.connection import get_db
 from src.db.evidence import EvidenceLogEntry, isoformat_z
+from src.db.evidence import verify_chain as db_verify_chain
 from src.models.cluster import Cluster
 from src.models.submission import PolicyCandidate, Submission
 from src.models.vote import Vote, VotingCycle
+
+PII_PAYLOAD_KEYS = {"user_id", "email", "account_ref", "wa_id"}
+
+
+def strip_evidence_pii(payload: dict[str, Any]) -> dict[str, Any]:
+    return {k: v for k, v in payload.items() if k not in PII_PAYLOAD_KEYS}
 
 router = APIRouter()
 
@@ -165,39 +170,51 @@ async def top_policies(session: AsyncSession = Depends(get_db)) -> list[dict[str
 
 
 @router.get("/evidence")
-async def evidence(session: AsyncSession = Depends(get_db)) -> list[dict[str, object]]:
-    result = await session.execute(select(EvidenceLogEntry).order_by(EvidenceLogEntry.id.asc()).limit(200))
+async def evidence(
+    session: AsyncSession = Depends(get_db),
+    entity_id: UUID | None = Query(default=None),
+    event_type: str | None = Query(default=None),
+    page: int = Query(default=1, ge=1),
+    per_page: int = Query(default=50, ge=1, le=200),
+) -> dict[str, object]:
+    query = select(EvidenceLogEntry).order_by(EvidenceLogEntry.id.asc())
+    count_query = select(func.count(EvidenceLogEntry.id))
+
+    if entity_id is not None:
+        query = query.where(EvidenceLogEntry.entity_id == entity_id)
+        count_query = count_query.where(EvidenceLogEntry.entity_id == entity_id)
+    if event_type is not None:
+        query = query.where(EvidenceLogEntry.event_type == event_type)
+        count_query = count_query.where(EvidenceLogEntry.event_type == event_type)
+
+    total_result = await session.execute(count_query)
+    total = int(total_result.scalar_one())
+
+    query = query.offset((page - 1) * per_page).limit(per_page)
+    result = await session.execute(query)
     rows = result.scalars().all()
-    return [
-        {
-            "id": row.id,
-            "timestamp": isoformat_z(row.timestamp),
-            "event_type": row.event_type,
-            "entity_type": row.entity_type,
-            "entity_id": str(row.entity_id),
-            "payload": row.payload,
-            "hash": row.hash,
-            "prev_hash": row.prev_hash,
-        }
-        for row in rows
-    ]
+
+    return {
+        "total": total,
+        "page": page,
+        "per_page": per_page,
+        "entries": [
+            {
+                "id": row.id,
+                "timestamp": isoformat_z(row.timestamp),
+                "event_type": row.event_type,
+                "entity_type": row.entity_type,
+                "entity_id": str(row.entity_id),
+                "payload": strip_evidence_pii(row.payload),
+                "hash": row.hash,
+                "prev_hash": row.prev_hash,
+            }
+            for row in rows
+        ],
+    }
 
 
-@router.post("/evidence/verify")
-async def verify_chain(entries: list[dict[str, object]]) -> dict[str, object]:
-    previous = "genesis"
-    for idx, entry in enumerate(entries):
-        material = {
-            "timestamp": entry["timestamp"],
-            "event_type": entry["event_type"],
-            "entity_type": entry["entity_type"],
-            "entity_id": str(entry["entity_id"]).lower(),
-            "payload": entry["payload"],
-            "prev_hash": entry["prev_hash"],
-        }
-        serialized = json.dumps(material, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
-        expected_hash = hashlib.sha256(serialized.encode("utf-8")).hexdigest()
-        if entry["hash"] != expected_hash or entry["prev_hash"] != previous:
-            return {"valid": False, "failed_index": idx}
-        previous = str(entry["hash"])
-    return {"valid": True, "entries_checked": len(entries)}
+@router.get("/evidence/verify")
+async def verify_evidence_chain(session: AsyncSession = Depends(get_db)) -> dict[str, object]:
+    valid, entries_checked = await db_verify_chain(session)
+    return {"valid": valid, "entries_checked": entries_checked}

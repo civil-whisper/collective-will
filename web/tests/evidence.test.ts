@@ -15,6 +15,7 @@ async function buildChain(count: number): Promise<EvidenceEntry[]> {
   let prevHash = "genesis";
   for (let i = 0; i < count; i++) {
     const entry = {
+      id: i + 1,
       timestamp: `2026-02-20T10:0${i}:00.000Z`,
       event_type: "test_event",
       entity_type: "test",
