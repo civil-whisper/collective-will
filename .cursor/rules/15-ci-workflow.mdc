@@ -1,0 +1,13 @@
+---
+description: CI workflow shortcuts and pre-commit checks
+alwaysApply: true
+---
+
+# CI Workflow
+
+When the user asks to "run backend CI" or "run web CI", they mean:
+
+- **Backend CI**: `scripts/ci-backend.sh` (lint, type-check, and pytest)
+- **Web CI**: `scripts/ci-web.sh` (lint, type-check, and web tests)
+
+Always run both before committing and pushing, unless the user specifies only one.

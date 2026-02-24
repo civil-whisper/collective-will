@@ -18,6 +18,16 @@ def _settings(**overrides: str) -> Settings:
         "openai_api_key": "test-openai",
         "deepseek_api_key": "test-deepseek",
         "evolution_api_key": "test-evo",
+        "canonicalization_model": "claude-sonnet-4-20250514",
+        "canonicalization_fallback_model": "claude-sonnet-4-20250514",
+        "farsi_messages_model": "claude-sonnet-4-20250514",
+        "farsi_messages_fallback_model": "claude-sonnet-4-20250514",
+        "english_reasoning_model": "claude-sonnet-4-20250514",
+        "english_reasoning_fallback_model": "deepseek-chat",
+        "dispute_resolution_model": "claude-opus-4-20250514",
+        "dispute_resolution_fallback_model": "claude-sonnet-4-20250514",
+        "embedding_model": "text-embedding-3-large",
+        "embedding_fallback_model": "mistral-embed",
     }
     defaults.update(overrides)
     return Settings(**defaults)  # type: ignore[arg-type]

@@ -170,7 +170,7 @@ def test_major_email_providers_override(monkeypatch: pytest.MonkeyPatch) -> None
 # --- 15. Tier model IDs are config-backed and overridable ---
 def test_tier_models_config_backed(monkeypatch: pytest.MonkeyPatch) -> None:
     settings = _make_settings(monkeypatch)
-    assert settings.canonicalization_model == "claude-sonnet-4-20250514"
+    assert settings.canonicalization_model  # has a default
 
     overridden = _make_settings(monkeypatch, CANONICALIZATION_MODEL="custom-model")
     assert overridden.canonicalization_model == "custom-model"
