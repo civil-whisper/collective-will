@@ -9,6 +9,7 @@ import pytest
 from src.channels.base import BaseChannel
 from src.channels.types import OutboundMessage, UnifiedMessage
 from src.handlers.commands import (
+    ACCOUNT_LINKED_OK,
     HELP_FA,
     NO_ACTIVE_CYCLE_FA,
     REGISTER_HINT,
@@ -98,11 +99,32 @@ async def test_route_unknown_user_prompts_registration() -> None:
     result_mock.scalar_one_or_none.return_value = None
     db.execute.return_value = result_mock
 
-    with patch("src.handlers.identity.resolve_linking_code", new_callable=AsyncMock, return_value=(False, "invalid")):
+    with patch("src.handlers.identity.resolve_linking_code", new_callable=AsyncMock, return_value=(False, "invalid", None)):
         status = await route_message(session=db, message=_msg("hello", "unknown-ref"), channel=channel)
 
     assert status == "registration_prompted"
     assert any(REGISTER_HINT in m.text for m in channel.messages)
+
+
+@pytest.mark.asyncio
+async def test_route_successful_linking_sends_confirmation() -> None:
+    channel = FakeChannel()
+    db = AsyncMock()
+    result_mock = MagicMock()
+    result_mock.scalar_one_or_none.return_value = None
+    db.execute.return_value = result_mock
+
+    with patch(
+        "src.handlers.identity.resolve_linking_code",
+        new_callable=AsyncMock,
+        return_value=(True, "linked", "t***t@example.com"),
+    ):
+        status = await route_message(session=db, message=_msg("_TC856VsVWs", "new-ref"), channel=channel)
+
+    assert status == "account_linked"
+    assert len(channel.messages) == 1
+    assert "t***t@example.com" in channel.messages[0].text
+    assert "✅" in channel.messages[0].text
 
 
 @pytest.mark.asyncio

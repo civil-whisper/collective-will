@@ -11,10 +11,23 @@ from src.handlers.identity import (
     create_web_session_code,
     exchange_web_session_code,
     link_whatsapp_account,
+    mask_email,
     resolve_linking_code,
     subscribe_email,
     verify_magic_link,
 )
+
+
+def test_mask_email_normal() -> None:
+    assert mask_email("test@example.com") == "t***t@example.com"
+
+
+def test_mask_email_short_local() -> None:
+    assert mask_email("ab@example.com") == "a***@example.com"
+
+
+def test_mask_email_single_char() -> None:
+    assert mask_email("a@example.com") == "a***@example.com"
 
 
 def test_magic_link_token_uses_secrets() -> None:
@@ -255,9 +268,10 @@ async def test_resolve_linking_code_valid(
     mock_get.return_value = user
     session = AsyncMock()
 
-    ok, status = await resolve_linking_code(session=session, code="code123", account_ref="opaque-ref")
+    ok, status, masked = await resolve_linking_code(session=session, code="code123", account_ref="opaque-ref")
     assert ok is True
     assert status == "linked"
+    assert masked == "t***t@example.com"
     assert user.messaging_verified is True
     assert user.messaging_account_ref == "opaque-ref"
     mock_consume.assert_called()
@@ -280,9 +294,10 @@ async def test_resolve_linking_code_user_already_linked(
     mock_get.return_value = user
     session = AsyncMock()
 
-    ok, status = await resolve_linking_code(session=session, code="code123", account_ref="new-ref")
+    ok, status, masked = await resolve_linking_code(session=session, code="code123", account_ref="new-ref")
     assert ok is False
     assert status == "user_already_linked"
+    assert masked is None
     assert user.messaging_account_ref == "existing-ref"
     mock_consume.assert_called()
 
@@ -309,9 +324,10 @@ async def test_resolve_linking_code_account_already_linked(
     mock_get_by_ref.return_value = other_user
     session = AsyncMock()
 
-    ok, status = await resolve_linking_code(session=session, code="code123", account_ref="taken-ref")
+    ok, status, masked = await resolve_linking_code(session=session, code="code123", account_ref="taken-ref")
     assert ok is False
     assert status == "account_already_linked"
+    assert masked is None
     assert user.messaging_verified is False
     mock_consume.assert_called()
 
@@ -321,18 +337,20 @@ async def test_resolve_linking_code_account_already_linked(
 @patch("src.handlers.identity.lookup_token", new_callable=AsyncMock, return_value=("test@example.com", True))
 async def test_resolve_linking_code_expired(mock_lookup: AsyncMock, mock_consume: AsyncMock) -> None:
     session = AsyncMock()
-    ok, status = await resolve_linking_code(session=session, code="old-code", account_ref="ref")
+    ok, status, masked = await resolve_linking_code(session=session, code="old-code", account_ref="ref")
     assert ok is False
     assert status == "expired_code"
+    assert masked is None
 
 
 @pytest.mark.asyncio
 @patch("src.handlers.identity.lookup_token", new_callable=AsyncMock, return_value=None)
 async def test_resolve_linking_code_invalid(mock_lookup: AsyncMock) -> None:
     session = AsyncMock()
-    ok, status = await resolve_linking_code(session=session, code="nope", account_ref="ref")
+    ok, status, masked = await resolve_linking_code(session=session, code="nope", account_ref="ref")
     assert ok is False
     assert status == "invalid_code"
+    assert masked is None
 
 
 @pytest.mark.asyncio

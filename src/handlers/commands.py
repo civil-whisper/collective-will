@@ -23,6 +23,7 @@ ACCOUNT_ALREADY_LINKED = (
     "⚠️ این اکانت تلگرام قبلاً به یک ایمیل دیگر متصل شده است.\n"
     "هر اکانت تلگرام فقط می‌تواند به یک ایمیل متصل باشد."
 )
+ACCOUNT_LINKED_OK = "✅ حساب شما با موفقیت متصل شد! ({email})\nبرای مشاهده دستورات، بنویسید: کمک"
 
 STATUS_FA = "📊 وضعیت شما:\nارسالی‌ها: {count} ({pending} در انتظار)\nرای‌گیری فعال: {active}"
 HELP_FA = (
@@ -173,10 +174,12 @@ async def route_message(
     if user is None:
         from src.handlers.identity import resolve_linking_code
 
-        ok, status = await resolve_linking_code(
+        ok, status, masked_email = await resolve_linking_code(
             session=session, code=message.text.strip(), account_ref=message.sender_ref,
         )
         if ok:
+            text = ACCOUNT_LINKED_OK.format(email=masked_email or "")
+            await channel.send_message(OutboundMessage(recipient_ref=message.sender_ref, text=text))
             return "account_linked"
         if status == "user_already_linked":
             await channel.send_message(OutboundMessage(recipient_ref=message.sender_ref, text=USER_ALREADY_LINKED))

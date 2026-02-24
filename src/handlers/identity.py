@@ -164,33 +164,48 @@ async def exchange_web_session_code(
     return True, access_token
 
 
-async def resolve_linking_code(*, session: AsyncSession, code: str, account_ref: str) -> tuple[bool, str]:
-    """Resolve a linking code sent by a user via messaging to link their account."""
+def mask_email(email: str) -> str:
+    """Mask an email for display: show first/last char of local part, domain intact."""
+    local, _, domain = email.partition("@")
+    if len(local) <= 2:
+        masked_local = local[0] + "***"
+    else:
+        masked_local = local[0] + "***" + local[-1]
+    return f"{masked_local}@{domain}"
+
+
+async def resolve_linking_code(
+    *, session: AsyncSession, code: str, account_ref: str,
+) -> tuple[bool, str, str | None]:
+    """Resolve a linking code sent by a user via messaging to link their account.
+
+    Returns (success, status, masked_email). masked_email is set only on success.
+    """
     details = await lookup_token(session, code, "linking_code")
     if details is None:
-        return False, "invalid_code"
+        return False, "invalid_code", None
 
     email, is_expired = details
 
     if is_expired:
         await consume_token(session, code, "linking_code")
         await session.commit()
-        return False, "expired_code"
+        return False, "expired_code", None
 
     user = await get_user_by_email(session, email)
     if user is None:
-        return False, "user_not_found"
+        return False, "user_not_found", None
 
     if user.messaging_verified:
         await consume_token(session, code, "linking_code")
         await session.commit()
-        return False, "user_already_linked"
+        return False, "user_already_linked", None
 
     existing_holder = await get_user_by_messaging_ref(session, account_ref)
     if existing_holder is not None and existing_holder.id != user.id:
         await consume_token(session, code, "linking_code")
         await session.commit()
-        return False, "account_already_linked"
+        return False, "account_already_linked", None
 
     user.messaging_account_ref = account_ref
     user.messaging_verified = True
@@ -206,7 +221,7 @@ async def resolve_linking_code(*, session: AsyncSession, code: str, account_ref:
         payload={"method": "messaging_linked", "user_id": str(user.id)},
     )
     await session.commit()
-    return True, "linked"
+    return True, "linked", mask_email(email)
 
 
 async def link_whatsapp_account(
