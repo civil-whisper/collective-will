@@ -104,18 +104,44 @@ async def open_cycle(
     return cycle
 
 
+_BALLOT_MESSAGES: dict[str, dict[str, str]] = {
+    "fa": {
+        "header": "🗳️ صندوق رای باز است!\n",
+        "subheader": "این هفته، این سیاست‌ها مطرح شدند:\n",
+        "instructions": "\nبرای رای دادن، شماره‌های موردنظر خود را بفرستید.",
+        "example": "مثال: 1, 3",
+        "skip_hint": '\nبرای انصراف: "انصراف" بفرستید',
+        "reminder": "⏰ یادآوری: رای‌گیری هنوز باز است. برای مشاهده گزینه‌ها، 'رای' بفرستید.",
+    },
+    "en": {
+        "header": "🗳️ The ballot is open!\n",
+        "subheader": "This week, these policies were proposed:\n",
+        "instructions": "\nTo vote, send the numbers of your choices.",
+        "example": "Example: 1, 3",
+        "skip_hint": '\nTo skip: send "skip"',
+        "reminder": "⏰ Reminder: voting is still open. Send 'vote' to see the options.",
+    },
+}
+
+
+def _ballot_msg(locale: str, key: str) -> str:
+    lang = locale if locale in _BALLOT_MESSAGES else "en"
+    return _BALLOT_MESSAGES[lang][key]
+
+
 async def send_ballot_prompt(
     user: User,
     cycle: VotingCycle,
     clusters: list[Cluster],
     channel: BaseChannel,
 ) -> bool:
-    lines = ["🗳️ صندوق رای باز است!\n", "این هفته، این سیاست‌ها مطرح شدند:\n"]
+    locale = user.locale
+    lines = [_ballot_msg(locale, "header"), _ballot_msg(locale, "subheader")]
     for i, cluster in enumerate(clusters, 1):
         lines.append(f"{i}. {cluster.summary}")
-    lines.append("\nبرای رای دادن، شماره‌های موردنظر خود را بفرستید.")
-    lines.append("مثال: 1, 3")
-    lines.append('\nبرای انصراف: "انصراف" بفرستید')
+    lines.append(_ballot_msg(locale, "instructions"))
+    lines.append(_ballot_msg(locale, "example"))
+    lines.append(_ballot_msg(locale, "skip_hint"))
     ballot_text = "\n".join(lines)
 
     ref = user.messaging_account_ref
@@ -234,9 +260,9 @@ async def send_reminder(
     all_users = list(all_users_result.scalars().all())
 
     sent = 0
-    reminder_text = "⏰ یادآوری: رای‌گیری هنوز باز است. برای مشاهده گزینه‌ها، 'رای' بفرستید."
     for user in all_users:
         if user.id not in voted_user_ids and user.messaging_account_ref:
+            reminder_text = _ballot_msg(user.locale, "reminder")
             success = await channel.send_message(
                 OutboundMessage(recipient_ref=user.messaging_account_ref, text=reminder_text)
             )

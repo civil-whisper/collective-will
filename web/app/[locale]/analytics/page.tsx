@@ -27,6 +27,8 @@ type UnclusteredItem = {
   summary: string;
   domain: string;
   confidence: number;
+  raw_text: string | null;
+  language: string | null;
 };
 
 type UnclusteredResponse = {
@@ -169,22 +171,41 @@ export default async function AnalyticsPage() {
             {t("noUnclusteredCandidates")}
           </div>
         ) : (
-          <div className="space-y-2">
+          <div className="space-y-3">
             {unclustered.items.map((item) => (
               <div
                 key={item.id}
-                className="rounded-lg border border-gray-200 bg-white px-4 py-3 dark:border-slate-700 dark:bg-slate-800"
+                className="rounded-lg border border-gray-200 bg-white px-5 py-4 dark:border-slate-700 dark:bg-slate-800"
               >
+                {item.raw_text && (
+                  <div className="mb-3">
+                    <p className="mb-1 text-xs font-medium uppercase tracking-wide text-gray-400 dark:text-slate-500">
+                      {t("userSubmission")}
+                    </p>
+                    <blockquote
+                      className="border-s-2 border-gray-300 ps-3 text-sm text-gray-600 dark:border-slate-600 dark:text-slate-300"
+                      dir={item.language === "fa" ? "rtl" : "ltr"}
+                    >
+                      {item.raw_text}
+                    </blockquote>
+                  </div>
+                )}
                 <div className="flex items-start justify-between gap-4">
                   <div className="min-w-0 flex-1">
+                    <p className="mb-1 text-xs font-medium uppercase tracking-wide text-gray-400 dark:text-slate-500">
+                      {t("aiInterpretation")}
+                    </p>
                     <p className="font-medium">{item.title}</p>
                     <p className="mt-1 text-sm text-gray-600 dark:text-slate-400">{item.summary}</p>
                     <div className="mt-2">
                       <DomainBadge domain={item.domain} />
                     </div>
                   </div>
-                  <div className="text-end text-xs text-gray-500 dark:text-slate-400">
-                    {Math.round(item.confidence * 100)}%
+                  <div className="text-end">
+                    <p className="text-xs text-gray-400 dark:text-slate-500">{t("aiConfidence")}</p>
+                    <p className="text-sm font-semibold text-gray-600 dark:text-slate-300">
+                      {Math.round(item.confidence * 100)}%
+                    </p>
                   </div>
                 </div>
               </div>

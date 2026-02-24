@@ -18,7 +18,8 @@ from src.scheduler import run_pipeline
 class IntegrationRouter:
     async def complete(self, *, tier: str, prompt: str, timeout_s: float = 60.0, **kwargs: object):  # type: ignore[no-untyped-def]
         payload = (
-            '{"title":"Water Access Policy","domain":"rights","summary":"Ensure water access",'
+            '{"is_valid_policy":true,"rejection_reason":null,'
+            '"title":"Water Access Policy","domain":"rights","summary":"Ensure water access",'
             '"stance":"support","entities":["water"],"confidence":0.9,"ambiguity_flags":[]}'
         )
         return type(
@@ -55,11 +56,13 @@ async def test_end_to_end_intake_pipeline_and_evidence(db_session: AsyncSession)
     user.messaging_account_age = datetime.now(UTC) - timedelta(hours=72)
     await db_session.commit()
 
+    router = IntegrationRouter()
     submission, status = await process_submission(
         session=db_session,
         user=user,
         raw_text="کمبود آب آشامیدنی در استان",
         min_account_age_hours=48,
+        llm_router=router,  # type: ignore[arg-type]
     )
     assert submission is not None
     assert status in {"accepted", "accepted_flagged"}

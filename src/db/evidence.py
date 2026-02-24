@@ -19,6 +19,7 @@ GENESIS_PREV_HASH = "genesis"
 EVIDENCE_CHAIN_LOCK_KEY = 704281913
 VALID_EVENT_TYPES = {
     "submission_received",
+    "submission_rejected_not_policy",
     "candidate_created",
     "cluster_created",
     "cluster_updated",

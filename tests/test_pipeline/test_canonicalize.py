@@ -8,7 +8,13 @@ from uuid import uuid4
 
 import pytest
 
-from src.pipeline.canonicalize import _parse_candidate_payload, _prompt_version, canonicalize_batch
+from src.pipeline.canonicalize import (
+    CanonicalizationRejection,
+    _parse_candidate_payload,
+    _prompt_version,
+    canonicalize_batch,
+    canonicalize_single,
+)
 from src.pipeline.llm import LLMResponse
 
 
@@ -130,3 +136,97 @@ def test_parse_candidate_payload_handles_object() -> None:
     text = '{"title": "B"}'
     result = _parse_candidate_payload(text)
     assert result["title"] == "B"
+
+
+# --- canonicalize_single tests ---
+
+
+@pytest.mark.asyncio
+async def test_canonicalize_single_valid_submission() -> None:
+    valid_response = json.dumps({
+        "is_valid_policy": True,
+        "rejection_reason": None,
+        "title": "Free Education",
+        "domain": "rights",
+        "summary": "Universal free education for all",
+        "stance": "support",
+        "entities": ["education"],
+        "confidence": 0.95,
+        "ambiguity_flags": [],
+    })
+    router = FakeRouter(responses=[_mock_llm_response(text=valid_response)])
+    session = _make_mock_session()
+    result = await canonicalize_single(
+        session=session,
+        submission_id=uuid4(),
+        raw_text="تحصیل رایگان برای همه",
+        language="fa",
+        llm_router=router,  # type: ignore[arg-type]
+    )
+    assert not isinstance(result, CanonicalizationRejection)
+    assert result.title == "Free Education"
+    assert result.confidence == 0.95
+
+
+@pytest.mark.asyncio
+async def test_canonicalize_single_garbage_rejected() -> None:
+    garbage_response = json.dumps({
+        "is_valid_policy": False,
+        "rejection_reason": "این یک سلام است، نه یک پیشنهاد سیاستی.",
+        "title": "Greeting",
+        "domain": "other",
+        "summary": "User said hello",
+        "stance": "unclear",
+        "entities": [],
+        "confidence": 0,
+        "ambiguity_flags": [],
+    })
+    router = FakeRouter(responses=[_mock_llm_response(text=garbage_response)])
+    session = _make_mock_session()
+    result = await canonicalize_single(
+        session=session,
+        submission_id=uuid4(),
+        raw_text="سلام!",
+        language="fa",
+        llm_router=router,  # type: ignore[arg-type]
+    )
+    assert isinstance(result, CanonicalizationRejection)
+    assert "سلام" in result.reason
+
+
+@pytest.mark.asyncio
+async def test_canonicalize_batch_skips_invalid() -> None:
+    """Batch canonicalization skips submissions flagged as not valid policies."""
+    valid = json.dumps({
+        "is_valid_policy": True,
+        "title": "Policy A",
+        "domain": "economy",
+        "summary": "Valid",
+        "stance": "support",
+        "entities": [],
+        "confidence": 0.9,
+        "ambiguity_flags": [],
+    })
+    invalid = json.dumps({
+        "is_valid_policy": False,
+        "rejection_reason": "Not a policy",
+        "title": "Garbage",
+        "domain": "other",
+        "summary": "Not valid",
+        "stance": "unclear",
+        "entities": [],
+        "confidence": 0,
+        "ambiguity_flags": [],
+    })
+    router = FakeRouter(responses=[
+        _mock_llm_response(text=valid),
+        _mock_llm_response(text=invalid),
+    ])
+    session = _make_mock_session()
+    items = [
+        {"id": str(uuid4()), "raw_text": "سیاست اقتصادی", "language": "fa"},
+        {"id": str(uuid4()), "raw_text": "سلام", "language": "fa"},
+    ]
+    candidates = await canonicalize_batch(session=session, submissions=items, llm_router=router)  # type: ignore[arg-type]
+    assert len(candidates) == 1
+    assert candidates[0].title == "Policy A"

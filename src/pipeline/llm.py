@@ -78,6 +78,8 @@ class LLMRouter:
         lowered = model.lower()
         if "claude" in lowered:
             return "anthropic"
+        if "gemini" in lowered:
+            return "google"
         if "deepseek" in lowered:
             return "deepseek"
         if "text-embedding" in lowered:
@@ -121,6 +123,39 @@ class LLMRouter:
                 payload = response.json()
                 text = payload.get("content", [{}])[0].get("text", "")
                 usage = payload.get("usage", {})
+                return {"text": text, "usage": usage}
+
+            if provider == "google":
+                key = self.settings.google_api_key
+                if not key:
+                    raise RuntimeError("Google API key not configured")
+                gemini_body: dict[str, Any] = {
+                    "contents": [{"role": "user", "parts": [{"text": prompt}]}],
+                    "generationConfig": {
+                        "temperature": temperature,
+                        "maxOutputTokens": max_tokens,
+                    },
+                }
+                if system_prompt:
+                    gemini_body["systemInstruction"] = {"parts": [{"text": system_prompt}]}
+                url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
+                response = await client.post(
+                    url,
+                    json=gemini_body,
+                    headers={"x-goog-api-key": key},
+                )
+                response.raise_for_status()
+                payload = response.json()
+                candidates = payload.get("candidates", [{}])
+                text = candidates[0].get("content", {}).get("parts", [{}])[0].get("text", "")
+                usage_meta = payload.get("usageMetadata", {})
+                usage = {
+                    "input_tokens": usage_meta.get("promptTokenCount", 0),
+                    "output_tokens": (
+                        usage_meta.get("candidatesTokenCount", 0)
+                        + usage_meta.get("thoughtsTokenCount", 0)
+                    ),
+                }
                 return {"text": text, "usage": usage}
 
             messages: list[dict[str, str]] = []
@@ -266,6 +301,28 @@ class LLMRouter:
         dimensions, timeout_s = self._embedding_call_params(dimensions=dimensions, timeout_s=timeout_s)
         provider = self._provider_for_model(model)
         async with httpx.AsyncClient(timeout=timeout_s) as client:
+            if provider == "google":
+                key = self.settings.google_api_key
+                if not key:
+                    raise RuntimeError("Google API key not configured")
+                requests_list = [
+                    {
+                        "model": f"models/{model}",
+                        "content": {"parts": [{"text": t}]},
+                        "outputDimensionality": dimensions,
+                    }
+                    for t in texts
+                ]
+                url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:batchEmbedContents"
+                response = await client.post(
+                    url,
+                    json={"requests": requests_list},
+                    headers={"x-goog-api-key": key},
+                )
+                response.raise_for_status()
+                embeddings = response.json().get("embeddings", [])
+                return [item["values"] for item in embeddings]
+
             if provider == "mistral":
                 key = self.settings.mistral_api_key
                 if not key:
@@ -353,6 +410,10 @@ class LLMRouter:
             rate = 0.000003
         elif "deepseek" in lowered:
             rate = 0.0000014
+        elif "gemini" in lowered and "flash" in lowered:
+            rate = 0.0000003
+        elif "gemini" in lowered:
+            rate = 0.000002
         else:
             rate = 0.000003
         return (in_tok + out_tok) * rate

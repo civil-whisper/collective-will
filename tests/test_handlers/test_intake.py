@@ -11,7 +11,7 @@ import pytest
 from src.channels.base import BaseChannel
 from src.channels.types import OutboundMessage, UnifiedMessage
 from src.handlers.intake import (
-    CONFIRMATION_FA,
+    CONFIRMATION_FALLBACK_FA,
     NOT_ELIGIBLE_FA,
     PII_WARNING_FA,
     RATE_LIMIT_FA,
@@ -20,6 +20,8 @@ from src.handlers.intake import (
     handle_submission,
     hash_submission,
 )
+from src.models.submission import PolicyCandidateCreate, PolicyDomain
+from src.pipeline.canonicalize import CanonicalizationRejection
 
 
 class FakeChannel(BaseChannel):
@@ -100,14 +102,35 @@ def test_eligible_with_low_age_config() -> None:
     assert eligible_for_submission(user, min_account_age_hours=1) is True
 
 
+def _make_candidate_create(submission_id: Any = None) -> PolicyCandidateCreate:
+    return PolicyCandidateCreate(
+        submission_id=submission_id or uuid4(),
+        title="Clean Water Policy",
+        domain=PolicyDomain.RIGHTS,
+        summary="A proposal about clean drinking water",
+        stance="support",
+        entities=["water"],
+        confidence=0.95,
+        ambiguity_flags=[],
+        model_version="test-model",
+        prompt_version="test-prompt",
+    )
+
+
 @pytest.mark.asyncio
 @patch("src.handlers.intake.check_submission_rate_limit", new_callable=AsyncMock, return_value=(True, None))
 @patch("src.handlers.intake.check_burst_quarantine", new_callable=AsyncMock, return_value=False)
 @patch("src.handlers.intake.create_submission", new_callable=AsyncMock)
 @patch("src.handlers.intake.append_evidence", new_callable=AsyncMock)
+@patch("src.handlers.intake.canonicalize_single", new_callable=AsyncMock)
+@patch("src.handlers.intake.create_policy_candidate", new_callable=AsyncMock)
+@patch("src.handlers.intake.compute_and_store_embeddings", new_callable=AsyncMock)
 @patch("src.handlers.intake.get_settings")
 async def test_handle_submission_verified_user(
     mock_settings: MagicMock,
+    mock_embed: AsyncMock,
+    mock_create_candidate: AsyncMock,
+    mock_canon: AsyncMock,
     mock_evidence: AsyncMock,
     mock_create: AsyncMock,
     mock_burst: AsyncMock,
@@ -119,6 +142,10 @@ async def test_handle_submission_verified_user(
     sub.status = "pending"
     mock_create.return_value = sub
 
+    candidate_create = _make_candidate_create(sub.id)
+    mock_canon.return_value = candidate_create
+    mock_create_candidate.return_value = MagicMock()
+
     channel = FakeChannel()
     user = _make_user()
     db = AsyncMock()
@@ -126,10 +153,85 @@ async def test_handle_submission_verified_user(
 
     await handle_submission(msg, user, channel, db)
 
-    assert any(CONFIRMATION_FA in m.text for m in channel.sent)
     mock_create.assert_called_once()
-    mock_evidence.assert_called()
-    assert user.contribution_count == 0
+    mock_canon.assert_called_once()
+    mock_create_candidate.assert_called_once()
+    mock_embed.assert_called_once()
+    assert sub.status == "canonicalized"
+    assert len(channel.sent) == 1
+    assert "Clean Water Policy" in channel.sent[0].text
+
+
+@pytest.mark.asyncio
+@patch("src.handlers.intake.check_submission_rate_limit", new_callable=AsyncMock, return_value=(True, None))
+@patch("src.handlers.intake.check_burst_quarantine", new_callable=AsyncMock, return_value=False)
+@patch("src.handlers.intake.create_submission", new_callable=AsyncMock)
+@patch("src.handlers.intake.append_evidence", new_callable=AsyncMock)
+@patch("src.handlers.intake.canonicalize_single", new_callable=AsyncMock)
+@patch("src.handlers.intake.get_settings")
+async def test_handle_submission_garbage_rejected(
+    mock_settings: MagicMock,
+    mock_canon: AsyncMock,
+    mock_evidence: AsyncMock,
+    mock_create: AsyncMock,
+    mock_burst: AsyncMock,
+    mock_rate: AsyncMock,
+) -> None:
+    mock_settings.return_value.min_account_age_hours = 48
+    sub = MagicMock()
+    sub.id = uuid4()
+    sub.status = "pending"
+    mock_create.return_value = sub
+
+    mock_canon.return_value = CanonicalizationRejection(
+        reason="این یک سلام است، نه پیشنهاد سیاستی.",
+        model_version="test-model",
+        prompt_version="test-prompt",
+    )
+
+    channel = FakeChannel()
+    user = _make_user()
+    db = AsyncMock()
+
+    await handle_submission(_make_msg("سلام!"), user, channel, db)
+
+    assert sub.status == "rejected"
+    assert len(channel.sent) == 1
+    assert "این یک سلام است" in channel.sent[0].text
+
+
+@pytest.mark.asyncio
+@patch("src.handlers.intake.check_submission_rate_limit", new_callable=AsyncMock, return_value=(True, None))
+@patch("src.handlers.intake.check_burst_quarantine", new_callable=AsyncMock, return_value=False)
+@patch("src.handlers.intake.create_submission", new_callable=AsyncMock)
+@patch("src.handlers.intake.append_evidence", new_callable=AsyncMock)
+@patch("src.handlers.intake.canonicalize_single", new_callable=AsyncMock)
+@patch("src.handlers.intake.get_settings")
+async def test_handle_submission_llm_failure_falls_back(
+    mock_settings: MagicMock,
+    mock_canon: AsyncMock,
+    mock_evidence: AsyncMock,
+    mock_create: AsyncMock,
+    mock_burst: AsyncMock,
+    mock_rate: AsyncMock,
+) -> None:
+    mock_settings.return_value.min_account_age_hours = 48
+    sub = MagicMock()
+    sub.id = uuid4()
+    sub.status = "pending"
+    mock_create.return_value = sub
+
+    mock_canon.side_effect = RuntimeError("LLM service unavailable")
+
+    channel = FakeChannel()
+    user = _make_user()
+    db = AsyncMock()
+
+    await handle_submission(_make_msg("سیاست مهم"), user, channel, db)
+
+    assert sub.status == "pending"
+    assert len(channel.sent) == 1
+    assert CONFIRMATION_FALLBACK_FA in channel.sent[0].text
 
 
 @pytest.mark.asyncio

@@ -371,6 +371,45 @@ compatibility with old sparse payloads).
 
 53. [done] Document volume nuke reset in deploy README
 
+### P0 — Inline Canonicalization & Garbage Rejection
+
+Design rationale: `docs/decision-rationale/pipeline/08-batch-scheduler.md`, `docs/decision-rationale/pipeline/03-canonicalization.md`
+
+Goal: Move canonicalization and embedding from batch-only to inline at submission
+time. Detect and reject garbage submissions immediately. Provide locale-aware
+feedback to users.
+
+54. [done] Implement inline canonicalization in intake handler
+    - `canonicalize_single()` runs at submission time in `src/handlers/intake.py`
+    - Returns `PolicyCandidateCreate` (valid) or `CanonicalizationRejection` (garbage)
+    - Inline embedding via `compute_and_store_embeddings()` after canonicalization
+    - Graceful fallback: LLM failure → `status="pending"` → batch scheduler retries
+
+55. [done] Add garbage rejection with contextual feedback
+    - LLM prompt evaluates `is_valid_policy` and provides `rejection_reason` in input language
+    - Rejected submissions get `status="rejected"` and evidence event `submission_rejected_not_policy`
+    - Rejected submissions still count against `MAX_SUBMISSIONS_PER_DAY` (anti-sybil)
+
+56. [done] Add locale-aware user messaging
+    - Replaced hardcoded Farsi messages with `_MESSAGES` dict (Farsi + English)
+    - `_msg(locale, key, **kwargs)` helper selects language based on `user.locale`
+    - Confirmation includes canonical title; rejection includes contextual reason
+
+57. [done] Enforce English-only canonical output
+    - Updated LLM prompt: `title`, `summary`, `entities` always in English
+    - `rejection_reason` in the same language as the input
+    - Batch scheduler updated to handle `status="canonicalized"` and `status="pending"` (fallback)
+
+58. [done] Update analytics unclustered candidates display
+    - `/analytics/unclustered` endpoint now includes `raw_text` and `language` from Submission
+    - Frontend shows original user message, AI interpretation (canonical title/summary), and AI confidence %
+    - RTL-aware display for Farsi submissions
+
+59. [done] Update tests for inline processing
+    - `test_intake.py`: tests for garbage rejection, LLM failure fallback, locale-aware messages
+    - `test_canonicalize.py`: tests for `canonicalize_single` (valid + garbage), batch filtering
+    - Added `submission_rejected_not_policy` to `VALID_EVENT_TYPES`
+
 ## Definition of Done (This Cycle)
 
 - No CI/CD job performs paid LLM API calls

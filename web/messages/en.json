@@ -143,7 +143,10 @@
     "totalSubmissions": "Total Submissions",
     "pendingSubmissions": "{count} submissions are pending AI processing.",
     "unclusteredCandidates": "Unclustered Candidates",
-    "noUnclusteredCandidates": "No unclustered candidates right now."
+    "noUnclusteredCandidates": "No unclustered candidates right now.",
+    "userSubmission": "User Submission",
+    "aiInterpretation": "AI Interpretation",
+    "aiConfidence": "AI Confidence"
   },
   "ops": {
     "title": "Ops Console",

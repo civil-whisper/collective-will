@@ -10,6 +10,7 @@
 
 - v0 embeddings are quality-first to maximize clustering effectiveness.
 - Embedding selection remains abstraction-driven so later versions can switch to cheaper models without touching pipeline logic.
+- Embeddings run inline at submission time (after canonicalization), with batch scheduler as fallback for failures.
 
 ## Decision: Use strongest embedding model in v0, optimize cost later
 

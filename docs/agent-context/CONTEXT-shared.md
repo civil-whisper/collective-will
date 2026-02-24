@@ -22,12 +22,12 @@ These are locked. Do not deviate.
 |----------|------|
 | **Scope** | Consensus visibility + approval voting only. No action drafting or execution. |
 | **Channel** | Telegram-first for MVP build/testing (official Bot API) while preserving channel-agnostic boundaries (`BaseChannel`). WhatsApp (Evolution API, self-hosted) is deferred until post-MVP rollout once anonymous SIM operations are ready. Keep provider-specific parsing in channel adapters and test with mock/fake channels so transport swaps remain one-module changes. |
-| **Canonicalization model** | Claude Sonnet (Farsi → structured English) |
+| **Canonicalization model** | Claude Sonnet (any language → structured English). Runs inline at submission time with batch fallback. |
 | **LLM routing abstraction** | Model/provider resolution is centralized in `pipeline/llm.py` via config-backed task tiers. No direct model IDs in other modules. |
 | **Embeddings** | Quality-first in v0: OpenAI `text-embedding-3-large` (cloud). Later versions may switch to cost-effective embedding models via the LLM abstraction config without business-logic changes. |
 | **Cluster summaries** | Quality-first in v0: `english_reasoning` tier defaults to Claude Sonnet. Mandatory fallback is required for risk management (default fallback: DeepSeek `deepseek-chat`) via abstraction config. |
-| **User-facing messages** | Quality-first in v0: `farsi_messages` tier defaults to Claude Sonnet. Mandatory fallback is required for risk management (default fallback: Claude Haiku) via abstraction config. |
-| **Clustering** | HDBSCAN (runs locally), with config-backed `min_cluster_size` per cycle (v0 default `5`, adjustable by config when needed). Unclustered items (noise) must be visible in analytics and never silently discarded. |
+| **User-facing messages** | Locale-aware (Farsi + English, keyed by `user.locale`). LLM-generated content (rejection reasons) matches the input language. Template-based messages (confirmation, errors) use the `_MESSAGES` dict with locale selection. LLM tier `farsi_messages` defaults to Claude Sonnet with mandatory fallback (Claude Haiku) via abstraction config. |
+| **Clustering** | HDBSCAN (runs locally in batch scheduler), with config-backed `min_cluster_size` per cycle (v0 default `5`, adjustable by config when needed). Unclustered items (noise) must be visible in analytics and never silently discarded. |
 | **Identity** | Email magic-link + WhatsApp account linking. No phone verification, no OAuth, no vouching. Signup controls: exempt major email providers from per-domain cap; enforce `MAX_SIGNUPS_PER_DOMAIN_PER_DAY=3` for non-major domains; enforce per-IP signup cap (`MAX_SIGNUPS_PER_IP_PER_DAY`) and keep telemetry signals (domain diversity, disposable-domain scoring, velocity logs). |
 | **Sealed account mapping** | Store messaging linkage as random opaque account refs (UUIDv4). Raw platform IDs (Telegram chat_id, WhatsApp wa_id) live only in the `sealed_account_mappings` DB table and are stripped from logs/exports. The sealed mapping is persisted to database (not in-memory) so it survives restarts. |
 | **Auth token persistence** | Magic link tokens and linking codes are stored in the `verification_tokens` DB table with expiry timestamps. No in-memory token storage — tokens must survive process restarts and be shared across background workers. |
@@ -232,7 +232,7 @@ id: UUID
 user_id: UUID
 raw_text: str
 language: str
-status: "pending" | "processed" | "flagged" | "rejected"
+status: "pending" | "canonicalized" | "processed" | "quarantined" | "flagged" | "rejected"
 processed_at: datetime | None
 hash: str                           # SHA-256 of raw_text
 created_at: datetime
@@ -244,11 +244,11 @@ evidence_log_id: int
 ```
 id: UUID
 submission_id: UUID
-title: str                          # 5-15 words
-title_en: str | None
+title: str                          # 5-15 words, always English
+title_en: str | None                # Legacy; title is already English
 domain: PolicyDomain
-summary: str                        # 1-3 sentences
-summary_en: str | None
+summary: str                        # 1-3 sentences, always English
+summary_en: str | None              # Legacy; summary is already English
 stance: "support" | "oppose" | "neutral" | "unclear"  # "unclear" = model uncertainty; "neutral" = descriptive/no explicit side
 entities: list[str]
 embedding: list[float]              # pgvector column
@@ -337,10 +337,11 @@ prev_hash: str                      # previous entry's hash (chain)
 
 Valid event types (enforced by `VALID_EVENT_TYPES` in `src/db/evidence.py`):
 ```
-submission_received, candidate_created, cluster_created, cluster_updated,
-policy_endorsed, vote_cast, cycle_opened, cycle_closed, user_verified,
-dispute_escalated, dispute_resolved, dispute_metrics_recorded,
-dispute_tuning_recommended, anchor_computed
+submission_received, submission_rejected_not_policy, candidate_created,
+cluster_created, cluster_updated, policy_endorsed, vote_cast,
+cycle_opened, cycle_closed, user_verified, dispute_escalated,
+dispute_resolved, dispute_metrics_recorded, dispute_tuning_recommended,
+anchor_computed
 ```
 
 Removed event types (clean slate — no backward compatibility):
@@ -354,6 +355,7 @@ All `append_evidence` payloads include human-readable context so the evidence ch
 | Event type | Required payload fields |
 |---|---|
 | `submission_received` | `submission_id`, `user_id`, `raw_text`, `language`, `status`, `hash` (or `status`+`reason_code` for PII rejections) |
+| `submission_rejected_not_policy` | `submission_id`, `rejection_reason`, `model_version`, `prompt_version` |
 | `candidate_created` | `submission_id`, `title`, `summary`, `domain`, `stance`, `confidence`, `model_version`, `prompt_version` |
 | `cluster_updated` | `summary`, `summary_en`, `domain`, `member_count`, `candidate_ids`, `model_version` |
 | `vote_cast` | `user_id`, `cycle_id`, `approved_cluster_ids` |
@@ -482,9 +484,10 @@ collective-will/
 - Telegram submission intake (official Bot API) for MVP build/testing
 - Email magic-link verification
 - Messaging account linking with opaque account refs (Telegram now; WhatsApp mapping path prepared)
-- Canonicalization (Claude Sonnet, cloud)
-- Embeddings (quality-first cloud model in v0; cost-optimized model switch later via config)
-- Clustering (HDBSCAN, local, batch on a config-backed interval via `PIPELINE_INTERVAL_HOURS`, default 6h)
+- Canonicalization (Claude Sonnet, cloud, inline at submission time with batch fallback; always outputs English)
+- Garbage rejection (LLM detects invalid submissions, rejects with user-language feedback; garbage counts against daily quota)
+- Embeddings (quality-first cloud model in v0; computed inline after canonicalization)
+- Clustering (HDBSCAN, local, batch on a config-backed interval via `PIPELINE_INTERVAL_HOURS`)
 - Pre-ballot endorsement/signature stage for cluster qualification
 - Approval voting via Telegram during MVP build/testing
 - Public analytics dashboard (no login wall)

@@ -5,7 +5,7 @@
 - `database/03-core-models` (PolicyCandidate model with pgvector column)
 
 ## Goal
-Compute semantic embeddings for PolicyCandidates via the configured embedding model (quality-first in v0) and store them in the pgvector column.
+Compute semantic embeddings for PolicyCandidates via the configured embedding model (quality-first in v0) and store them in the pgvector column. Called both inline at submission time (single candidate) and by the batch scheduler (fallback for failed inline processing).
 
 ## Files to create
 
@@ -55,7 +55,7 @@ def prepare_text_for_embedding(candidate: PolicyCandidate) -> str:
 
 ## Constraints
 
-- Only embed the canonicalized English text, NOT the raw Farsi submission. The raw text should never leave the local system.
+- Only embed the canonicalized English text, NOT the raw submission in any language. The raw text should never leave the local system.
 - Embeddings are stored in the pgvector column on policy_candidates. Vector dimension must match the active embedding model; do not hardcode model-specific dimensions in this module.
 - Do not re-compute embeddings for candidates that already have them.
 

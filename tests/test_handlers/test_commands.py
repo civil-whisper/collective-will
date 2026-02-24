@@ -9,7 +9,8 @@ import pytest
 from src.channels.base import BaseChannel
 from src.channels.types import OutboundMessage, UnifiedMessage
 from src.handlers.commands import (
-    ACCOUNT_LINKED_OK,
+    _MESSAGES,
+    _WELCOME,
     HELP_FA,
     NO_ACTIVE_CYCLE_FA,
     REGISTER_HINT,
@@ -37,6 +38,13 @@ class FakeChannel(BaseChannel):
 
 def _msg(text: str, sender_ref: str = "ref-1") -> UnifiedMessage:
     return UnifiedMessage(sender_ref=sender_ref, text=text, message_id=f"test-{uuid4().hex[:8]}")
+
+
+def _make_user(locale: str = "fa") -> MagicMock:
+    user = MagicMock()
+    user.id = uuid4()
+    user.locale = locale
+    return user
 
 
 # --- detect_command tests ---
@@ -99,7 +107,11 @@ async def test_route_unknown_user_prompts_registration() -> None:
     result_mock.scalar_one_or_none.return_value = None
     db.execute.return_value = result_mock
 
-    with patch("src.handlers.identity.resolve_linking_code", new_callable=AsyncMock, return_value=(False, "invalid", None)):
+    with patch(
+        "src.handlers.identity.resolve_linking_code",
+        new_callable=AsyncMock,
+        return_value=(False, "invalid", None),
+    ):
         status = await route_message(session=db, message=_msg("hello", "unknown-ref"), channel=channel)
 
     assert status == "registration_prompted"
@@ -107,12 +119,16 @@ async def test_route_unknown_user_prompts_registration() -> None:
 
 
 @pytest.mark.asyncio
-async def test_route_successful_linking_sends_confirmation() -> None:
+async def test_route_successful_linking_sends_welcome_en() -> None:
     channel = FakeChannel()
     db = AsyncMock()
-    result_mock = MagicMock()
-    result_mock.scalar_one_or_none.return_value = None
-    db.execute.return_value = result_mock
+
+    linked_user = _make_user(locale="en")
+    no_user_result = MagicMock()
+    no_user_result.scalar_one_or_none.return_value = None
+    linked_user_result = MagicMock()
+    linked_user_result.scalar_one_or_none.return_value = linked_user
+    db.execute.side_effect = [no_user_result, linked_user_result]
 
     with patch(
         "src.handlers.identity.resolve_linking_code",
@@ -123,14 +139,43 @@ async def test_route_successful_linking_sends_confirmation() -> None:
 
     assert status == "account_linked"
     assert len(channel.messages) == 1
-    assert "t***t@example.com" in channel.messages[0].text
-    assert "✅" in channel.messages[0].text
+    text = channel.messages[0].text
+    assert "t***t@example.com" in text
+    assert "✅" in text
+    assert "Welcome to Collective Will" in text
+    assert "Commands:" in text
+
+
+@pytest.mark.asyncio
+async def test_route_successful_linking_sends_welcome_fa() -> None:
+    channel = FakeChannel()
+    db = AsyncMock()
+
+    linked_user = _make_user(locale="fa")
+    no_user_result = MagicMock()
+    no_user_result.scalar_one_or_none.return_value = None
+    linked_user_result = MagicMock()
+    linked_user_result.scalar_one_or_none.return_value = linked_user
+    db.execute.side_effect = [no_user_result, linked_user_result]
+
+    with patch(
+        "src.handlers.identity.resolve_linking_code",
+        new_callable=AsyncMock,
+        return_value=(True, "linked", "t***t@example.com"),
+    ):
+        status = await route_message(session=db, message=_msg("_TC856VsVWs", "new-ref"), channel=channel)
+
+    assert status == "account_linked"
+    assert len(channel.messages) == 1
+    text = channel.messages[0].text
+    assert "t***t@example.com" in text
+    assert "خوش آمدید" in text
+    assert "دستورات:" in text
 
 
 @pytest.mark.asyncio
 async def test_route_status_command() -> None:
-    user = MagicMock()
-    user.id = uuid4()
+    user = _make_user(locale="fa")
     channel = FakeChannel()
     db = AsyncMock()
 
@@ -150,12 +195,12 @@ async def test_route_status_command() -> None:
     status = await route_message(session=db, message=_msg("وضعیت"), channel=channel)
     assert status == "status_sent"
     assert channel.messages
+    assert "📊" in channel.messages[0].text
 
 
 @pytest.mark.asyncio
-async def test_route_help_command() -> None:
-    user = MagicMock()
-    user.id = uuid4()
+async def test_route_help_command_farsi() -> None:
+    user = _make_user(locale="fa")
     channel = FakeChannel()
     db = AsyncMock()
 
@@ -169,9 +214,25 @@ async def test_route_help_command() -> None:
 
 
 @pytest.mark.asyncio
-async def test_route_skip_command() -> None:
-    user = MagicMock()
-    user.id = uuid4()
+async def test_route_help_command_english() -> None:
+    user = _make_user(locale="en")
+    channel = FakeChannel()
+    db = AsyncMock()
+
+    user_result = MagicMock()
+    user_result.scalar_one_or_none.return_value = user
+    db.execute.return_value = user_result
+
+    status = await route_message(session=db, message=_msg("help"), channel=channel)
+    assert status == "help_sent"
+    assert len(channel.messages) == 1
+    assert _MESSAGES["en"]["help"] in channel.messages[0].text
+    assert "Commands:" in channel.messages[0].text
+
+
+@pytest.mark.asyncio
+async def test_route_skip_command_farsi() -> None:
+    user = _make_user(locale="fa")
     channel = FakeChannel()
     db = AsyncMock()
 
@@ -185,10 +246,23 @@ async def test_route_skip_command() -> None:
 
 
 @pytest.mark.asyncio
+async def test_route_skip_command_english() -> None:
+    user = _make_user(locale="en")
+    channel = FakeChannel()
+    db = AsyncMock()
+
+    user_result = MagicMock()
+    user_result.scalar_one_or_none.return_value = user
+    db.execute.return_value = user_result
+
+    status = await route_message(session=db, message=_msg("skip"), channel=channel)
+    assert status == "skipped"
+    assert _MESSAGES["en"]["skip"] in channel.messages[0].text
+
+
+@pytest.mark.asyncio
 async def test_route_language_toggle() -> None:
-    user = MagicMock()
-    user.id = uuid4()
-    user.locale = "fa"
+    user = _make_user(locale="fa")
     channel = FakeChannel()
     db = AsyncMock()
 
@@ -202,9 +276,8 @@ async def test_route_language_toggle() -> None:
 
 
 @pytest.mark.asyncio
-async def test_route_vote_no_active_cycle() -> None:
-    user = MagicMock()
-    user.id = uuid4()
+async def test_route_vote_no_active_cycle_farsi() -> None:
+    user = _make_user(locale="fa")
     channel = FakeChannel()
     db = AsyncMock()
 
@@ -224,10 +297,30 @@ async def test_route_vote_no_active_cycle() -> None:
 
 
 @pytest.mark.asyncio
+async def test_route_vote_no_active_cycle_english() -> None:
+    user = _make_user(locale="en")
+    channel = FakeChannel()
+    db = AsyncMock()
+
+    user_result = MagicMock()
+    user_result.scalar_one_or_none.return_value = user
+
+    cycle_scalars = MagicMock()
+    cycle_scalars.first.return_value = None
+    cycle_result = MagicMock()
+    cycle_result.scalars.return_value = cycle_scalars
+
+    db.execute.side_effect = [user_result, cycle_result]
+
+    status = await route_message(session=db, message=_msg("vote"), channel=channel)
+    assert status == "no_active_cycle"
+    assert _MESSAGES["en"]["no_active_cycle"] in channel.messages[0].text
+
+
+@pytest.mark.asyncio
 @patch("src.handlers.commands.handle_submission", new_callable=AsyncMock)
 async def test_route_freeform_to_intake(mock_intake: AsyncMock) -> None:
-    user = MagicMock()
-    user.id = uuid4()
+    user = _make_user(locale="en")
     channel = FakeChannel()
     db = AsyncMock()
 
@@ -244,3 +337,22 @@ async def test_route_freeform_to_intake(mock_intake: AsyncMock) -> None:
     status = await route_message(session=db, message=_msg("I am worried about economy"), channel=channel)
     assert status == "submission_received"
     mock_intake.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_register_hint_is_bilingual() -> None:
+    assert "Please sign up" in REGISTER_HINT
+    assert "ثبت‌نام" in REGISTER_HINT
+
+
+@pytest.mark.asyncio
+async def test_welcome_messages_have_both_locales() -> None:
+    en_text = _WELCOME["en"].format(email="t***t@test.com")
+    assert "Welcome to Collective Will" in en_text
+    assert "Commands:" in en_text
+    assert "t***t@test.com" in en_text
+
+    fa_text = _WELCOME["fa"].format(email="t***t@test.com")
+    assert "خوش آمدید" in fa_text
+    assert "دستورات:" in fa_text
+    assert "t***t@test.com" in fa_text

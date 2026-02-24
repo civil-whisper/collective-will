@@ -37,7 +37,10 @@ Displays all clusters from the most recent clustering cycle.
 
 - **Unclustered section** (transparency requirement):
   - Show count of candidates currently labeled as noise/unclustered
-  - Show a paginated list of anonymized unclustered canonical candidates (title + summary + domain + confidence)
+  - Show a paginated list of unclustered candidates, each displaying:
+    - **User Submission**: the original `raw_text` from the submission (styled as blockquote, RTL-aware for Farsi)
+    - **AI Interpretation**: the canonicalized `title` and `summary` (always English)
+    - **AI Confidence**: the confidence score as a percentage
   - Include explanatory text: these items are retained and may be clustered in future cycles
 
 ### Cluster detail page (`/analytics/clusters/[id]`)
@@ -84,7 +87,19 @@ interface ClusterDetail extends ClusterSummary {
 
 interface UnclusteredResponse {
   total: number;
-  items: PolicyCandidatePublic[];
+  items: UnclusteredItem[];
+}
+
+interface UnclusteredItem {
+  id: string;
+  title: string;
+  title_en?: string;
+  summary: string;
+  summary_en?: string;
+  domain: PolicyDomain;
+  confidence: number;
+  raw_text: string;        // Original user submission text
+  language: string;        // Detected input language (e.g. "fa", "en")
 }
 
 interface PolicyCandidatePublic {

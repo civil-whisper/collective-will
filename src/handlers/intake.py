@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import logging
 import re
 from datetime import UTC, datetime, timedelta
 
@@ -10,20 +11,74 @@ from src.channels.base import BaseChannel
 from src.channels.types import OutboundMessage, UnifiedMessage
 from src.config import get_settings
 from src.db.evidence import append_evidence
-from src.db.queries import create_submission
+from src.db.queries import create_policy_candidate, create_submission
 from src.handlers.abuse import check_burst_quarantine, check_submission_rate_limit
 from src.models.submission import Submission, SubmissionCreate
 from src.models.user import User
+from src.pipeline.canonicalize import CanonicalizationRejection, canonicalize_single
+from src.pipeline.embeddings import compute_and_store_embeddings
+from src.pipeline.llm import LLMRouter
+
+logger = logging.getLogger(__name__)
 
 HIGH_RISK_PII = [
     re.compile(r"\b\d{10,}\b"),
     re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}"),
 ]
 
-CONFIRMATION_FA = "✅ دریافت شد! نظر شما ثبت شد.\nمی‌توانید وضعیت آن را در وبسایت ببینید."
-PII_WARNING_FA = "⚠️ اطلاعات شخصی شناسایی شد. لطفا اطلاعات خصوصی را حذف کرده و دوباره ارسال کنید."
-NOT_ELIGIBLE_FA = "❌ حساب شما هنوز واجد شرایط ارسال نیست."
-RATE_LIMIT_FA = "⏳ شما به حداکثر تعداد ارسال روزانه رسیده‌اید."
+_MESSAGES = {
+    "fa": {
+        "confirmation": (
+            "✅ دریافت شد! نظر شما ثبت شد.\n"
+            "ما پیام شما را اینطور فهمیدیم: «{title}»\n"
+            "می‌توانید وضعیت آن را در وبسایت ببینید."
+        ),
+        "confirmation_fallback": (
+            "✅ دریافت شد! نظر شما ثبت شد.\n"
+            "می‌توانید وضعیت آن را در وبسایت ببینید."
+        ),
+        "rejection": (
+            "❌ پیام شما به عنوان یک پیشنهاد سیاستی قابل پردازش نبود.\n"
+            "{reason}\n"
+            "لطفاً یک پیشنهاد مشخص درباره حکمرانی، قوانین، حقوق، یا امور عمومی ارسال کنید."
+        ),
+        "pii_warning": "⚠️ اطلاعات شخصی شناسایی شد. لطفا اطلاعات خصوصی را حذف کرده و دوباره ارسال کنید.",
+        "not_eligible": "❌ حساب شما هنوز واجد شرایط ارسال نیست.",
+        "rate_limit": "⏳ شما به حداکثر تعداد ارسال روزانه رسیده‌اید.",
+    },
+    "en": {
+        "confirmation": (
+            "✅ Received! Your submission has been recorded.\n"
+            'We understood it as: "{title}"\n'
+            "You can track its status on the website."
+        ),
+        "confirmation_fallback": (
+            "✅ Received! Your submission has been recorded.\n"
+            "You can track its status on the website."
+        ),
+        "rejection": (
+            "❌ Your message could not be processed as a policy proposal.\n"
+            "{reason}\n"
+            "Please submit a clear proposal about governance, laws, rights, or public affairs."
+        ),
+        "pii_warning": "⚠️ Personal information detected. Please remove private data and try again.",
+        "not_eligible": "❌ Your account is not yet eligible for submissions.",
+        "rate_limit": "⏳ You have reached the daily submission limit.",
+    },
+}
+
+
+def _msg(locale: str, key: str, **kwargs: str) -> str:
+    lang = locale if locale in _MESSAGES else "en"
+    template = _MESSAGES[lang][key]
+    return template.format(**kwargs) if kwargs else template
+
+
+CONFIRMATION_FALLBACK_FA = _MESSAGES["fa"]["confirmation_fallback"]
+NOT_ELIGIBLE_FA = _MESSAGES["fa"]["not_eligible"]
+PII_WARNING_FA = _MESSAGES["fa"]["pii_warning"]
+RATE_LIMIT_FA = _MESSAGES["fa"]["rate_limit"]
+REJECTION_FA = _MESSAGES["fa"]["rejection"]
 
 
 def detect_high_risk_pii(text: str) -> bool:
@@ -49,16 +104,23 @@ async def handle_submission(
     user: User,
     channel: BaseChannel,
     db: AsyncSession,
+    llm_router: LLMRouter | None = None,
 ) -> None:
-    """Full intake handler: eligibility, rate-limit, PII, store, evidence, confirmation."""
+    """Full intake handler: eligibility, rate-limit, PII, store, canonicalize, embed, confirm."""
     settings = get_settings()
+    locale = user.locale or "en"
+
     if not eligible_for_submission(user, settings.min_account_age_hours):
-        await channel.send_message(OutboundMessage(recipient_ref=message.sender_ref, text=NOT_ELIGIBLE_FA))
+        await channel.send_message(
+            OutboundMessage(recipient_ref=message.sender_ref, text=_msg(locale, "not_eligible"))
+        )
         return
 
     allowed, reason = await check_submission_rate_limit(session=db, user_id=user.id)
     if not allowed:
-        await channel.send_message(OutboundMessage(recipient_ref=message.sender_ref, text=RATE_LIMIT_FA))
+        await channel.send_message(
+            OutboundMessage(recipient_ref=message.sender_ref, text=_msg(locale, "rate_limit"))
+        )
         return
 
     if detect_high_risk_pii(message.text):
@@ -71,11 +133,13 @@ async def handle_submission(
                 "status": "rejected_high_risk_pii",
                 "reason_code": "high_risk_pii",
                 "user_id": str(user.id),
-                "language": user.locale,
+                "language": locale,
             },
         )
         await db.commit()
-        await channel.send_message(OutboundMessage(recipient_ref=message.sender_ref, text=PII_WARNING_FA))
+        await channel.send_message(
+            OutboundMessage(recipient_ref=message.sender_ref, text=_msg(locale, "pii_warning"))
+        )
         return
 
     submission_hash = hash_submission(message.text)
@@ -84,7 +148,7 @@ async def handle_submission(
         SubmissionCreate(
             user_id=user.id,
             raw_text=message.text,
-            language=user.locale,
+            language=locale,
             hash=submission_hash,
         ),
     )
@@ -102,13 +166,42 @@ async def handle_submission(
             "submission_id": str(submission.id),
             "user_id": str(user.id),
             "raw_text": message.text,
-            "language": user.locale,
+            "language": locale,
             "status": submission.status,
             "hash": submission_hash,
         },
     )
-    await db.commit()
-    await channel.send_message(OutboundMessage(recipient_ref=message.sender_ref, text=CONFIRMATION_FA))
+
+    router = llm_router or LLMRouter(settings=settings)
+    try:
+        result = await canonicalize_single(
+            session=db,
+            submission_id=submission.id,
+            raw_text=message.text,
+            language=locale,
+            llm_router=router,
+        )
+
+        if isinstance(result, CanonicalizationRejection):
+            submission.status = "rejected"
+            await db.commit()
+            text = _msg(locale, "rejection", reason=result.reason)
+            await channel.send_message(OutboundMessage(recipient_ref=message.sender_ref, text=text))
+            return
+
+        db_candidate = await create_policy_candidate(db, result)
+        await compute_and_store_embeddings(session=db, candidates=[db_candidate], llm_router=router)
+        submission.status = "canonicalized"
+        await db.commit()
+        text = _msg(locale, "confirmation", title=result.title)
+        await channel.send_message(OutboundMessage(recipient_ref=message.sender_ref, text=text))
+    except Exception:
+        logger.exception("Inline canonicalization failed for submission %s, deferring to batch", submission.id)
+        submission.status = "pending"
+        await db.commit()
+        await channel.send_message(
+            OutboundMessage(recipient_ref=message.sender_ref, text=_msg(locale, "confirmation_fallback"))
+        )
 
 
 async def process_submission(
@@ -117,8 +210,14 @@ async def process_submission(
     user: User,
     raw_text: str,
     min_account_age_hours: int,
+    llm_router: LLMRouter | None = None,
 ) -> tuple[Submission | None, str]:
-    """Lower-level submission processor (used by route_message)."""
+    """Lower-level submission processor (used by route_message).
+
+    Returns (submission, status_code) where status_code is one of:
+    accepted, accepted_flagged, rejected_not_policy, pending (LLM fallback),
+    not_eligible, rate_limited, pii_redact_and_resend.
+    """
     if not eligible_for_submission(user, min_account_age_hours=min_account_age_hours):
         return None, "not_eligible"
 
@@ -170,5 +269,30 @@ async def process_submission(
             "hash": submission_hash,
         },
     )
-    await session.commit()
-    return submission, ("accepted_flagged" if quarantined else "accepted")
+
+    settings = get_settings()
+    router = llm_router or LLMRouter(settings=settings)
+    try:
+        result = await canonicalize_single(
+            session=session,
+            submission_id=submission.id,
+            raw_text=raw_text,
+            language=user.locale,
+            llm_router=router,
+        )
+
+        if isinstance(result, CanonicalizationRejection):
+            submission.status = "rejected"
+            await session.commit()
+            return submission, "rejected_not_policy"
+
+        db_candidate = await create_policy_candidate(session, result)
+        await compute_and_store_embeddings(session=session, candidates=[db_candidate], llm_router=router)
+        submission.status = "canonicalized"
+        await session.commit()
+        return submission, ("accepted_flagged" if quarantined else "accepted")
+    except Exception:
+        logger.exception("Inline canonicalization failed for submission %s, deferring to batch", submission.id)
+        submission.status = "pending"
+        await session.commit()
+        return submission, "pending"

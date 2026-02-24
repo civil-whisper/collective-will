@@ -118,13 +118,19 @@ async def stats(session: AsyncSession = Depends(get_db)) -> dict[str, object]:
 
 @router.get("/unclustered")
 async def unclustered(session: AsyncSession = Depends(get_db)) -> dict[str, object]:
+    from sqlalchemy.orm import selectinload
+
     clusters_result = await session.execute(select(Cluster.candidate_ids))
     cluster_candidate_id_lists = clusters_result.scalars().all()
     clustered_candidate_ids = {
         candidate_id for candidate_ids in cluster_candidate_id_lists for candidate_id in candidate_ids
     }
 
-    query = select(PolicyCandidate).order_by(PolicyCandidate.created_at.desc())
+    query = (
+        select(PolicyCandidate)
+        .options(selectinload(PolicyCandidate.submission))
+        .order_by(PolicyCandidate.created_at.desc())
+    )
     count_query = select(func.count(PolicyCandidate.id))
     if clustered_candidate_ids:
         query = query.where(~PolicyCandidate.id.in_(clustered_candidate_ids))
@@ -146,6 +152,8 @@ async def unclustered(session: AsyncSession = Depends(get_db)) -> dict[str, obje
                 "summary_en": item.summary_en,
                 "domain": item.domain.value if hasattr(item.domain, "value") else item.domain,
                 "confidence": item.confidence,
+                "raw_text": item.submission.raw_text if item.submission else None,
+                "language": item.submission.language if item.submission else None,
             }
             for item in items
         ],

@@ -167,10 +167,7 @@ async def exchange_web_session_code(
 def mask_email(email: str) -> str:
     """Mask an email for display: show first/last char of local part, domain intact."""
     local, _, domain = email.partition("@")
-    if len(local) <= 2:
-        masked_local = local[0] + "***"
-    else:
-        masked_local = local[0] + "***" + local[-1]
+    masked_local = local[0] + "***" if len(local) <= 2 else local[0] + "***" + local[-1]
     return f"{masked_local}@{domain}"
 
 

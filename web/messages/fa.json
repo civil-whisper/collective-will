@@ -143,7 +143,10 @@
     "totalSubmissions": "کل ارسال‌ها",
     "pendingSubmissions": "{count} ارسال در صف پردازش هوش مصنوعی است.",
     "unclusteredCandidates": "نامزدهای خوشه‌بندی نشده",
-    "noUnclusteredCandidates": "فعلاً نامزد خوشه‌بندی‌نشده‌ای وجود ندارد."
+    "noUnclusteredCandidates": "فعلاً نامزد خوشه‌بندی‌نشده‌ای وجود ندارد.",
+    "userSubmission": "پیام کاربر",
+    "aiInterpretation": "تفسیر هوش مصنوعی",
+    "aiConfidence": "اطمینان هوش مصنوعی"
   },
   "ops": {
     "title": "کنسول عملیات",

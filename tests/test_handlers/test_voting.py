@@ -299,12 +299,14 @@ async def test_send_reminder_skips_already_voted() -> None:
     user1.email_verified = True
     user1.messaging_verified = True
     user1.messaging_account_ref = "ref-1"
+    user1.locale = "fa"
 
     user2 = MagicMock()
     user2.id = uuid4()
     user2.email_verified = True
     user2.messaging_verified = True
     user2.messaging_account_ref = "ref-2"
+    user2.locale = "fa"
 
     voted_result = MagicMock()
     voted_result.all.return_value = [(user1.id,)]

@@ -1,7 +1,7 @@
 # Task: Batch Scheduler
 
 ## Depends on
-- `pipeline/03-canonicalization` (canonicalize_batch)
+- `pipeline/03-canonicalization` (canonicalize_single, canonicalize_batch)
 - `pipeline/04-embeddings` (compute_and_store_embeddings)
 - `pipeline/05-hdbscan-clustering` (run_clustering)
 - `pipeline/06-variance-check` (variance_check)
@@ -10,30 +10,32 @@
 - `database/04-evidence-store` (append_evidence)
 
 ## Goal
-Create the background scheduler that runs the full processing pipeline on a config-backed interval (`PIPELINE_INTERVAL_HOURS`, default 6 hours): canonicalize pending submissions, compute embeddings, cluster, check variance, summarize, and build agenda.
+Run the batch clustering pipeline on a config-backed interval (`PIPELINE_INTERVAL_HOURS`).
+Canonicalization and embedding now happen **inline at submission time** in `src/handlers/intake.py`.
+The scheduler handles clustering, summarization, and agenda building for submissions that are already canonicalized.
 
-## Files to create
+## Architecture: Inline vs Batch Split
 
-- `src/scheduler.py` — background job scheduler
+### Inline (at submission time, in `src/handlers/intake.py`)
+1. **Canonicalize**: `canonicalize_single()` evaluates validity and structures the submission
+2. **Garbage rejection**: If `is_valid_policy=false`, mark `status="rejected"` and send contextual feedback
+3. **Embed**: `compute_and_store_embeddings()` for the single candidate
+4. **Status**: Set `status="canonicalized"` on success, `status="pending"` on LLM failure (batch fallback)
 
-## Specification
+### Batch (scheduler, in `src/scheduler/main.py`)
+1. **Load ready submissions**: Query submissions with `status="canonicalized"` or `status="pending"` (fallback)
+2. **Fallback canon+embed**: If any `status="pending"` submissions exist (LLM was down at intake time), canonicalize and embed them now
+3. **Cluster**: `run_clustering()` → produces Clusters
+4. **Variance check**: `variance_check()` → flags unstable clusters
+5. **Summarize**: `summarize_clusters()` → generates summaries
+6. **Build agenda**: `build_agenda()` → selects clusters for voting
+7. **Update statuses**: Mark all as `status="processed"`
 
-### Pipeline orchestration
+## Files
 
-```python
-async def run_pipeline() -> PipelineResult:
-    """Run the full processing pipeline. Called on config-backed scheduler cadence."""
-```
-
-Steps (in order):
-1. **Load pending submissions**: Query all submissions with `status="pending"`
-2. **Canonicalize**: Call `canonicalize_batch(submissions)` → produces PolicyCandidates
-3. **Compute embeddings**: Call `compute_and_store_embeddings(candidates)` → stores vectors
-4. **Cluster**: Call `run_clustering(cycle_id)` → produces Clusters
-5. **Variance check**: Call `variance_check(cycle_id)` → flags unstable clusters
-6. **Summarize**: Call `summarize_clusters(clusters)` → generates summaries
-7. **Build agenda**: Call `build_agenda(cycle_id)` → selects clusters for voting
-8. **Update submission statuses**: Mark successfully processed submissions as `status="processed"`
+- `src/scheduler/main.py` — batch pipeline orchestration
+- `src/scheduler/__main__.py` — entry point
+- `src/handlers/intake.py` — inline canonicalization + embedding
 
 ### PipelineResult
 

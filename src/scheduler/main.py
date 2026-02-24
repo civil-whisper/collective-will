@@ -6,6 +6,7 @@ from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from src.config import get_settings
 from src.db.anchoring import compute_daily_merkle_root, publish_daily_merkle_root
@@ -47,26 +48,47 @@ async def run_pipeline(*, session: AsyncSession, llm_router: LLMRouter | None = 
     result = PipelineResult()
     async with PIPELINE_LOCK:
         try:
-            pending_result = await session.execute(
-                select(Submission).where(Submission.status == "pending").order_by(Submission.created_at.asc())
+            # Canonicalized submissions have candidates+embeddings ready; just need clustering.
+            # Also pick up any "pending" submissions whose inline canonicalization failed (LLM outage fallback).
+            ready_result = await session.execute(
+                select(Submission)
+                .where(Submission.status.in_(["canonicalized", "pending"]))
+                .options(selectinload(Submission.candidates))
+                .order_by(Submission.created_at.asc())
             )
-            submissions = list(pending_result.scalars().all())
+            submissions = list(ready_result.scalars().all())
             result.processed_submissions = len(submissions)
             if not submissions:
                 await _run_daily_anchoring(session=session, router=router)
                 return result
 
-            payloads = [{"id": item.id, "raw_text": item.raw_text, "language": item.language} for item in submissions]
-            candidate_creates = await canonicalize_batch(
-                session=session, submissions=payloads, llm_router=router
-            )
+            # Fallback: canonicalize + embed any "pending" submissions that missed inline processing
+            pending_subs = [s for s in submissions if s.status == "pending"]
+            if pending_subs:
+                payloads = [{"id": s.id, "raw_text": s.raw_text, "language": s.language} for s in pending_subs]
+                candidate_creates = await canonicalize_batch(
+                    session=session, submissions=payloads, llm_router=router,
+                )
+                for data in candidate_creates:
+                    db_candidate = await create_policy_candidate(session, data)
+                    await session.refresh(db_candidate)
+                await session.flush()
+                # Re-fetch to pick up new candidates
+                for sub in pending_subs:
+                    await session.refresh(sub, attribute_names=["candidates"])
+
+            # Gather all candidates from this batch
             db_candidates: list[PolicyCandidate] = []
-            for data in candidate_creates:
-                db_candidate = await create_policy_candidate(session, data)
-                db_candidates.append(db_candidate)
+            for sub in submissions:
+                db_candidates.extend(sub.candidates)
             result.created_candidates = len(db_candidates)
 
-            await compute_and_store_embeddings(session=session, candidates=db_candidates, llm_router=router)
+            # Embed any candidates still missing embeddings (from batch fallback)
+            needs_embed = [c for c in db_candidates if c.embedding is None]
+            if needs_embed:
+                await compute_and_store_embeddings(
+                    session=session, candidates=needs_embed, llm_router=router,
+                )
 
             cycle = await create_voting_cycle(
                 session,
