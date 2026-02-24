@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import {signOut} from "next-auth/react";
 import {useLocale, useTranslations} from "next-intl";
 import {usePathname} from "next/navigation";
 import {useState} from "react";
@@ -61,9 +62,21 @@ export function NavBar({showOpsLink, userEmail}: NavBarProps) {
             </Link>
           ))}
           {userEmail ? (
-            <span className="ms-2 rounded-lg bg-gray-100 px-3 py-1.5 text-sm font-medium text-gray-700 dark:bg-slate-700 dark:text-slate-300">
-              {userEmail}
-            </span>
+            <div className="ms-2 flex items-center gap-1.5">
+              <span className="rounded-lg bg-gray-100 px-3 py-1.5 text-sm font-medium text-gray-700 dark:bg-slate-700 dark:text-slate-300">
+                {userEmail}
+              </span>
+              <button
+                type="button"
+                onClick={() => signOut({callbackUrl: `/${locale}`})}
+                className="rounded-md px-2.5 py-1.5 text-sm font-medium text-gray-500 transition-colors hover:bg-red-50 hover:text-red-600 dark:text-slate-400 dark:hover:bg-red-900/20 dark:hover:text-red-400"
+                title={common("logout")}
+              >
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15m3 0 3-3m0 0-3-3m3 3H9" />
+                </svg>
+              </button>
+            </div>
           ) : (
             <Link
               href={`/${locale}/signup`}
@@ -117,8 +130,20 @@ export function NavBar({showOpsLink, userEmail}: NavBarProps) {
             ))}
           </div>
           {userEmail ? (
-            <div className="mt-2 rounded-lg bg-gray-100 px-4 py-2 text-center text-sm font-medium text-gray-700 dark:bg-slate-700 dark:text-slate-300">
-              {userEmail}
+            <div className="mt-2 space-y-2">
+              <div className="rounded-lg bg-gray-100 px-4 py-2 text-center text-sm font-medium text-gray-700 dark:bg-slate-700 dark:text-slate-300">
+                {userEmail}
+              </div>
+              <button
+                type="button"
+                onClick={() => { setMenuOpen(false); signOut({callbackUrl: `/${locale}`}); }}
+                className="flex w-full items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-red-600 transition-colors hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20"
+              >
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15m3 0 3-3m0 0-3-3m3 3H9" />
+                </svg>
+                {common("logout")}
+              </button>
             </div>
           ) : (
             <Link

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query
@@ -12,6 +12,7 @@ from src.api.authn import resolve_email_from_bearer
 from src.config import Settings, get_settings
 from src.db.connection import check_db_health, get_db
 from src.db.evidence import EvidenceLogEntry, isoformat_z
+from src.db.heartbeat import get_heartbeat
 from src.ops import events as ops_events
 from src.ops.events import EventLevel, OpsEvent
 
@@ -79,10 +80,34 @@ def _evidence_to_event(entry: EvidenceLogEntry) -> OpsEvent:
 async def status(
     settings: Annotated[Settings, Depends(get_settings)],
     _: Annotated[str | None, Depends(_require_ops_access)],
+    session: AsyncSession = Depends(get_db),
 ) -> OpsStatusResponse:
     db_ok = await check_db_health()
     telegram_ready = bool(settings.telegram_bot_token)
     email_ready = bool(settings.resend_api_key)
+
+    heartbeat = await get_heartbeat(session)
+    if heartbeat is None:
+        sched_status: Literal["ok", "degraded", "error", "unknown"] = "unknown"
+        sched_detail = "no heartbeat recorded yet"
+    else:
+        age = datetime.now(UTC) - heartbeat.last_run_at
+        expected_interval = max(
+            settings.pipeline_interval_hours,
+            settings.pipeline_min_interval_hours,
+        )
+        stale_threshold = timedelta(hours=expected_interval * 2.5)
+        if heartbeat.status == "error":
+            sched_status = "error"
+            sched_detail = heartbeat.detail or "last run had errors"
+        elif age > stale_threshold:
+            sched_status = "degraded"
+            hours_ago = age.total_seconds() / 3600
+            sched_detail = f"last heartbeat {hours_ago:.1f}h ago (expected every {expected_interval:.1f}h)"
+        else:
+            sched_status = "ok"
+            sched_detail = heartbeat.detail
+
     services = [
         ServiceStatus(name="api", status="ok"),
         ServiceStatus(name="database", status="ok" if db_ok else "error"),
@@ -98,8 +123,8 @@ async def status(
         ),
         ServiceStatus(
             name="scheduler",
-            status="unknown",
-            detail="scheduler heartbeat not wired yet",
+            status=sched_status,
+            detail=sched_detail,
         ),
     ]
     return OpsStatusResponse(

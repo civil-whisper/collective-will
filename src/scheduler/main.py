@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.config import get_settings
 from src.db.anchoring import compute_daily_merkle_root, publish_daily_merkle_root
+from src.db.heartbeat import upsert_heartbeat
 from src.db.queries import (
     count_cluster_endorsements,
     create_cluster,
@@ -140,5 +141,15 @@ async def scheduler_loop(
 ) -> None:  # type: ignore[no-untyped-def]
     while True:
         async with session_factory() as session:
-            await run_pipeline(session=session)
+            result = await run_pipeline(session=session)
+        async with session_factory() as session:
+            detail = (
+                f"processed={result.processed_submissions} "
+                f"candidates={result.created_candidates} "
+                f"clusters={result.created_clusters}"
+            )
+            status = "error" if result.errors else "ok"
+            if result.errors:
+                detail += f" errors={result.errors}"
+            await upsert_heartbeat(session, status=status, detail=detail)
         await asyncio.sleep(max(interval_hours, min_interval_hours) * 3600)
