@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import traceback
 from dataclasses import dataclass, field
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
+from uuid import UUID
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -17,18 +17,17 @@ from src.db.queries import (
     count_cluster_endorsements,
     create_cluster,
     create_policy_candidate,
-    create_voting_cycle,
 )
 from src.models.cluster import Cluster
 from src.models.submission import PolicyCandidate, Submission
-from src.models.vote import VotingCycleCreate
 from src.pipeline.agenda import build_agenda
-from src.pipeline.canonicalize import canonicalize_batch
-from src.pipeline.cluster import run_clustering
+from src.pipeline.canonicalize import canonicalize_batch, load_existing_policy_context
+from src.pipeline.cluster import compute_centroid, group_by_policy_key
 from src.pipeline.embeddings import compute_and_store_embeddings
+from src.pipeline.endorsement import generate_ballot_questions
 from src.pipeline.llm import LLMRouter
+from src.pipeline.normalize import normalize_policy_keys
 from src.pipeline.options import generate_policy_options
-from src.pipeline.summarize import summarize_clusters
 
 logger = logging.getLogger(__name__)
 
@@ -67,98 +66,194 @@ async def run_pipeline(*, session: AsyncSession, llm_router: LLMRouter | None = 
                 await _run_daily_anchoring(session=session, router=router)
                 return result
 
-            # Fallback: canonicalize + embed any "pending" submissions that missed inline processing
+            policy_context = await load_existing_policy_context(session)
+
             pending_subs = [s for s in submissions if s.status == "pending"]
             if pending_subs:
-                payloads = [{"id": s.id, "raw_text": s.raw_text, "language": s.language} for s in pending_subs]
+                payloads = [
+                    {"id": s.id, "raw_text": s.raw_text, "language": s.language}
+                    for s in pending_subs
+                ]
                 candidate_creates = await canonicalize_batch(
-                    session=session, submissions=payloads, llm_router=router,
+                    session=session, submissions=payloads,
+                    llm_router=router, policy_context=policy_context,
                 )
                 for data in candidate_creates:
                     db_candidate = await create_policy_candidate(session, data)
                     await session.refresh(db_candidate)
                 await session.flush()
-                # Re-fetch to pick up new candidates
                 for sub in pending_subs:
                     await session.refresh(sub, attribute_names=["candidates"])
 
-            # Gather all candidates from this batch
             db_candidates: list[PolicyCandidate] = []
             for sub in submissions:
                 db_candidates.extend(sub.candidates)
             result.created_candidates = len(db_candidates)
 
-            # Embed any candidates still missing embeddings (from batch fallback)
             needs_embed = [c for c in db_candidates if c.embedding is None]
             if needs_embed:
                 await compute_and_store_embeddings(
                     session=session, candidates=needs_embed, llm_router=router,
                 )
 
-            cycle = await create_voting_cycle(
-                session,
-                data=VotingCycleCreate(
-                    started_at=datetime.now(UTC),
-                    ends_at=datetime.now(UTC) + timedelta(hours=settings.voting_cycle_hours),
-                    status="active",
-                    cluster_ids=[],
-                    results=None,
-                    total_voters=0,
-                ),
-            )
-            clustering = run_clustering(
-                candidates=db_candidates,
-                cycle_id=cycle.id,
-                min_cluster_size=settings.min_cluster_size,
-                min_samples=settings.cluster_min_samples,
-                random_seed=settings.cluster_random_seed,
-            )
+            groups = group_by_policy_key(candidates=db_candidates)
             db_clusters: list[Cluster] = []
-            for item in clustering.clusters:
-                db_cluster = await create_cluster(session, item)
-                db_clusters.append(db_cluster)
+            for policy_key, members in groups.items():
+                cluster = await _find_or_create_cluster(
+                    session=session, policy_key=policy_key, members=members,
+                )
+                db_clusters.append(cluster)
             result.created_clusters = len(db_clusters)
-            cycle.cluster_ids = [cluster.id for cluster in db_clusters]
 
-            candidates_by_id = {candidate.id: candidate for candidate in db_candidates}
-            await summarize_clusters(
-                session=session,
-                clusters=db_clusters,
-                candidates_by_id=candidates_by_id,
-                llm_router=router,
-            )
+            merges = await normalize_policy_keys(session=session, llm_router=router)
+            if merges:
+                logger.info(
+                    "Key normalization merged %d groups", len(merges),
+                    extra={"event_type": "scheduler.normalization.completed"},
+                )
 
-            await generate_policy_options(
-                session=session,
-                clusters=db_clusters,
-                candidates_by_id=candidates_by_id,
-                llm_router=router,
+            all_clusters_result = await session.execute(
+                select(Cluster).where(Cluster.policy_key != "unassigned")
             )
+            all_clusters = list(all_clusters_result.scalars().all())
+            all_candidate_ids = {cid for cl in all_clusters for cid in cl.candidate_ids}
+            all_candidates_result = await session.execute(
+                select(PolicyCandidate).where(PolicyCandidate.id.in_(all_candidate_ids))
+            )
+            candidates_by_id = {
+                c.id: c for c in all_candidates_result.scalars().all()
+            }
+
+            needs_ballot = [c for c in all_clusters if c.needs_resummarize]
+            if needs_ballot:
+                await generate_ballot_questions(
+                    session=session, clusters=needs_ballot,
+                    candidates_by_id=candidates_by_id, llm_router=router,
+                )
+
+            qualified_clusters = [
+                c for c in all_clusters
+                if c.ballot_question and not c.needs_resummarize
+            ]
+            clusters_needing_options = [
+                c for c in qualified_clusters
+                if not await _has_options(session, c.id)
+            ]
+            if clusters_needing_options:
+                await generate_policy_options(
+                    session=session, clusters=clusters_needing_options,
+                    candidates_by_id=candidates_by_id, llm_router=router,
+                )
 
             endorsement_counts = {
-                str(cluster.id): await count_cluster_endorsements(session, cluster.id)
-                for cluster in db_clusters
+                str(c.id): await count_cluster_endorsements(session, c.id)
+                for c in all_clusters
             }
             agenda_items = build_agenda(
-                clusters=db_clusters,
+                clusters=all_clusters,
                 endorsement_counts=endorsement_counts,
-                min_cluster_size=settings.min_cluster_size,
-                min_preballot_endorsements=settings.min_preballot_endorsements,
+                min_support=settings.min_preballot_endorsements,
             )
-            result.qualified_clusters = sum(1 for item in agenda_items if item.qualifies)
+            result.qualified_clusters = sum(
+                1 for item in agenda_items if item.qualifies
+            )
 
             for submission in submissions:
                 submission.status = "processed"
             await session.commit()
 
+            logger.info(
+                "Pipeline run completed: %d submissions, %d candidates, %d clusters",
+                result.processed_submissions,
+                result.created_candidates,
+                result.created_clusters,
+                extra={
+                    "event_type": "scheduler.pipeline.completed",
+                    "ops_payload": {
+                        "processed_submissions": result.processed_submissions,
+                        "created_candidates": result.created_candidates,
+                        "created_clusters": result.created_clusters,
+                        "qualified_clusters": result.qualified_clusters,
+                    },
+                },
+            )
+
             await _run_daily_anchoring(session=session, router=router)
             return result
         except Exception as exc:  # pragma: no cover
             await session.rollback()
-            tb = traceback.format_exc()
-            logger.exception("Pipeline run failed: %s", exc)
-            result.errors.append(f"{type(exc).__name__}: {exc}\n{tb}")
+            logger.exception(
+                "Pipeline run failed: %s",
+                exc,
+                extra={
+                    "event_type": "scheduler.pipeline.error",
+                    "ops_payload": {
+                        "processed_submissions": result.processed_submissions,
+                        "created_candidates": result.created_candidates,
+                        "created_clusters": result.created_clusters,
+                        "exception_type": type(exc).__name__,
+                        "exception_message": str(exc),
+                    },
+                },
+            )
+            result.errors.append(str(exc))
             return result
+
+
+async def _find_or_create_cluster(
+    *,
+    session: AsyncSession,
+    policy_key: str,
+    members: list[PolicyCandidate],
+) -> Cluster:
+    """Find an existing cluster by policy_key, or create a new one."""
+    from src.models.cluster import ClusterCreate
+    from src.models.submission import PolicyDomain
+
+    result = await session.execute(
+        select(Cluster).where(Cluster.policy_key == policy_key)
+    )
+    existing = result.scalar_one_or_none()
+
+    if existing is not None:
+        new_ids = set(existing.candidate_ids) | {m.id for m in members}
+        old_count = existing.member_count
+        existing.candidate_ids = list(new_ids)
+        existing.member_count = len(new_ids)
+        existing.centroid_embedding = compute_centroid(members)
+        growth = (existing.member_count - old_count) / max(old_count, 1)
+        settings = get_settings()
+        if growth >= settings.resummarize_growth_threshold:
+            existing.needs_resummarize = True
+        await session.flush()
+        return existing
+
+    topic = members[0].policy_topic if members else "unassigned"
+    domains = [m.domain for m in members]
+    majority = max(set(domains), key=domains.count) if domains else PolicyDomain.OTHER
+
+    data = ClusterCreate(
+        policy_topic=topic,
+        policy_key=policy_key,
+        summary=f"New policy discussion: {policy_key}",
+        domain=majority,
+        candidate_ids=[m.id for m in members],
+        member_count=len(members),
+        centroid_embedding=compute_centroid(members),
+        needs_resummarize=True,
+    )
+    db_cluster = await create_cluster(session, data)
+    return db_cluster
+
+
+async def _has_options(session: AsyncSession, cluster_id: UUID) -> bool:
+    """Check if a cluster already has generated policy options."""
+    from src.models.policy_option import PolicyOption
+
+    result = await session.execute(
+        select(PolicyOption.id).where(PolicyOption.cluster_id == cluster_id).limit(1)
+    )
+    return result.scalar_one_or_none() is not None
 
 
 async def _run_daily_anchoring(*, session: AsyncSession, router: LLMRouter) -> None:

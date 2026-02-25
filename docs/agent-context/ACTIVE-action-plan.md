@@ -482,6 +482,78 @@ feedback to users.
     - `test_canonicalize.py`: tests for `canonicalize_single` (valid + garbage), batch filtering
     - Added `submission_rejected_not_policy` to `VALID_EVENT_TYPES`
 
+### P0 — Clustering Bug Fix & Ops Debug Enhancement
+
+70. [done] Fix numpy ambiguous truth value bug in clustering
+    - `cluster.py:71` used `candidate.embedding or []` which raises when embedding is a numpy array (pgvector returns numpy arrays)
+    - Removed `or []` fallback — all candidates in the loop already passed the `is not None` filter
+    - Existing `test_numpy_array_embeddings_do_not_raise` test now passes in production path
+
+71. [done] Enhance ops console for production debugging
+    - `OpsEventHandler` now captures `exc_info` stack traces and exception types into event payloads
+    - Scheduler emits structured `scheduler.pipeline.error` and `scheduler.pipeline.completed` events with pipeline context
+    - Heartbeat `detail` column widened from `VARCHAR(256)` to `Text` (migration `006_heartbeat_detail_text`)
+    - Frontend `OpsEventFeed` now shows expandable payload detail (key-value pairs + formatted tracebacks)
+    - Error events auto-expand to show stack trace immediately
+    - Added "Scheduler / Pipeline" quick filter for event type filtering
+    - Added test for traceback capture in `OpsEventHandler`
+
+### P0 — Policy-Level Clustering Redesign
+
+Design rationale: LLM-driven policy-key grouping replaces HDBSCAN as primary mechanism.
+Two-level structure: `policy_topic` (browsing umbrella) + `policy_key` (ballot-level discussion).
+Both are stance-neutral. Three-stage pipeline: inline assignment → batch normalization → ballot question generation.
+
+72. [done] Add `policy_topic` + `policy_key` to PolicyCandidate and Cluster models
+    - PolicyCandidate: `policy_topic`, `policy_key` columns (indexed, server_default="unassigned")
+    - Cluster: `policy_topic`, `policy_key` (unique), `ballot_question`, `ballot_question_fa`,
+      `needs_resummarize`, `last_summarized_count`; `cycle_id`, `run_id`, `random_seed` now nullable
+    - Alembic migration `007_policy_key_clustering`
+
+73. [done] Update canonicalization for topic-aware policy key assignment (Phase 1)
+    - `load_existing_policy_context()` loads existing topics/keys from DB for LLM context
+    - LLM prompt updated: produces `policy_topic` and `policy_key` alongside existing canonical fields
+    - `_sanitize_policy_slug()` normalizes keys to lowercase-with-hyphens
+    - Both `canonicalize_single()` and `canonicalize_batch()` auto-load context if not provided
+
+74. [done] Implement group_by_policy_key() and persistent cluster creation
+    - `group_by_policy_key()` in `cluster.py` replaces HDBSCAN as primary grouping
+    - `compute_centroid()` helper for embedding centroids
+    - Scheduler `_find_or_create_cluster()` creates or updates persistent clusters
+    - Growth detection triggers `needs_resummarize` when membership grows 50%+
+
+75. [done] Implement LLM-based key normalization (Phase 2)
+    - `src/pipeline/normalize.py`: `normalize_policy_keys()` reviews keys within each topic
+    - `execute_key_merge()` reassigns candidates, merges cluster IDs, deletes merged clusters
+    - All merges evidence-logged as `cluster_merged`
+
+76. [done] Implement ballot question generation (Phase 3)
+    - `src/pipeline/endorsement.py`: `generate_ballot_questions()` for clusters needing summarization
+    - Generates stance-neutral bilingual ballot questions from member submissions
+    - Evidence-logged as `ballot_question_generated`
+
+77. [done] Update scheduler pipeline flow
+    - New flow: canonicalize → embed → group by key → normalize keys → ballot questions → options → agenda
+    - Removed `create_voting_cycle` call (clusters are persistent, not per-cycle)
+    - Agenda gate: `total_support = member_count + endorsements >= min_support`
+
+78. [done] Update agenda to combined support gate
+    - Single `min_support` parameter replaces dual `min_cluster_size` + `min_preballot_endorsements`
+    - Submissions count as implicit endorsements
+
+79. [done] Tests for all phases (152 passed, 10 skipped)
+    - `test_policy_grouping.py`: slug sanitization, grouping, centroid computation
+    - `test_normalize.py`: merge response parsing
+    - `test_endorsement.py`: ballot response parsing
+    - `test_agenda.py`: combined support gate
+    - Updated `test_cluster_agenda.py`, `test_db/test_models.py`, `test_handlers/test_intake.py`
+    - All legacy HDBSCAN tests still pass
+
+80. [done] Update pipeline documentation and context files
+    - Updated CONTEXT-shared.md: Clustering decision, model definitions, directory structure
+    - Created `docs/agent-context/pipeline/05-policy-key-grouping.md`
+    - Updated ACTIVE-action-plan.md
+
 ## Definition of Done (This Cycle)
 
 - No CI/CD job performs paid LLM API calls

@@ -81,6 +81,8 @@ async def test_embedding_store_and_scheduler_smoke(db_session: AsyncSession, mon
             domain=PolicyDomain.OTHER,
             summary="Summary",
             stance="neutral",
+            policy_topic="test-topic",
+            policy_key="test-policy",
             entities=[],
             confidence=1.0,
             ambiguity_flags=[],

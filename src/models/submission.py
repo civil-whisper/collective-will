@@ -66,6 +66,8 @@ class PolicyCandidate(Base):
     summary: Mapped[str] = mapped_column(String, nullable=False)
     summary_en: Mapped[str | None] = mapped_column(String, nullable=True)
     stance: Mapped[str] = mapped_column(String(16), nullable=False)
+    policy_topic: Mapped[str] = mapped_column(String(255), nullable=False, index=True, server_default="unassigned")
+    policy_key: Mapped[str] = mapped_column(String(255), nullable=False, index=True, server_default="unassigned")
     entities: Mapped[list[str]] = mapped_column(JSONB, nullable=False, default=list)
     embedding: Mapped[list[float] | None] = mapped_column(Vector(1024), nullable=True)
     confidence: Mapped[float] = mapped_column(Float, nullable=False)
@@ -124,6 +126,8 @@ class PolicyCandidateCreate(BaseModel):
     summary: str
     summary_en: str | None = None
     stance: str = Field(pattern="^(support|oppose|neutral|unclear)$")
+    policy_topic: str = Field(min_length=2, max_length=255)
+    policy_key: str = Field(min_length=2, max_length=255)
     entities: list[str]
     embedding: list[float] | None = None
     confidence: float = Field(ge=0, le=1)
@@ -141,6 +145,8 @@ class PolicyCandidateRead(BaseModel):
     summary: str
     summary_en: str | None
     stance: str
+    policy_topic: str
+    policy_key: str
     entities: list[str]
     embedding: list[float] | None
     confidence: float
@@ -164,6 +170,8 @@ class PolicyCandidateRead(BaseModel):
             summary=db_candidate.summary,
             summary_en=db_candidate.summary_en,
             stance=db_candidate.stance,
+            policy_topic=db_candidate.policy_topic,
+            policy_key=db_candidate.policy_key,
             entities=list(db_candidate.entities),
             embedding=embedding,
             confidence=db_candidate.confidence,

@@ -164,6 +164,7 @@
     "warningsOnly": "Warnings",
     "infoOnly": "Info",
     "allEvents": "All events",
+    "schedulerEvents": "Scheduler / Pipeline",
     "failedRequests": "Failed requests",
     "completedRequests": "Completed requests",
     "jobs": "Background Jobs",

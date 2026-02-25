@@ -264,6 +264,29 @@ def test_ops_status_scheduler_degraded_when_stale(monkeypatch: pytest.MonkeyPatc
         app.dependency_overrides.pop(get_db, None)
 
 
+def test_ops_event_handler_captures_traceback() -> None:
+    import logging
+
+    ops_events.configure_ops_event_logging(max_size=500)
+    logger = logging.getLogger("test.traceback_capture")
+    try:
+        raise ValueError("test explosion")
+    except ValueError:
+        logger.exception(
+            "Something broke",
+            extra={"event_type": "test.error", "ops_payload": {"context": "unit-test"}},
+        )
+
+    errors = ops_events.ops_event_buffer.recent(limit=10, level="error", event_type="test.error")
+    assert len(errors) >= 1
+    latest = errors[0]
+    assert latest["level"] == "error"
+    assert "traceback" in latest["payload"]
+    assert "ValueError: test explosion" in latest["payload"]["traceback"]
+    assert latest["payload"]["exception_type"] == "ValueError"
+    assert latest["payload"]["context"] == "unit-test"
+
+
 def test_ops_status_scheduler_error_when_heartbeat_error(monkeypatch: pytest.MonkeyPatch) -> None:
     async def _db_ok() -> bool:
         return True

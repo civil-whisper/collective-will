@@ -12,54 +12,54 @@ from src.pipeline.agenda import build_agenda
 class FakeCluster:
     id: UUID
     member_count: int
+    policy_key: str = "test-policy"
 
 
-def test_cluster_qualifies_with_both_gates() -> None:
-    c_id = uuid4()
-    clusters = cast(list[Cluster], [FakeCluster(id=c_id, member_count=5)])
-    items = build_agenda(
-        clusters=clusters,
-        endorsement_counts={str(c_id): 5},
-        min_cluster_size=5,
-        min_preballot_endorsements=5,
-    )
-    assert len(items) == 1
-    assert items[0].qualifies is True
-    assert items[0].reason == "qualified"
-
-
-def test_cluster_below_size_excluded() -> None:
+def test_cluster_qualifies_combined_support() -> None:
     c_id = uuid4()
     clusters = cast(list[Cluster], [FakeCluster(id=c_id, member_count=3)])
     items = build_agenda(
         clusters=clusters,
-        endorsement_counts={str(c_id): 10},
-        min_cluster_size=5,
-        min_preballot_endorsements=5,
+        endorsement_counts={str(c_id): 2},
+        min_support=5,
     )
-    assert items[0].qualifies is False
-    assert items[0].reason == "below_size_threshold"
+    assert len(items) == 1
+    assert items[0].qualifies is True
+    assert items[0].total_support == 5
+    assert items[0].reason == "qualified"
 
 
-def test_cluster_below_endorsement_excluded() -> None:
+def test_cluster_below_support_excluded() -> None:
     c_id = uuid4()
-    clusters = cast(list[Cluster], [FakeCluster(id=c_id, member_count=10)])
+    clusters = cast(list[Cluster], [FakeCluster(id=c_id, member_count=2)])
     items = build_agenda(
         clusters=clusters,
-        endorsement_counts={str(c_id): 2},
-        min_cluster_size=5,
-        min_preballot_endorsements=5,
+        endorsement_counts={str(c_id): 1},
+        min_support=5,
     )
     assert items[0].qualifies is False
-    assert items[0].reason == "below_endorsement_threshold"
+    assert items[0].total_support == 3
+    assert items[0].reason == "below_support_threshold"
+
+
+def test_submissions_count_as_implicit_endorsements() -> None:
+    """member_count alone can meet the support threshold (no explicit endorsements)."""
+    c_id = uuid4()
+    clusters = cast(list[Cluster], [FakeCluster(id=c_id, member_count=5)])
+    items = build_agenda(
+        clusters=clusters,
+        endorsement_counts={},
+        min_support=5,
+    )
+    assert items[0].qualifies is True
+    assert items[0].total_support == 5
 
 
 def test_empty_cluster_set() -> None:
     items = build_agenda(
         clusters=[],
         endorsement_counts={},
-        min_cluster_size=5,
-        min_preballot_endorsements=5,
+        min_support=5,
     )
     assert items == []
 
@@ -73,7 +73,20 @@ def test_all_qualifying_clusters_included() -> None:
     items = build_agenda(
         clusters=clusters,
         endorsement_counts=endorsement_counts,
-        min_cluster_size=5,
-        min_preballot_endorsements=5,
+        min_support=5,
     )
     assert sum(1 for item in items if item.qualifies) == 5
+
+
+def test_policy_key_carried_through() -> None:
+    c_id = uuid4()
+    clusters = cast(
+        list[Cluster],
+        [FakeCluster(id=c_id, member_count=10, policy_key="healthcare-access")],
+    )
+    items = build_agenda(
+        clusters=clusters,
+        endorsement_counts={str(c_id): 3},
+        min_support=5,
+    )
+    assert items[0].policy_key == "healthcare-access"

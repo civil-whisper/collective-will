@@ -45,15 +45,21 @@ Recommended config:
    - Telegram webhook status
    - Email transport status
 
-2. **Recent errors**
+2. **Recent errors with stack traces**
    - Last N errors with timestamp, component, level, message, request/run correlation id
+   - `OpsEventHandler` captures `exc_info` stack traces and exception types into event payloads
+   - Error events auto-expand in the UI to show full traceback
+   - Scheduler pipeline errors emitted as `scheduler.pipeline.error` event type with structured context
 
 3. **Recent operational events**
    - Key lifecycle events across auth, webhook intake, pipeline, voting, and email
    - Filter by event type, level, and time window
+   - Expandable payload detail on each event (key-value pairs + tracebacks)
+   - Quick filters: Scheduler/Pipeline, Failed requests, Completed requests
 
 4. **Background jobs**
    - Last run status, duration, and failure reason for pipeline/scheduler jobs
+   - Heartbeat detail column is `Text` (not `VARCHAR(256)`) so full error context fits
 
 ### API contracts
 

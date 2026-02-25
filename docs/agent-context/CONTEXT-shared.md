@@ -29,7 +29,7 @@ These are locked. Do not deviate.
 | **Cluster summaries** | `english_reasoning` tier defaults to Gemini 3.1 Pro. Mandatory fallback (Claude Sonnet) is required for risk management via abstraction config. |
 | **Policy option generation** | Web-grounded via `option_generation` tier: defaults to Gemini 3.1 Pro with Google Search grounding enabled. Full (untruncated) citizen submissions are passed to the LLM alongside web search for real-world policy context. Fallback: Claude Sonnet (no web search). |
 | **User-facing messages** | Locale-aware (Farsi + English, keyed by `user.locale`). LLM-generated content (rejection reasons) matches the input language. Template-based messages (confirmation, errors) use the `_MESSAGES` dict with locale selection. LLM tier `farsi_messages` defaults to Gemini 3.1 Pro with mandatory fallback (Claude Sonnet) via abstraction config. |
-| **Clustering** | HDBSCAN (runs locally in batch scheduler), with config-backed `min_cluster_size` per cycle (v0 default `5`, adjustable by config when needed). Unclustered items (noise) must be visible in analytics and never silently discarded. |
+| **Clustering** | LLM-driven policy-key grouping (primary). Each submission is assigned a stance-neutral `policy_topic` (browsing umbrella, e.g., "internet-censorship") and `policy_key` (ballot-level discussion, e.g., "political-internet-censorship") at canonicalization time. Clusters are persistent entities keyed by `policy_key`. Periodic LLM-based key normalization merges near-duplicate keys within each topic. HDBSCAN is retained as a legacy secondary path but is not the primary grouping mechanism. |
 | **Identity** | Email magic-link + WhatsApp account linking. No phone verification, no OAuth, no vouching. Signup controls: exempt major email providers from per-domain cap; enforce `MAX_SIGNUPS_PER_DOMAIN_PER_DAY=3` for non-major domains; enforce per-IP signup cap (`MAX_SIGNUPS_PER_IP_PER_DAY`) and keep telemetry signals (domain diversity, disposable-domain scoring, velocity logs). |
 | **Sealed account mapping** | Store messaging linkage as random opaque account refs (UUIDv4). Raw platform IDs (Telegram chat_id, WhatsApp wa_id) live only in the `sealed_account_mappings` DB table and are stripped from logs/exports. The sealed mapping is persisted to database (not in-memory) so it survives restarts. |
 | **Auth token persistence** | Magic link tokens and linking codes are stored in the `verification_tokens` DB table with expiry timestamps. No in-memory token storage — tokens must survive process restarts and be shared across background workers. |
@@ -254,6 +254,8 @@ domain: PolicyDomain
 summary: str                        # 1-3 sentences, always English
 summary_en: str | None              # Legacy; summary is already English
 stance: "support" | "oppose" | "neutral" | "unclear"  # "unclear" = model uncertainty; "neutral" = descriptive/no explicit side
+policy_topic: str                   # Stance-neutral umbrella topic (e.g., "internet-censorship"), lowercase-with-hyphens
+policy_key: str                     # Stance-neutral ballot-level discussion (e.g., "political-internet-censorship"), lowercase-with-hyphens
 entities: list[str]
 embedding: list[float]              # pgvector column
 confidence: float                   # 0-1
@@ -274,17 +276,23 @@ governance, economy, rights, foreign_policy, religion, ethnic, justice, other
 
 ```
 id: UUID
-cycle_id: UUID
+cycle_id: UUID | None               # Nullable — persistent clusters may not belong to a cycle
+policy_topic: str                   # Stance-neutral umbrella topic (e.g., "internet-censorship")
+policy_key: str                     # Unique stance-neutral ballot-level key (e.g., "political-internet-censorship")
 summary: str                        # Farsi
 summary_en: str | None
+ballot_question: str | None         # Stance-neutral English ballot question for endorsement step
+ballot_question_fa: str | None      # Farsi ballot question
 domain: PolicyDomain
 candidate_ids: list[UUID]
 member_count: int
 centroid_embedding: list[float]
 cohesion_score: float
 variance_flag: bool
-run_id: str
-random_seed: int
+needs_resummarize: bool             # True when cluster needs ballot question (re)generation
+last_summarized_count: int          # member_count at last summarization (for growth detection)
+run_id: str | None                  # Nullable — only set for HDBSCAN legacy path
+random_seed: int | None             # Nullable — only set for HDBSCAN legacy path
 clustering_params: dict
 approval_count: int
 created_at: datetime
@@ -446,10 +454,12 @@ collective-will/
 │   │   ├── __init__.py
 │   │   ├── llm.py               # LLM abstraction + router
 │   │   ├── privacy.py           # Strip metadata for LLM
-│   │   ├── canonicalize.py      # LLM canonicalization
-│   │   ├── embeddings.py        # Mistral embed
-│   │   ├── cluster.py           # HDBSCAN clustering
-│   │   ├── summarize.py         # Cluster summaries
+│   │   ├── canonicalize.py      # LLM canonicalization + policy_topic/policy_key assignment
+│   │   ├── embeddings.py        # Embedding computation
+│   │   ├── cluster.py           # Policy-key grouping (primary) + HDBSCAN (legacy)
+│   │   ├── normalize.py         # LLM-based key normalization within topics
+│   │   ├── endorsement.py       # Ballot question generation per policy_key
+│   │   ├── summarize.py         # Cluster summaries (legacy)
 │   │   ├── options.py           # LLM-generated per-policy stance options
 │   │   └── agenda.py            # Agenda building
 │   ├── models/

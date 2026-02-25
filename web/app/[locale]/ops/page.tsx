@@ -117,6 +117,7 @@ export default async function OpsPage({searchParams}: OpsPageProps) {
   ];
   const eventFilters: Array<{key: string; label: string}> = [
     {key: "", label: t("allEvents")},
+    {key: "scheduler.pipeline", label: t("schedulerEvents")},
     {key: "api.request.failed", label: t("failedRequests")},
     {key: "api.request.completed", label: t("completedRequests")},
   ];

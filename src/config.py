@@ -31,6 +31,7 @@ class Settings(BaseSettings):
     cluster_variance_stability_threshold: float = 0.6
     cluster_variance_random_seeds: str = "7,11,13"
     min_preballot_endorsements: int = 5
+    resummarize_growth_threshold: float = 0.5
     max_signups_per_domain_per_day: int = 3
     max_signups_per_ip_per_day: int = 10
     burst_quarantine_threshold_count: int = 3

@@ -272,6 +272,8 @@ async def resolve_submission_dispute(
                 summary=final_decision["summary"],
                 summary_en=None,
                 stance=final_decision["stance"],
+                policy_topic=final_decision.get("policy_topic", "unassigned"),
+                policy_key=final_decision.get("policy_key", "unassigned"),
                 entities=final_decision["entities"],
                 embedding=None,
                 confidence=final_decision["confidence"],

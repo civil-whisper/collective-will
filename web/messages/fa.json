@@ -164,6 +164,7 @@
     "warningsOnly": "فقط هشدارها",
     "infoOnly": "اطلاعات",
     "allEvents": "همه رویدادها",
+    "schedulerEvents": "زمان‌بند / پردازش",
     "failedRequests": "درخواست‌های ناموفق",
     "completedRequests": "درخواست‌های موفق",
     "jobs": "کارهای پس‌زمینه",

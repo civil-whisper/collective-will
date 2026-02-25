@@ -68,7 +68,9 @@ def run_clustering(
 
     clusters: list[ClusterCreate] = []
     for label, grouped in groups.items():
-        points = np.array([[float(v) for v in candidate.embedding or []] for candidate in grouped])
+        points = np.array(
+            [[float(v) for v in candidate.embedding] for candidate in grouped if candidate.embedding is not None]
+        )
         centroid = points.mean(axis=0).tolist() if len(points) else None
         cohesion = 0.0
         if len(points) > 1 and centroid is not None:
@@ -77,6 +79,8 @@ def run_clustering(
         clusters.append(
             ClusterCreate(
                 cycle_id=cycle_id,
+                policy_topic=f"hdbscan-cluster-{label}",
+                policy_key=f"hdbscan-cluster-{label}-{run_id[:8]}",
                 summary=f"Cluster {label}",
                 domain=_majority_domain(grouped),
                 candidate_ids=[candidate.id for candidate in grouped],
@@ -98,6 +102,31 @@ def run_clustering(
         random_seed=random_seed,
         clustering_params={"min_cluster_size": min_cluster_size, "min_samples": min_samples},
     )
+
+
+def group_by_policy_key(
+    *,
+    candidates: list[PolicyCandidate],
+) -> dict[str, list[PolicyCandidate]]:
+    """Group candidates by their LLM-assigned policy_key."""
+    groups: dict[str, list[PolicyCandidate]] = defaultdict(list)
+    for candidate in candidates:
+        key = candidate.policy_key
+        if key and key != "unassigned":
+            groups[key].append(candidate)
+    return dict(groups)
+
+
+def compute_centroid(candidates: list[PolicyCandidate]) -> list[float] | None:
+    """Compute centroid embedding from candidates that have embeddings."""
+    points = []
+    for c in candidates:
+        if c.embedding is not None:
+            points.append([float(v) for v in c.embedding])
+    if not points:
+        return None
+    arr = np.array(points, dtype=float)
+    return list(arr.mean(axis=0).tolist())
 
 
 def variance_check(

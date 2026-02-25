@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
-from sqlalchemy import DateTime, String, select
+from sqlalchemy import DateTime, String, Text, select
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Mapped, mapped_column
@@ -17,7 +17,7 @@ class SchedulerHeartbeat(Base):
     id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid4)
     last_run_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="ok")
-    detail: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    detail: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
 HEARTBEAT_SINGLETON_ID = UUID("00000000-0000-0000-0000-000000000001")

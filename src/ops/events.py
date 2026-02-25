@@ -125,6 +125,14 @@ class OpsEventHandler(logging.Handler):
         if not isinstance(payload, dict):
             payload = {"value": payload}
 
+        if record.exc_info and record.exc_info[1] is not None:
+            import traceback as _tb
+
+            payload["traceback"] = redact_text(
+                "".join(_tb.format_exception(*record.exc_info))
+            )
+            payload["exception_type"] = type(record.exc_info[1]).__name__
+
         ops_event_buffer.add(
             {
                 "timestamp": iso_now(),
