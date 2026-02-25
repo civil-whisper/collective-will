@@ -162,6 +162,7 @@ async def test_verify_valid_token(
     user = MagicMock()
     user.id = uuid4()
     user.email_verified = False
+    user.messaging_verified = False
     mock_get.return_value = user
     session = AsyncMock()
 
@@ -169,10 +170,43 @@ async def test_verify_valid_token(
     assert ok is True
     assert email == "test@example.com"
     assert web_session_code is not None
+    assert linking_code != "verified"
     assert user.email_verified is True
     assert mock_store.call_count == 2
     mock_consume.assert_called()
     mock_evidence.assert_called_once()
+
+
+@pytest.mark.asyncio
+@patch("src.handlers.identity.consume_token", new_callable=AsyncMock, return_value=True)
+@patch("src.handlers.identity.store_token", new_callable=AsyncMock)
+@patch("src.handlers.identity.lookup_token", new_callable=AsyncMock, return_value=("test@example.com", False))
+@patch("src.handlers.identity.get_user_by_email", new_callable=AsyncMock)
+@patch("src.handlers.identity.append_evidence", new_callable=AsyncMock)
+@patch("src.handlers.identity.get_settings")
+async def test_verify_already_linked_returns_verified(
+    mock_settings: MagicMock,
+    mock_evidence: AsyncMock,
+    mock_get: AsyncMock,
+    mock_lookup: AsyncMock,
+    mock_store: AsyncMock,
+    mock_consume: AsyncMock,
+) -> None:
+    mock_settings.return_value.linking_code_expiry_minutes = 60
+    mock_settings.return_value.web_session_code_expiry_minutes = 10
+    user = MagicMock()
+    user.id = uuid4()
+    user.email_verified = True
+    user.messaging_verified = True
+    mock_get.return_value = user
+    session = AsyncMock()
+
+    ok, status, email, web_session_code = await verify_magic_link(session=session, token="tok123")
+    assert ok is True
+    assert status == "verified"
+    assert email == "test@example.com"
+    assert web_session_code is not None
+    assert mock_store.call_count == 1  # only web_session, no linking_code
 
 
 @pytest.mark.asyncio

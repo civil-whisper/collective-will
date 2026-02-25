@@ -4,9 +4,10 @@ import {afterEach, beforeEach, describe, expect, it, vi} from "vitest";
 
 let mockSearchParams = new URLSearchParams();
 const mockSignIn = vi.hoisted(() => vi.fn());
+const mockReplace = vi.hoisted(() => vi.fn());
 
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({push: vi.fn(), replace: vi.fn(), back: vi.fn()}),
+  useRouter: () => ({push: vi.fn(), replace: mockReplace, back: vi.fn(), refresh: vi.fn()}),
   usePathname: () => "/en/verify",
   useSearchParams: () => mockSearchParams,
 }));
@@ -21,6 +22,7 @@ describe("VerifyPage", () => {
   beforeEach(() => {
     mockSearchParams = new URLSearchParams();
     mockSignIn.mockReset();
+    mockReplace.mockReset();
   });
 
   afterEach(() => {
@@ -47,8 +49,9 @@ describe("VerifyPage", () => {
     expect(screen.getByText("Verifying your email...")).toBeTruthy();
   });
 
-  it("shows success after API verification", async () => {
+  it("redirects to home when user is already linked (status=verified)", async () => {
     mockSearchParams = new URLSearchParams("token=valid-token");
+    mockSignIn.mockResolvedValue({ok: true});
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValue({
@@ -62,7 +65,7 @@ describe("VerifyPage", () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByRole("heading")).toHaveTextContent("Email Verified!");
+      expect(mockReplace).toHaveBeenCalledWith("/en");
     });
     expect(mockSignIn).toHaveBeenCalledWith("credentials", {
       email: "user@example.com",
@@ -135,7 +138,7 @@ describe("VerifyPage", () => {
     expect(botLink.closest("a")?.getAttribute("href")).toContain("t.me/");
   });
 
-  it("does not display linking code when status is 'verified'", async () => {
+  it("redirects without showing linking code when status is 'verified'", async () => {
     mockSearchParams = new URLSearchParams("token=valid-token");
     vi.stubGlobal(
       "fetch",
@@ -150,7 +153,7 @@ describe("VerifyPage", () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByRole("heading")).toHaveTextContent("Email Verified!");
+      expect(mockReplace).toHaveBeenCalledWith("/en");
     });
     expect(screen.queryByText(/send this code to our telegram bot/i)).toBeNull();
   });

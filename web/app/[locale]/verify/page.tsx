@@ -30,7 +30,6 @@ export default function VerifyPage() {
     }
     apiPost<{status: string; email?: string; web_session_code?: string}>(`/auth/verify/${token}`, {})
       .then(async (result) => {
-        setStatus("success");
         if (result.email) {
           setUserEmailCookie(result.email);
         }
@@ -44,8 +43,13 @@ export default function VerifyPage() {
             router.refresh();
           }
         }
-        if (result.status && result.status !== "verified") {
-          setLinkingCode(result.status);
+        if (result.status === "verified") {
+          router.replace(`/${locale}`);
+        } else {
+          setStatus("success");
+          if (result.status) {
+            setLinkingCode(result.status);
+          }
         }
       })
       .catch((err) => {

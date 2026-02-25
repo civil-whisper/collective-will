@@ -103,14 +103,19 @@ async def verify_magic_link(
     user.email_verified = True
     user.last_active_at = datetime.now(UTC)
 
-    linking_code = create_linking_code()
-    await store_token(
-        session,
-        token=linking_code,
-        email=email,
-        token_type="linking_code",
-        expiry_minutes=settings.linking_code_expiry_minutes,
-    )
+    already_linked = user.messaging_verified
+
+    linking_code: str | None = None
+    if not already_linked:
+        linking_code = create_linking_code()
+        await store_token(
+            session,
+            token=linking_code,
+            email=email,
+            token_type="linking_code",
+            expiry_minutes=settings.linking_code_expiry_minutes,
+        )
+
     web_session_code = create_web_session_code()
     await store_token(
         session,
@@ -130,7 +135,7 @@ async def verify_magic_link(
         payload={"method": "email_magic_link", "user_id": str(user.id)},
     )
     await session.commit()
-    return True, linking_code, email, web_session_code
+    return True, linking_code or "verified", email, web_session_code
 
 
 async def exchange_web_session_code(
