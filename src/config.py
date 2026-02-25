@@ -57,16 +57,18 @@ class Settings(BaseSettings):
     ops_admin_emails: str = ""
     ops_event_buffer_size: int = 500
 
-    canonicalization_model: str = "claude-sonnet-4-20250514"
+    canonicalization_model: str = "gemini-3.1-pro-preview"
     canonicalization_fallback_model: str = "claude-sonnet-4-20250514"
-    farsi_messages_model: str = "claude-sonnet-4-20250514"
+    farsi_messages_model: str = "gemini-3.1-pro-preview"
     farsi_messages_fallback_model: str = "claude-sonnet-4-20250514"
-    english_reasoning_model: str = "claude-sonnet-4-20250514"
-    english_reasoning_fallback_model: str = "deepseek-chat"
-    dispute_resolution_model: str = "claude-opus-4-20250514"
+    english_reasoning_model: str = "gemini-3.1-pro-preview"
+    english_reasoning_fallback_model: str = "claude-sonnet-4-20250514"
+    option_generation_model: str = "gemini-3.1-pro-preview"
+    option_generation_fallback_model: str = "claude-sonnet-4-20250514"
+    dispute_resolution_model: str = "gemini-3.1-pro-preview"
     dispute_resolution_fallback_model: str = "claude-sonnet-4-20250514"
     dispute_resolution_ensemble_models: str = (
-        "claude-opus-4-20250514,claude-sonnet-4-20250514,deepseek-chat"
+        "gemini-3.1-pro-preview,claude-sonnet-4-20250514"
     )
     dispute_resolution_confidence_threshold: float = 0.75
 
@@ -77,8 +79,8 @@ class Settings(BaseSettings):
     witness_api_url: str = "https://api.witness.co"
     witness_api_key: str | None = None
 
-    embedding_model: str = "text-embedding-3-large"
-    embedding_fallback_model: str = "mistral-embed"
+    embedding_model: str = "gemini-embedding-001"
+    embedding_fallback_model: str = "text-embedding-3-large"
     llm_max_retries: int = 3
     llm_completion_retry_backoff_base_seconds: float = 0.1
     llm_embedding_retry_backoff_base_seconds: float = 0.5

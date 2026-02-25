@@ -15,10 +15,14 @@ TASK_TIERS: dict[str, tuple[str, str]] = {
     "canonicalization": ("canonicalization_model", "canonicalization_fallback_model"),
     "farsi_messages": ("farsi_messages_model", "farsi_messages_fallback_model"),
     "english_reasoning": ("english_reasoning_model", "english_reasoning_fallback_model"),
+    "option_generation": ("option_generation_model", "option_generation_fallback_model"),
     "dispute_resolution": ("dispute_resolution_model", "dispute_resolution_fallback_model"),
 }
 
-TierName = Literal["canonicalization", "farsi_messages", "english_reasoning", "dispute_resolution"]
+TierName = Literal[
+    "canonicalization", "farsi_messages", "english_reasoning",
+    "option_generation", "dispute_resolution",
+]
 
 
 class LLMResponse(BaseModel):
@@ -97,6 +101,7 @@ class LLMRouter:
         max_tokens: int | None = None,
         temperature: float | None = None,
         timeout_s: float | None = None,
+        grounding: bool = False,
     ) -> dict[str, Any]:
         max_tokens, temperature, timeout_s = self._completion_call_params(
             max_tokens=max_tokens,
@@ -138,6 +143,8 @@ class LLMRouter:
                 }
                 if system_prompt:
                     gemini_body["systemInstruction"] = {"parts": [{"text": system_prompt}]}
+                if grounding:
+                    gemini_body["tools"] = [{"google_search": {}}]
                 url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
                 response = await client.post(
                     url,
@@ -190,6 +197,7 @@ class LLMRouter:
         max_tokens: int | None = None,
         temperature: float | None = None,
         timeout_s: float | None = None,
+        grounding: bool = False,
     ) -> dict[str, Any]:
         max_tokens, temperature, timeout_s = self._completion_call_params(
             max_tokens=max_tokens,
@@ -208,6 +216,7 @@ class LLMRouter:
                     max_tokens=max_tokens,
                     temperature=temperature,
                     timeout_s=timeout_s,
+                    grounding=grounding,
                 )
             except httpx.HTTPStatusError as exc:
                 if exc.response.status_code in self._non_retriable_status_codes:
@@ -232,11 +241,13 @@ class LLMRouter:
         max_tokens: int | None = None,
         temperature: float | None = None,
         timeout_s: float | None = None,
+        grounding: bool = False,
     ) -> LLMResponse:
         primary, fallback = self._resolve_tier_models(tier)
         models = [primary] + ([fallback] if fallback else [])
         errors: list[Exception] = []
         for model in models:
+            use_grounding = grounding and self._provider_for_model(model) == "google"
             try:
                 payload = await self._call_with_retries(
                     model=model,
@@ -245,6 +256,7 @@ class LLMRouter:
                     max_tokens=max_tokens,
                     temperature=temperature,
                     timeout_s=timeout_s,
+                    grounding=use_grounding,
                 )
                 usage = payload.get("usage", {})
                 cost = self._estimate_completion_cost(model=model, usage=usage)

@@ -145,6 +145,24 @@ def test_submissions_block_formats_candidates() -> None:
     assert "[oppose]" in block
 
 
+def test_submissions_block_includes_full_summary() -> None:
+    cluster = _make_cluster(1)
+    long_summary = "A" * 500
+    c = _make_candidate(cluster.candidate_ids[0])
+    c.summary = long_summary
+    block = _build_submissions_block(cluster, {c.id: c})
+    assert long_summary in block
+
+
+def test_submissions_block_includes_all_candidates() -> None:
+    cluster = _make_cluster(20)
+    candidates = {}
+    for cid in cluster.candidate_ids:
+        candidates[cid] = _make_candidate(cid)
+    block = _build_submissions_block(cluster, candidates)
+    assert block.count("Healthcare access") == 20
+
+
 def test_submissions_block_missing_candidates() -> None:
     cluster = _make_cluster(2)
     block = _build_submissions_block(cluster, {})
@@ -201,6 +219,10 @@ async def test_generate_policy_options_creates_records(mock_evidence: AsyncMock)
     session.add.assert_called()
     session.flush.assert_called()
     mock_evidence.assert_called_once()
+
+    call_kwargs = router.complete.call_args.kwargs
+    assert call_kwargs["tier"] == "option_generation"
+    assert call_kwargs["grounding"] is True
 
 
 @pytest.mark.asyncio

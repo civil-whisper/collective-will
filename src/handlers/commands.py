@@ -243,12 +243,11 @@ def _format_policy_message(
 # ---------------------------------------------------------------------------
 
 async def _send_main_menu(
-    locale: str, recipient_ref: str, channel: BaseChannel, hint: bool = False
+    locale: str, recipient_ref: str, channel: BaseChannel,
 ) -> None:
-    text = _msg(locale, "menu_hint") if hint else "⬇️"
     await channel.send_message(OutboundMessage(
         recipient_ref=recipient_ref,
-        text=text,
+        text=_msg(locale, "menu_hint"),
         reply_markup=_main_menu_markup(locale),
     ))
 
@@ -758,5 +757,5 @@ async def route_message(
         await _send_main_menu(user.locale, message.sender_ref, channel)
         return "submission_received"
 
-    await _send_main_menu(user.locale, message.sender_ref, channel, hint=True)
+    await _send_main_menu(user.locale, message.sender_ref, channel)
     return "menu_resent"

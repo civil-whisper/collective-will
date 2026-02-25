@@ -17,11 +17,11 @@ _DOMAINS = "governance, economy, rights, foreign_policy, religion, ethnic, justi
 _STANCES = "support, oppose, neutral, unclear"
 
 _SYSTEM_PROMPT = (
-    "You are processing civic policy proposals for a democratic deliberation platform. "
-    "Citizens submit policy ideas in any language (often Farsi or English). Your job is "
-    "to determine whether the input is a valid civic/policy proposal and, if so, convert "
-    "it into canonical structured form. All canonical output (title, summary, entities) "
-    "must be in English regardless of the input language."
+    "You are processing civic submissions for a democratic deliberation platform. "
+    "Citizens submit policy ideas, concerns, or questions in any language (often Farsi "
+    "or English). Your job is to determine whether the input relates to a civic or "
+    "policy topic and, if so, convert it into canonical structured form. All canonical "
+    "output (title, summary, entities) must be in English regardless of the input language."
 )
 
 
@@ -34,10 +34,15 @@ def _prompt_for_item(item: dict[str, Any]) -> str:
         "(translate if the input is in another language).\n"
         "- rejection_reason MUST be in the SAME LANGUAGE as the input "
         "(so the user can understand it).\n\n"
-        "VALIDITY: A valid proposal expresses a position, suggestion, or demand about "
-        "governance, laws, rights, economy, or public affairs. Invalid inputs include: "
-        "random text, greetings, personal questions, spam, platform questions, "
-        "or off-topic content.\n\n"
+        "VALIDITY: A valid submission is anything that relates to governance, laws, "
+        "rights, economy, foreign policy, or public affairs. This includes:\n"
+        "- Direct positions, suggestions, or demands ('We should do X')\n"
+        "- Questions or concerns about a policy topic ('What should happen with X?')\n"
+        "- Expressions of worry or interest in a public issue ('I'm concerned about X')\n"
+        "All of these are valid because they identify a policy topic citizens care about. "
+        "Invalid inputs include: random text, greetings, purely personal matters unrelated "
+        "to public policy, spam, platform questions ('how does this bot work?'), "
+        "or completely off-topic content.\n\n"
         "Required JSON fields:\n"
         "  is_valid_policy (bool): true if valid civic/policy proposal, false otherwise,\n"
         "  rejection_reason (str or null): if invalid, explain in the INPUT language,\n"

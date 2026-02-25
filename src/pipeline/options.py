@@ -29,10 +29,17 @@ submissions, generate distinct stance options that cover the realistic \
 spectrum of approaches. Each option should be a genuine, defensible position \
 with clear reasoning.
 
+You have access to web search. Use it to research how similar policies are \
+debated globally, what real-world implementations exist, and what common \
+political/policy positions apply. Ground your options in both the citizen \
+submissions AND real-world context.
+
 Rules:
 - Generate 2-4 options (never fewer than 2).
 - Each option must represent a meaningfully different approach, not just \
 different wording of the same idea.
+- Incorporate real-world examples, precedents, or established policy \
+frameworks where relevant.
 - Describe concrete trade-offs: what you gain AND what you give up.
 - Use accessible language — avoid jargon.
 - Be balanced: do NOT editorialize or favor one option.
@@ -63,17 +70,13 @@ Generate distinct stance options. Return a JSON array:
 def _build_submissions_block(
     cluster: Cluster,
     candidates_by_id: Mapping[UUID, PolicyCandidate],
-    max_samples: int = 15,
 ) -> str:
     lines: list[str] = []
-    for cid in cluster.candidate_ids[:max_samples]:
+    for cid in cluster.candidate_ids:
         candidate = candidates_by_id.get(cid)
         if candidate is None:
             continue
-        stance = candidate.stance
-        title = candidate.title
-        summary = candidate.summary[:200]
-        lines.append(f"- [{stance}] {title}: {summary}")
+        lines.append(f"- [{candidate.stance}] {candidate.title}: {candidate.summary}")
     return "\n".join(lines) if lines else "(no submissions available)"
 
 
@@ -129,11 +132,12 @@ async def generate_policy_options(
         model_version = "fallback"
         try:
             completion = await llm_router.complete(
-                tier="english_reasoning",
+                tier="option_generation",
                 prompt=prompt,
                 system_prompt=_SYSTEM_PROMPT,
                 max_tokens=2048,
                 temperature=0.3,
+                grounding=True,
             )
             parsed = _parse_options_json(completion.text)
             model_version = completion.model

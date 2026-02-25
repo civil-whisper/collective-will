@@ -34,25 +34,30 @@
 
 **Verdict**: **Keep with guardrail**
 
-## Decision: LLM-generated per-policy stance options
+## Decision: Web-grounded per-policy stance options
 
 **Why this is correct**
 
 - Captures the realistic spectrum of approaches for each policy topic, surfacing perspectives users may not have considered.
 - Moves beyond binary approve/reject to nuanced stance selection.
 - Options are bilingual (Farsi + English) matching the platform's locale support.
+- **Web search grounding** (Gemini + Google Search) ensures options reflect real-world policy discourse, established frameworks, and precedents from other countries — not just LLM training data.
+- Full (untruncated) citizen submissions are passed so the LLM sees the complete citizen voice, not a lossy sample.
 
 **Risk**
 
 - LLM-generated options could be biased, misleading, or of poor quality.
-- Generation adds latency and cost to the pipeline.
+- Web search adds latency (~1-3s) and cost ($14 per 1,000 grounded queries, 5,000/month free).
+- Search results could introduce external bias or irrelevant context.
 
 **Guardrail**
 
 - Fallback to generic support/oppose when LLM fails — voting is never blocked.
-- System prompt enforces nonpartisan, balanced, jargon-free output.
+- Non-Google fallback models run without grounding automatically (grounding parameter is provider-aware).
+- System prompt enforces nonpartisan, balanced, jargon-free output and instructs the model to incorporate real-world examples.
 - Options are capped at 2–4 per cluster (too many = decision fatigue, too few = insufficient nuance).
 - All generated options are evidence-logged (`policy_options_generated`) for auditability.
-- Keep model choice behind `tier="english_reasoning"` — no direct model IDs in business logic.
+- Keep model choice behind `tier="option_generation"` — no direct model IDs in business logic.
+- At v0 scale (handful of clusters per 48h cycle), search grounding cost is negligible.
 
 **Verdict**: **Keep with guardrail**

@@ -427,6 +427,22 @@ voting with LLM-generated options.
     - 17 voting handler tests (including selections and option_counts)
     - 13 pipeline options tests (parse, fallback, generation, schema)
 
+68. [done] Web-grounded policy option generation
+    - Added `option_generation` LLM tier (Gemini 3.1 Pro primary, Claude Sonnet fallback)
+    - Added `grounding: bool` parameter to `LLMRouter.complete()` — enables Google Search grounding for Gemini provider, auto-disabled for non-Google fallback
+    - Removed 200-char summary truncation and 15-candidate cap — full submissions passed to LLM
+    - Updated system prompt to instruct LLM to search for real-world policy precedents
+    - Added 5 new tests (3 LLM grounding + 2 submissions block coverage)
+
+69. [done] Gemini-first model strategy + broadened canonicalization validity
+    - Switched all primary LLM tiers to `gemini-3.1-pro-preview` (better performance, lower cost)
+    - All fallbacks set to `claude-sonnet-4-20250514` for cross-provider resilience
+    - Embeddings switched to `gemini-embedding-001` primary, `text-embedding-3-large` fallback
+    - Removed DeepSeek from dispute ensemble (not yet available)
+    - Updated `config.py` defaults and `deploy/public.env.staging` to match
+    - Broadened canonicalization validity: now accepts questions, concerns, and expressions of interest about policy topics (not just explicit positions/demands)
+    - Rationale: questions and stances cluster together by topic; the option generator creates votable stances from the cluster
+
 ### P0 — Inline Canonicalization & Garbage Rejection
 
 Design rationale: `docs/decision-rationale/pipeline/08-batch-scheduler.md`, `docs/decision-rationale/pipeline/03-canonicalization.md`

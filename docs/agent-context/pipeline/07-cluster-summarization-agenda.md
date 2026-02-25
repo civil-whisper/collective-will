@@ -104,23 +104,25 @@ async def generate_policy_options(
 ```
 
 Steps:
-1. For each cluster, build a submissions block from member candidates (title, summary, stance)
-2. Call LLM with `tier="english_reasoning"` to generate 2–4 stance options with bilingual labels and descriptions
+1. For each cluster, build a submissions block from ALL member candidates — full title, summary, and stance with no truncation
+2. Call LLM with `tier="option_generation"` and `grounding=True` to generate 2–4 stance options with bilingual labels and descriptions. The primary model (Gemini Flash) uses Google Search to research real-world policy positions.
 3. Parse JSON output, validate 2–4 options with required fields (label, label_en, description, description_en)
 4. Create `PolicyOption` records linked to the cluster
 5. Log `policy_options_generated` evidence event
-6. On LLM failure: fall back to generic Support/Oppose binary options with `model_version="fallback"`
+6. On LLM failure: fall back to generic Support/Oppose binary options with `model_version="fallback"`. The fallback model (Claude Sonnet) runs without web search.
 
 The options are used in the per-policy voting flow (see `messaging/08-message-commands`).
 
 ## Constraints
 
 - Only aggregated/anonymized content is sent to the LLM. Never individual submissions or user data.
+- Full candidate summaries are passed without truncation — the LLM sees the complete citizen input.
 - Ballot inclusion requires BOTH gates: size threshold and endorsement-signature threshold. No editorial filtering beyond these gates.
 - Small clusters (below threshold) are NOT deleted. They remain visible on the analytics dashboard but don't appear in the voting ballot.
 - Summary generation must always have a fallback path configured for risk management (`english_reasoning_fallback_model`).
 - Policy option generation must have a fallback path (generic support/oppose) so voting is never blocked by LLM failures.
-- Keep provider/model choice behind `tier="english_reasoning"` only; these modules must not hardcode provider model IDs.
+- Web search grounding (`grounding=True`) is only applied when the provider supports it (currently Gemini). Non-Google fallback models run without grounding automatically.
+- Keep provider/model choice behind config-backed tiers only; these modules must not hardcode provider model IDs.
 
 ## Tests
 
@@ -145,8 +147,9 @@ Tests in `tests/test_pipeline/test_summarize.py`, `tests/test_pipeline/test_agen
 
 **Options (tests/test_pipeline/test_options.py):**
 - `_parse_options_json()` handles valid JSON, markdown fences, truncation to 4, rejects < 2 options
-- `_build_submissions_block()` formats candidates with stance labels
+- `_build_submissions_block()` formats candidates with stance labels, includes full summaries, includes all candidates
 - `_fallback_options()` produces 2 generic support/oppose options
+- `generate_policy_options()` calls with `tier="option_generation"` and `grounding=True`
 - `generate_policy_options()` creates PolicyOption records via LLM
 - `generate_policy_options()` uses fallback on LLM error
 - `PolicyOptionCreate` schema validation (rejects empty label, zero position)

@@ -16,11 +16,12 @@ Create a unified LLM interface with task-based routing to quality-first models i
 
 | Tier | Model | Use case | API |
 |------|-------|----------|-----|
-| `canonicalization` | Claude Sonnet | Canonicalization (Farsi→English), structured extraction | Anthropic Messages API |
-| `farsi_messages` | Claude Sonnet (v0 default) | User-facing Farsi messages (notifications/prompts) | Anthropic Messages API |
-| `english_reasoning` | Claude Sonnet (v0 default) | Cluster summaries, complex English reasoning | Anthropic Messages API |
-| `dispute_resolution` | Claude Opus (v0 default) | Autonomous dispute adjudication and resolution rationale | Anthropic Messages API (+ optional ensemble tie-break) |
-| `embedding` | OpenAI `text-embedding-3-large` (v0 default) | Compute vectors for clustering | OpenAI Embeddings API |
+| `canonicalization` | Gemini 3.1 Pro (v0 default) | Canonicalization (Farsi→English), structured extraction | Gemini generateContent API |
+| `farsi_messages` | Gemini 3.1 Pro (v0 default) | User-facing Farsi messages (notifications/prompts) | Gemini generateContent API |
+| `english_reasoning` | Gemini 3.1 Pro (v0 default) | Cluster summaries, complex English reasoning | Gemini generateContent API |
+| `option_generation` | Gemini 3.1 Pro (v0 default) | Per-policy stance option generation with Google Search grounding | Gemini generateContent API (with `grounding=True`) |
+| `dispute_resolution` | Gemini 3.1 Pro (v0 default) | Autonomous dispute adjudication and resolution rationale | Gemini generateContent API (+ optional ensemble tie-break) |
+| `embedding` | Gemini `gemini-embedding-001` (v0 default) | Compute vectors for clustering | Gemini batchEmbedContents API |
 
 ### Config-driven model registry
 
@@ -34,6 +35,8 @@ class LLMRouterConfig(BaseModel):
     farsi_messages_fallback_model: str
     english_reasoning_model: str
     english_reasoning_fallback_model: str
+    option_generation_model: str
+    option_generation_fallback_model: str
     dispute_resolution_model: str
     dispute_resolution_fallback_model: str
     dispute_resolution_ensemble_models: str
@@ -49,6 +52,8 @@ Routing behavior:
 - On retry exhaustion for farsi_messages, mandatory fallback -> `settings.farsi_messages_fallback_model`
 - `tier="english_reasoning"` -> `settings.english_reasoning_model`
 - On retry exhaustion for english_reasoning, mandatory fallback -> `settings.english_reasoning_fallback_model`
+- `tier="option_generation"` -> `settings.option_generation_model` (Gemini 3.1 Pro with Google Search grounding when `grounding=True`)
+- On retry exhaustion for option_generation, mandatory fallback -> `settings.option_generation_fallback_model` (grounding auto-disabled for non-Google providers)
 - `tier="dispute_resolution"` -> `settings.dispute_resolution_model`
 - On retry exhaustion for dispute_resolution, mandatory fallback -> `settings.dispute_resolution_fallback_model`
 - If dispute confidence is below `settings.dispute_resolution_confidence_threshold`, escalate via fallback/ensemble tie-break path
@@ -61,15 +66,17 @@ Routing behavior:
 ```python
 async def complete(
     prompt: str,
-    tier: Literal["canonicalization", "farsi_messages", "english_reasoning", "dispute_resolution"],
+    tier: Literal["canonicalization", "farsi_messages", "english_reasoning", "option_generation", "dispute_resolution"],
     system_prompt: str | None = None,
     max_tokens: int = 1024,
     temperature: float = 0.0,
+    grounding: bool = False,
 ) -> LLMResponse:
 ```
 
 - Routes to the correct API based on tier
 - Uses httpx async client
+- When `grounding=True` and provider is Google, adds `"tools": [{"google_search": {}}]` to the Gemini request for web search grounding. Non-Google providers silently ignore this parameter.
 - Returns structured response
 
 ```python

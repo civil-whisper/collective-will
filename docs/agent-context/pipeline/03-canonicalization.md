@@ -7,7 +7,7 @@
 - `database/04-evidence-store` (append_evidence)
 
 ## Goal
-Implement the canonicalization agent that turns freeform text (any language) into structured English PolicyCandidate records using Claude Sonnet. Supports both inline (single-item) and batch processing. Detects and rejects garbage/non-policy submissions with user-language feedback.
+Implement the canonicalization agent that turns freeform text (any language) into structured English PolicyCandidate records using the `canonicalization` tier (Gemini 3.1 Pro primary, Claude Sonnet fallback). Supports both inline (single-item) and batch processing. Detects and rejects garbage/non-policy submissions with user-language feedback.
 
 ## Files to create
 
@@ -23,9 +23,9 @@ Implement the canonicalization agent that turns freeform text (any language) int
 
 ### Validity assessment
 
-Each canonicalization call evaluates whether the input is a valid civic/policy proposal:
-- **Valid**: expresses a position, suggestion, or demand about governance, laws, rights, economy, or public affairs.
-- **Invalid**: random text, greetings, personal questions, spam, platform questions, off-topic content.
+Each canonicalization call evaluates whether the input relates to a civic/policy topic:
+- **Valid**: anything relating to governance, laws, rights, economy, foreign policy, or public affairs. This includes direct positions ("We should do X"), questions about policy topics ("What should happen with X?"), and expressions of concern or interest ("I'm worried about X"). All of these identify a policy topic citizens care about and will cluster together.
+- **Invalid**: random text, greetings, purely personal matters unrelated to public policy, spam, platform questions ("how does this bot work?"), off-topic content.
 
 The LLM returns `is_valid_policy` (bool) and `rejection_reason` (str or null) alongside canonical fields.
 
@@ -85,21 +85,26 @@ Steps:
 ### Prompt template
 
 ```
-You are processing civic policy proposals for a democratic deliberation platform.
-Citizens submit policy ideas in any language (often Farsi or English). Your job is
-to determine whether the input is a valid civic/policy proposal and, if so, convert
-it into canonical structured form. All canonical output (title, summary, entities)
-must be in English regardless of the input language.
+You are processing civic submissions for a democratic deliberation platform.
+Citizens submit policy ideas, concerns, or questions in any language (often Farsi
+or English). Your job is to determine whether the input relates to a civic or
+policy topic and, if so, convert it into canonical structured form. All canonical
+output (title, summary, entities) must be in English regardless of the input language.
 
 LANGUAGE RULES:
 - Detect the input language automatically.
 - title, summary, and entities MUST always be in English (translate if needed).
 - rejection_reason MUST be in the SAME LANGUAGE as the input.
 
-VALIDITY: A valid proposal expresses a position, suggestion, or demand about
-governance, laws, rights, economy, or public affairs. Invalid inputs include:
-random text, greetings, personal questions, spam, platform questions, or
-off-topic content.
+VALIDITY: A valid submission is anything that relates to governance, laws,
+rights, economy, foreign policy, or public affairs. This includes:
+- Direct positions, suggestions, or demands ('We should do X')
+- Questions or concerns about a policy topic ('What should happen with X?')
+- Expressions of worry or interest in a public issue ('I'm concerned about X')
+All of these are valid because they identify a policy topic citizens care about.
+Invalid inputs include: random text, greetings, purely personal matters unrelated
+to public policy, spam, platform questions ('how does this bot work?'), or
+completely off-topic content.
 
 Required JSON fields:
   is_valid_policy (bool): true if valid civic/policy proposal, false otherwise,

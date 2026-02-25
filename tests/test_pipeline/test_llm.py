@@ -24,6 +24,8 @@ def _settings(**overrides: str) -> Settings:
         "farsi_messages_fallback_model": "claude-sonnet-4-20250514",
         "english_reasoning_model": "claude-sonnet-4-20250514",
         "english_reasoning_fallback_model": "deepseek-chat",
+        "option_generation_model": "gemini-2.5-flash",
+        "option_generation_fallback_model": "claude-sonnet-4-20250514",
         "dispute_resolution_model": "claude-opus-4-20250514",
         "dispute_resolution_fallback_model": "claude-sonnet-4-20250514",
         "embedding_model": "text-embedding-3-large",
@@ -362,7 +364,58 @@ def test_gemini_cost_estimates() -> None:
     assert pro_cost < sonnet_cost  # gemini pro cheaper than sonnet
 
 
-# --- 23. Gemini embedding routes correctly ---
+# --- 23. option_generation tier routes to Gemini with grounding ---
+@pytest.mark.asyncio
+async def test_option_generation_routes_to_gemini() -> None:
+    router = LLMRouter(settings=_settings())
+    calls: list[tuple[str, bool]] = []
+
+    async def _fake(*, model: str, grounding: bool = False, **kw: object) -> dict[str, object]:
+        calls.append((model, grounding))
+        return _make_completion_payload()
+
+    router._call_with_retries = _fake  # type: ignore[method-assign]
+    await router.complete(tier="option_generation", prompt="x", grounding=True)
+    assert calls[0][0] == "gemini-2.5-flash"
+    assert calls[0][1] is True
+
+
+# --- 24. grounding is disabled for non-Google fallback ---
+@pytest.mark.asyncio
+async def test_grounding_disabled_for_non_google_fallback() -> None:
+    router = LLMRouter(settings=_settings())
+    calls: list[tuple[str, bool]] = []
+
+    async def _fake(*, model: str, grounding: bool = False, **kw: object) -> dict[str, object]:
+        calls.append((model, grounding))
+        if "gemini" in model:
+            raise RuntimeError("gemini down")
+        return _make_completion_payload()
+
+    router._call_with_retries = _fake  # type: ignore[method-assign]
+    result = await router.complete(tier="option_generation", prompt="x", grounding=True)
+    assert len(calls) == 2
+    assert calls[0] == ("gemini-2.5-flash", True)
+    assert calls[1] == ("claude-sonnet-4-20250514", False)
+    assert result.model == "claude-sonnet-4-20250514"
+
+
+# --- 25. grounding=False does not add tools ---
+@pytest.mark.asyncio
+async def test_grounding_false_no_tools() -> None:
+    router = LLMRouter(settings=_settings())
+    calls: list[tuple[str, bool]] = []
+
+    async def _fake(*, model: str, grounding: bool = False, **kw: object) -> dict[str, object]:
+        calls.append((model, grounding))
+        return _make_completion_payload()
+
+    router._call_with_retries = _fake  # type: ignore[method-assign]
+    await router.complete(tier="option_generation", prompt="x", grounding=False)
+    assert calls[0][1] is False
+
+
+# --- 26. Gemini embedding routes correctly ---
 @pytest.mark.asyncio
 async def test_embed_routes_to_gemini_when_configured() -> None:
     router = LLMRouter(settings=_settings(
