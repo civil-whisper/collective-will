@@ -74,7 +74,7 @@ export default async function AnalyticsPage() {
     key: c.id,
     label: (
       <Link
-        href={`/${locale}/analytics/clusters/${c.id}`}
+        href={`/${locale}/collective-concerns/clusters/${c.id}`}
         className="text-gray-900 hover:text-accent dark:text-slate-100 dark:hover:text-indigo-300"
       >
         {c.summary}
@@ -135,7 +135,7 @@ export default async function AnalyticsPage() {
             {sortedClusters.map((cluster) => (
               <Link
                 key={cluster.id}
-                href={`/${locale}/analytics/clusters/${cluster.id}`}
+                href={`/${locale}/collective-concerns/clusters/${cluster.id}`}
                 className="flex items-center justify-between rounded-lg border border-gray-200 bg-white px-5 py-4 transition-colors hover:bg-gray-50 dark:border-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700"
               >
                 <div className="min-w-0 flex-1">
@@ -217,13 +217,13 @@ export default async function AnalyticsPage() {
       {/* Footer links */}
       <div className="flex items-center gap-4 text-sm">
         <Link
-          href={`/${locale}/analytics/top-policies`}
+          href={`/${locale}/collective-concerns/top-policies`}
           className="font-medium text-accent hover:underline"
         >
           {t("topPolicies")} →
         </Link>
         <Link
-          href={`/${locale}/analytics/evidence`}
+          href={`/${locale}/collective-concerns/evidence`}
           className="font-medium text-accent hover:underline"
         >
           {t("evidence")} →

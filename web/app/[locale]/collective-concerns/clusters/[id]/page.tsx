@@ -65,7 +65,7 @@ export default async function ClusterDetailPage({params}: Props) {
         <MetricCard label={t("approvalCount")} value={cluster.approval_count.toLocaleString()} />
         <MetricCard label={t("domain")} value={cluster.domain.replace(/_/g, " ")} />
         <Link
-          href={`/${locale}/analytics/evidence?entity=${id}`}
+          href={`/${locale}/collective-concerns/evidence?entity=${id}`}
           className="flex items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-medium text-accent transition-colors hover:bg-accent/5 dark:border-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700"
         >
           <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>

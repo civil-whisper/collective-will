@@ -2,7 +2,7 @@ import React, {act} from "react";
 import {render, screen, fireEvent, waitFor} from "@testing-library/react";
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest";
 
-import EvidencePage from "../app/[locale]/analytics/evidence/page";
+import EvidencePage from "../app/[locale]/collective-concerns/evidence/page";
 
 const SAMPLE_ENTRIES = [
   {

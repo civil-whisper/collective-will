@@ -13,23 +13,23 @@ describe("NavBar", () => {
     const links = screen.getAllByRole("link");
     const hrefs = links.map((link) => link.getAttribute("href"));
     expect(hrefs).toContain("/en");
-    expect(hrefs).toContain("/en/analytics");
-    expect(hrefs).toContain("/en/analytics/top-policies");
-    expect(hrefs).toContain("/en/dashboard");
-    expect(hrefs).toContain("/en/analytics/evidence");
-    expect(hrefs).toContain("/en/signup");
+    expect(hrefs).toContain("/en/collective-concerns");
+    expect(hrefs).toContain("/en/collective-concerns/top-policies");
+    expect(hrefs).toContain("/en/my-activity");
+    expect(hrefs).toContain("/en/collective-concerns/evidence");
+    expect(hrefs).toContain("/en/sign-in");
   });
 
   it("renders signup button when not logged in", () => {
     render(<NavBar showOpsLink={false} />);
-    const signupLinks = screen.getAllByText("Sign Up");
-    expect(signupLinks.length).toBeGreaterThanOrEqual(1);
+    const signInLinks = screen.getAllByText("Sign In");
+    expect(signInLinks.length).toBeGreaterThanOrEqual(1);
   });
 
   it("renders user email instead of signup when logged in", () => {
     render(<NavBar showOpsLink={false} userEmail="test@example.com" />);
     expect(screen.getAllByText("test@example.com").length).toBeGreaterThanOrEqual(1);
-    expect(screen.queryByText("Sign Up")).toBeNull();
+    expect(screen.queryByText("Sign In")).toBeNull();
   });
 
   it("renders Home link text", () => {
@@ -38,14 +38,14 @@ describe("NavBar", () => {
     expect(homeLinks.length).toBeGreaterThanOrEqual(1);
   });
 
-  it("renders Analytics link text", () => {
+  it("renders Collective Concerns link text", () => {
     render(<NavBar showOpsLink={false} />);
-    expect(screen.getAllByText("Analytics").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText("Collective Concerns").length).toBeGreaterThanOrEqual(1);
   });
 
-  it("renders Dashboard link text", () => {
+  it("renders My Activity link text", () => {
     render(<NavBar showOpsLink={false} />);
-    expect(screen.getAllByText("Dashboard").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText("My Activity").length).toBeGreaterThanOrEqual(1);
   });
 
   it("renders Audit link text", () => {

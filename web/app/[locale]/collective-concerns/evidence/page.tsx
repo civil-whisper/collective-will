@@ -207,7 +207,7 @@ export default function EvidencePage() {
         <div className="flex items-center gap-2 rounded-lg bg-blue-50 px-4 py-2 text-sm text-blue-700 dark:bg-blue-900/20 dark:text-blue-300">
           <span>Filtered by entity: <code className="font-mono text-xs">{entityFilter}</code></span>
           <Link
-            href={`/${locale}/analytics/evidence`}
+            href={`/${locale}/collective-concerns/evidence`}
             className="ms-2 text-xs underline hover:no-underline"
           >
             Clear filter

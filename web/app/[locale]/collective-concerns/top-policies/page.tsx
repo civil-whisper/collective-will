@@ -53,7 +53,7 @@ export default async function TopPoliciesPage() {
                 {/* Content */}
                 <div className="min-w-0 flex-1">
                   <Link
-                    href={`/${locale}/analytics/clusters/${item.cluster_id}`}
+                    href={`/${locale}/collective-concerns/clusters/${item.cluster_id}`}
                     className="font-medium text-gray-900 hover:text-accent dark:text-slate-100 dark:hover:text-indigo-300"
                   >
                     {item.summary ?? item.cluster_id}
@@ -80,7 +80,7 @@ export default async function TopPoliciesPage() {
                     </p>
                   </div>
                   <Link
-                    href={`/${locale}/analytics/evidence?entity=${item.cluster_id}`}
+                    href={`/${locale}/collective-concerns/evidence?entity=${item.cluster_id}`}
                     className="rounded p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-accent dark:hover:bg-slate-700"
                     title={t("viewAuditTrail")}
                   >

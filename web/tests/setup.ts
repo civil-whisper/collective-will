@@ -53,7 +53,7 @@ vi.mock("next-intl/server", () => ({
 const mockPush = vi.fn();
 vi.mock("next/navigation", () => ({
   useRouter: () => ({push: mockPush, replace: vi.fn(), back: vi.fn()}),
-  usePathname: () => "/en/analytics",
+  usePathname: () => "/en/collective-concerns",
   useSearchParams: () => new URLSearchParams(),
 }));
 

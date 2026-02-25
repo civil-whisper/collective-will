@@ -21,10 +21,10 @@ export function NavBar({showOpsLink, userEmail}: NavBarProps) {
 
   const links = [
     {href: `/${locale}`, label: t("home")},
-    {href: `/${locale}/analytics`, label: t("analytics")},
-    {href: `/${locale}/analytics/top-policies`, label: t("topPolicies")},
-    {href: `/${locale}/dashboard`, label: t("dashboard")},
-    {href: `/${locale}/analytics/evidence`, label: t("audit")},
+    {href: `/${locale}/my-activity`, label: t("dashboard")},
+    {href: `/${locale}/collective-concerns`, label: t("analytics")},
+    {href: `/${locale}/collective-concerns/top-policies`, label: t("topPolicies")},
+    {href: `/${locale}/collective-concerns/evidence`, label: t("audit")},
     ...(showOpsLink ? [{href: `/${locale}/ops`, label: t("ops")}] : []),
   ];
 

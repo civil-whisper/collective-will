@@ -2,7 +2,7 @@ import React from "react";
 import {render, screen} from "@testing-library/react";
 import {afterEach, describe, expect, it, vi} from "vitest";
 
-import TopPoliciesPage from "../app/[locale]/analytics/top-policies/page";
+import TopPoliciesPage from "../app/[locale]/collective-concerns/top-policies/page";
 
 function mockFetchWith(data: unknown) {
   vi.stubGlobal(
@@ -53,7 +53,7 @@ describe("TopPoliciesPage", () => {
     const jsx = await TopPoliciesPage();
     render(jsx);
     const link = screen.getByRole("link", {name: /Policy Alpha/});
-    expect(link.getAttribute("href")).toBe("/en/analytics/clusters/c1");
+    expect(link.getAttribute("href")).toBe("/en/collective-concerns/clusters/c1");
   });
 
   it("shows approval rate as percentage", async () => {

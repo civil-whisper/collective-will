@@ -111,7 +111,7 @@ export default async function LandingPage() {
             {t("trustDescription")}
           </p>
           <Link
-            href="./analytics/evidence"
+            href="./collective-concerns/evidence"
             className="mt-4 inline-block text-sm font-semibold text-accent hover:underline"
           >
             {nav("audit")} →

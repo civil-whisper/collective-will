@@ -7,7 +7,7 @@ import {LanguageSwitcher} from "../components/LanguageSwitcher";
 const mockPush = vi.fn();
 vi.mock("next/navigation", () => ({
   useRouter: () => ({push: mockPush, replace: vi.fn(), back: vi.fn()}),
-  usePathname: () => "/en/analytics",
+  usePathname: () => "/en/collective-concerns",
   useSearchParams: () => new URLSearchParams(),
 }));
 
@@ -22,7 +22,7 @@ describe("LanguageSwitcher", () => {
     mockPush.mockClear();
     render(<LanguageSwitcher />);
     fireEvent.click(screen.getByLabelText("فارسی"));
-    expect(mockPush).toHaveBeenCalledWith("/fa/analytics");
+    expect(mockPush).toHaveBeenCalledWith("/fa/collective-concerns");
   });
 
   it("keeps the path after locale segment when switching", () => {
@@ -30,6 +30,6 @@ describe("LanguageSwitcher", () => {
     render(<LanguageSwitcher />);
     fireEvent.click(screen.getByLabelText("فارسی"));
     const calledPath = mockPush.mock.calls[0][0];
-    expect(calledPath).toBe("/fa/analytics");
+    expect(calledPath).toBe("/fa/collective-concerns");
   });
 });

@@ -21,7 +21,6 @@ export default function VerifyPage() {
   const [errorDetail, setErrorDetail] = useState<"expired" | "invalid">("invalid");
   const [linkingCode, setLinkingCode] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
-  const [loggedIn, setLoggedIn] = useState(false);
 
   useEffect(() => {
     if (!token) {
@@ -42,7 +41,6 @@ export default function VerifyPage() {
             redirect: false,
           });
           if (signInResult?.ok) {
-            setLoggedIn(true);
             router.refresh();
           }
         }

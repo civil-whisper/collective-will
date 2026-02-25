@@ -115,7 +115,7 @@ export default async function DashboardPage() {
                 {sub.cluster && (
                   <div className="mt-3">
                     <Link
-                      href={`/${locale}/analytics/clusters/${sub.cluster.id}`}
+                      href={`/${locale}/collective-concerns/clusters/${sub.cluster.id}`}
                       className="inline-flex items-center gap-1 text-sm font-medium text-accent hover:underline"
                     >
                       {sub.cluster.summary}

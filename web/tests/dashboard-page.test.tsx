@@ -7,7 +7,7 @@ vi.mock("../lib/backend-auth", () => ({
   buildBearerHeaders: vi.fn((token: string) => ({Authorization: `Bearer ${token}`})),
 }));
 
-import DashboardPage from "../app/[locale]/dashboard/page";
+import DashboardPage from "../app/[locale]/my-activity/page";
 
 function mockFetchSequence(...responses: unknown[]) {
   const fn = vi.fn();
@@ -114,7 +114,7 @@ describe("DashboardPage", () => {
     render(jsx);
     const link = screen.getByRole("link", {name: /Fiscal cluster/});
     expect(link).toBeTruthy();
-    expect(link.getAttribute("href")).toBe("/en/analytics/clusters/c-42");
+    expect(link.getAttribute("href")).toBe("/en/collective-concerns/clusters/c-42");
   });
 
   it("shows DisputeStatus for submissions with open dispute", async () => {

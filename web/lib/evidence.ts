@@ -161,11 +161,11 @@ export function eventDescription(
 export function entityLink(entry: EvidenceEntry, locale: string): string | null {
   switch (entry.entity_type) {
     case "cluster":
-      return `/${locale}/analytics/clusters/${entry.entity_id}`;
+      return `/${locale}/collective-concerns/clusters/${entry.entity_id}`;
     case "voting_cycle":
-      return `/${locale}/analytics/top-policies`;
+      return `/${locale}/collective-concerns/top-policies`;
     case "vote":
-      return `/${locale}/analytics/top-policies`;
+      return `/${locale}/collective-concerns/top-policies`;
     default:
       return null;
   }

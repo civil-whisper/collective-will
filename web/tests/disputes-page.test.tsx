@@ -2,7 +2,7 @@ import React from "react";
 import {render, screen} from "@testing-library/react";
 import {describe, expect, it} from "vitest";
 
-import DisputesPage from "../app/[locale]/dashboard/disputes/page";
+import DisputesPage from "../app/[locale]/my-activity/disputes/page";
 
 describe("DisputesPage", () => {
   it("renders heading", () => {

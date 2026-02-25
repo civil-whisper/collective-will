@@ -2,7 +2,7 @@ import React from "react";
 import {render, screen} from "@testing-library/react";
 import {afterEach, describe, expect, it, vi} from "vitest";
 
-import AnalyticsPage from "../app/[locale]/analytics/page";
+import AnalyticsPage from "../app/[locale]/collective-concerns/page";
 
 function mockFetchSequence(...responses: unknown[]) {
   const fn = vi.fn();
@@ -68,7 +68,7 @@ describe("AnalyticsPage", () => {
     render(jsx);
     const links = screen.getAllByRole("link", {name: /Reform A/});
     expect(links.length).toBeGreaterThanOrEqual(1);
-    expect(links[0].getAttribute("href")).toBe("/en/analytics/clusters/c1");
+    expect(links[0].getAttribute("href")).toBe("/en/collective-concerns/clusters/c1");
   });
 
   it("shows variance flag when set", async () => {
@@ -113,9 +113,9 @@ describe("AnalyticsPage", () => {
     const jsx = await AnalyticsPage();
     render(jsx);
     const topLink = screen.getByRole("link", {name: /Top Policies/});
-    expect(topLink.getAttribute("href")).toBe("/en/analytics/top-policies");
+    expect(topLink.getAttribute("href")).toBe("/en/collective-concerns/top-policies");
     const evidenceLink = screen.getByRole("link", {name: /Evidence Chain/});
-    expect(evidenceLink.getAttribute("href")).toBe("/en/analytics/evidence");
+    expect(evidenceLink.getAttribute("href")).toBe("/en/collective-concerns/evidence");
   });
 
   it("shows pending-processing notice and unclustered candidates", async () => {

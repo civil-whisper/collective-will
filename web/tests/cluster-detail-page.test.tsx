@@ -2,7 +2,7 @@ import React from "react";
 import {render, screen} from "@testing-library/react";
 import {afterEach, describe, expect, it, vi} from "vitest";
 
-import ClusterDetailPage from "../app/[locale]/analytics/clusters/[id]/page";
+import ClusterDetailPage from "../app/[locale]/collective-concerns/clusters/[id]/page";
 
 function mockFetchWith(data: unknown) {
   vi.stubGlobal(
