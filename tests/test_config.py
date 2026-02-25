@@ -24,7 +24,7 @@ def _make_settings(monkeypatch: pytest.MonkeyPatch, **overrides: str) -> Setting
         monkeypatch.setenv(key, value)
     for key, value in overrides.items():
         monkeypatch.setenv(key, value)
-    return Settings()
+    return Settings(_env_file=None)
 
 
 # --- 1. Settings loads successfully ---
@@ -188,13 +188,13 @@ def test_farsi_messages_fallback_model_set(monkeypatch: pytest.MonkeyPatch) -> N
 # --- 17. english_reasoning_fallback_model is set ---
 def test_english_reasoning_fallback_model_set(monkeypatch: pytest.MonkeyPatch) -> None:
     settings = _make_settings(monkeypatch)
-    assert settings.english_reasoning_fallback_model == "deepseek-chat"
+    assert settings.english_reasoning_fallback_model == "claude-sonnet-4-20250514"
 
 
 # --- 18. dispute_resolution_model and fallback configurable ---
 def test_dispute_resolution_model_configurable(monkeypatch: pytest.MonkeyPatch) -> None:
     settings = _make_settings(monkeypatch)
-    assert settings.dispute_resolution_model == "claude-opus-4-20250514"
+    assert settings.dispute_resolution_model == "gemini-3.1-pro-preview"
     assert settings.dispute_resolution_fallback_model == "claude-sonnet-4-20250514"
 
     overridden = _make_settings(
@@ -209,7 +209,7 @@ def test_dispute_resolution_model_configurable(monkeypatch: pytest.MonkeyPatch) 
 # --- 19. dispute_resolution_ensemble_models configurable ---
 def test_dispute_resolution_ensemble_configurable(monkeypatch: pytest.MonkeyPatch) -> None:
     settings = _make_settings(monkeypatch)
-    assert len(settings.dispute_ensemble_model_list()) == 3
+    assert len(settings.dispute_ensemble_model_list()) == 2
 
     overridden = _make_settings(monkeypatch, DISPUTE_RESOLUTION_ENSEMBLE_MODELS="a,b")
     assert overridden.dispute_ensemble_model_list() == ["a", "b"]
