@@ -29,11 +29,20 @@ At canonicalization time (`canonicalize.py`), the LLM sees existing `policy_topi
 and `policy_key`s loaded from the `clusters` table. This context-aware prompt
 maximizes reuse of existing keys.
 
-### Stage 2 — Key Normalization (Batch)
+### Stage 2 — Hybrid Key Normalization (Batch)
 
-Periodically (`normalize.py`), for each `policy_topic` with multiple keys, an LLM
-reviews all keys and merges near-duplicates. Example: `political-internet-censorship`
-and `political-internet-filtering` would be merged.
+Periodically (`normalize.py`), a hybrid embedding + LLM approach normalizes keys:
+
+1. **Embedding-based candidate discovery**: All non-unassigned candidates with
+   embeddings are clustered using agglomerative clustering on cosine distance
+   (threshold `COSINE_SIMILARITY_THRESHOLD = 0.55`). This works **across all
+   topics**, not just within a single topic. The low threshold creates bigger
+   clusters so the LLM sees more context.
+2. **LLM key remapping**: For each embedding cluster containing 2+ distinct
+   `policy_key` values, the LLM receives **all full summaries** (up to 3 per key)
+   and produces a `key_mapping`: `{old_key: canonical_key}`. The LLM may keep
+   existing keys, merge several into one, or create a new key name that better
+   represents the group.
 
 ### Stage 3 — Ballot Question Generation (Batch)
 
@@ -68,12 +77,17 @@ The scheduler finds or creates clusters:
 - Growth detection: if member_count grows by `resummarize_growth_threshold` (default 50%),
   set `needs_resummarize=True` to trigger ballot question regeneration.
 
-### Key Normalization
+### Key Normalization (Hybrid Embedding + LLM)
 
 `normalize_policy_keys()` runs periodically:
-1. For each topic with 2+ keys, asks LLM to identify merge candidates
-2. `execute_key_merge()` reassigns candidates and deletes merged clusters
-3. Survivor cluster gets `needs_resummarize=True`
+1. Loads all non-unassigned candidates with embeddings from the DB
+2. Clusters by cosine similarity (agglomerative, threshold 0.55) across ALL topics
+3. For each cluster with 2+ distinct `policy_key` values, sends ALL full summaries
+   to LLM which produces a `key_mapping` (old→canonical, may create new keys)
+4. `execute_key_merge()` reassigns candidates and deletes merged clusters
+5. Survivor cluster gets `needs_resummarize=True`
+
+Key dependencies: `numpy`, `scipy` (for `pdist`, `linkage`, `fcluster`)
 
 ### Agenda Qualification
 
@@ -90,6 +104,9 @@ The agenda gate uses a single combined metric:
 ## Tests
 
 - `tests/test_pipeline/test_policy_grouping.py` — unit tests for grouping, slug sanitization, centroid
-- `tests/test_pipeline/test_normalize.py` — merge response parsing
+- `tests/test_pipeline/test_normalize.py` — merge response parsing, submissions block building, embedding clustering
 - `tests/test_pipeline/test_endorsement.py` — ballot response parsing
 - `tests/test_pipeline/test_agenda.py` — combined support gate
+- `tests/test_pipeline/test_grouping_integration.py` — end-to-end LLM grouping test (100 submissions,
+  serial canonicalization with cumulative context, interleaved normalization every 25 subs).
+  Run with `GENERATE_GROUPING_CACHE=1` to generate cache; excluded from CI.

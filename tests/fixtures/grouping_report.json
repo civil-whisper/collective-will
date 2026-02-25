@@ -1,0 +1,2567 @@
+{
+  "submission_count": 100,
+  "submission_order_sample": [
+    {
+      "idx": 0,
+      "group": "hijab-dress-code",
+      "text": "باید یه رفراندوم درباره قانون پوشش برگزار بشه. بذا"
+    },
+    {
+      "idx": 1,
+      "group": "ethnic-language-rights",
+      "text": "زبان‌های اقوام مثل کردی و آذری باید در مدارس تدریس"
+    },
+    {
+      "idx": 2,
+      "group": "outlier",
+      "text": "Iran should invest in a national space program for"
+    },
+    {
+      "idx": 3,
+      "group": "internet-censorship",
+      "text": "How should a democratic Iran handle online content"
+    },
+    {
+      "idx": 4,
+      "group": "death-penalty",
+      "text": "قوه قضاییه باید اصلاح بشه و مجازات اعدام به حداقل "
+    },
+    {
+      "idx": 5,
+      "group": "state-privatization",
+      "text": "شرکت‌های دولتی باید خصوصی‌سازی بشن. دولت کارایی لا"
+    },
+    {
+      "idx": 6,
+      "group": "outlier",
+      "text": "سن بازنشستگی باید کاهش پیدا کنه. مردم خسته‌ن."
+    },
+    {
+      "idx": 7,
+      "group": "hijab-dress-code",
+      "text": "Women's dress code policy should protect freedom w"
+    },
+    {
+      "idx": 8,
+      "group": "death-penalty",
+      "text": "The death penalty debate needs public input. Put i"
+    },
+    {
+      "idx": 9,
+      "group": "ethnic-language-rights",
+      "text": "Language rights are human rights. Banning minority"
+    },
+    {
+      "idx": 10,
+      "group": "state-privatization",
+      "text": "Workers' rights must be protected during any priva"
+    },
+    {
+      "idx": 11,
+      "group": "internet-censorship",
+      "text": "اینترنت ملی یه ایده خطرناکه. باید جلوش رو گرفت."
+    },
+    {
+      "idx": 12,
+      "group": "outlier",
+      "text": "School curriculum reform is overdue. We need criti"
+    },
+    {
+      "idx": 13,
+      "group": "internet-censorship",
+      "text": "سانسور اینترنت مانع پیشرفت علمی و آموزشی کشوره. دا"
+    },
+    {
+      "idx": 14,
+      "group": "ethnic-language-rights",
+      "text": "I worry that making multiple languages official wi"
+    },
+    {
+      "idx": 15,
+      "group": "death-penalty",
+      "text": "آمار نشون میده اعدام بازدارندگی نداره. باید حبس اب"
+    },
+    {
+      "idx": 16,
+      "group": "state-privatization",
+      "text": "Military-controlled companies must be privatized f"
+    },
+    {
+      "idx": 17,
+      "group": "hijab-dress-code",
+      "text": "پوشش اجباری زنان مغایر با حقوق بشره. قوانین لباس ب"
+    },
+    {
+      "idx": 18,
+      "group": "internet-censorship",
+      "text": "توییتر و یوتوب و اینستاگرام باید آزاد باشه. دولت ن"
+    },
+    {
+      "idx": 19,
+      "group": "hijab-dress-code",
+      "text": "من نگرانم اگه حجاب اختیاری بشه، فشار اجتماعی روی ز"
+    }
+  ],
+  "rounds": [
+    {
+      "round": 1,
+      "submissions_range": "1-25",
+      "canonicalization": [
+        {
+          "idx": 0,
+          "status": "ok",
+          "text": "باید یه رفراندوم درباره قانون پوشش برگزار بشه. بذارید مردم تصمیم بگیرن.",
+          "expected_group": "hijab-dress-code",
+          "policy_topic": "dress-code-policy",
+          "policy_key": "mandatory-hijab-policy",
+          "summary": "Proposes holding a referendum on dress code laws to let the people decide on the policy"
+        },
+        {
+          "idx": 1,
+          "status": "ok",
+          "text": "زبان‌های اقوام مثل کردی و آذری باید در مدارس تدریس بشه.",
+          "expected_group": "ethnic-language-rights",
+          "policy_topic": "ethnic-language-education",
+          "policy_key": "minority-language-instruction",
+          "summary": "Proposes that ethnic minority languages such as Kurdish and Azerbaijani should be taught in schools as part of the educational curriculum."
+        },
+        {
+          "idx": 2,
+          "status": "ok",
+          "text": "Iran should invest in a national space program for satellite communications.",
+          "expected_group": "outlier",
+          "policy_topic": "space-program-development",
+          "policy_key": "national-space-program-investment",
+          "summary": "Proposes that Iran should invest in developing a national space program specifically focused on satellite communications capabilities."
+        },
+        {
+          "idx": 3,
+          "status": "ok",
+          "text": "How should a democratic Iran handle online content? Complete freedom or some reg",
+          "expected_group": "internet-censorship",
+          "policy_topic": "internet-censorship",
+          "policy_key": "online-content-regulation",
+          "summary": "Question about how a democratic Iran should approach online content regulation, weighing complete freedom versus some form of regulation"
+        },
+        {
+          "idx": 4,
+          "status": "ok",
+          "text": "قوه قضاییه باید اصلاح بشه و مجازات اعدام به حداقل برسه.",
+          "expected_group": "death-penalty",
+          "policy_topic": "judicial-reform",
+          "policy_key": "death-penalty-reduction",
+          "summary": "Proposes reforming the judicial system and minimizing the use of death penalty as punishment"
+        },
+        {
+          "idx": 5,
+          "status": "ok",
+          "text": "شرکت‌های دولتی باید خصوصی‌سازی بشن. دولت کارایی لازم رو نداره.",
+          "expected_group": "state-privatization",
+          "policy_topic": "privatization-policy",
+          "policy_key": "state-enterprise-privatization",
+          "summary": "Proposes that state-owned companies should be privatized, arguing that the government lacks the necessary efficiency to run them effectively."
+        },
+        {
+          "idx": 6,
+          "status": "ok",
+          "text": "سن بازنشستگی باید کاهش پیدا کنه. مردم خسته‌ن.",
+          "expected_group": "outlier",
+          "policy_topic": "retirement-policy",
+          "policy_key": "retirement-age-adjustment",
+          "summary": "Proposes reducing the retirement age, citing that people are tired and need earlier retirement"
+        },
+        {
+          "idx": 7,
+          "status": "ok",
+          "text": "Women's dress code policy should protect freedom while respecting diverse belief",
+          "expected_group": "hijab-dress-code",
+          "policy_topic": "dress-code-policy",
+          "policy_key": "mandatory-hijab-policy",
+          "summary": "Proposes that women's dress code policy should balance protecting individual freedom with respecting diverse societal beliefs"
+        },
+        {
+          "idx": 8,
+          "status": "ok",
+          "text": "The death penalty debate needs public input. Put it to a national vote.",
+          "expected_group": "death-penalty",
+          "policy_topic": "judicial-reform",
+          "policy_key": "death-penalty-reduction",
+          "summary": "Proposes holding a national referendum to allow public input on death penalty policy through democratic voting"
+        },
+        {
+          "idx": 9,
+          "status": "ok",
+          "text": "Language rights are human rights. Banning minority language instruction is cultu",
+          "expected_group": "ethnic-language-rights",
+          "policy_topic": "ethnic-language-education",
+          "policy_key": "minority-language-instruction",
+          "summary": "Argues that language rights are human rights and that banning minority language instruction constitutes cultural suppression, advocating for protection of minority language education."
+        },
+        {
+          "idx": 10,
+          "status": "ok",
+          "text": "Workers' rights must be protected during any privatization process. No mass layo",
+          "expected_group": "state-privatization",
+          "policy_topic": "privatization-policy",
+          "policy_key": "worker-protection-privatization",
+          "summary": "Advocates for protecting workers' rights during privatization processes and preventing mass layoffs when state-owned enterprises are transferred to private ownership."
+        },
+        {
+          "idx": 11,
+          "status": "ok",
+          "text": "اینترنت ملی یه ایده خطرناکه. باید جلوش رو گرفت.",
+          "expected_group": "internet-censorship",
+          "policy_topic": "internet-censorship",
+          "policy_key": "national-internet-implementation",
+          "summary": "Expresses opposition to the concept of a national internet, viewing it as a dangerous idea that should be prevented or stopped."
+        },
+        {
+          "idx": 12,
+          "status": "ok",
+          "text": "School curriculum reform is overdue. We need critical thinking over rote memoriz",
+          "expected_group": "outlier",
+          "policy_topic": "education-reform",
+          "policy_key": "curriculum-teaching-methods",
+          "summary": "Advocates for reforming school curriculum to emphasize critical thinking skills instead of rote memorization methods"
+        },
+        {
+          "idx": 13,
+          "status": "ok",
+          "text": "سانسور اینترنت مانع پیشرفت علمی و آموزشی کشوره. دانشجوها به منابع دسترسی ندارن.",
+          "expected_group": "internet-censorship",
+          "policy_topic": "internet-censorship",
+          "policy_key": "online-content-regulation",
+          "summary": "Argues that internet censorship impedes the country's scientific and educational advancement, specifically noting that students lack access to resources"
+        },
+        {
+          "idx": 14,
+          "status": "ok",
+          "text": "I worry that making multiple languages official will divide the country. One lan",
+          "expected_group": "ethnic-language-rights",
+          "policy_topic": "official-language-policy",
+          "policy_key": "multiple-official-languages",
+          "summary": "Expresses concern that establishing multiple official languages could divide the country, arguing that having one language promotes national unity."
+        },
+        {
+          "idx": 15,
+          "status": "ok",
+          "text": "آمار نشون میده اعدام بازدارندگی نداره. باید حبس ابد جایگزین بشه.",
+          "expected_group": "death-penalty",
+          "policy_topic": "judicial-reform",
+          "policy_key": "death-penalty-reduction",
+          "summary": "Argues that statistics show the death penalty has no deterrent effect and should be replaced with life imprisonment as an alternative punishment"
+        },
+        {
+          "idx": 16,
+          "status": "ok",
+          "text": "Military-controlled companies must be privatized first. They distort the entire ",
+          "expected_group": "state-privatization",
+          "policy_topic": "privatization-policy",
+          "policy_key": "military-enterprise-privatization",
+          "summary": "Argues that military-controlled companies should be prioritized for privatization due to their market-distorting effects"
+        },
+        {
+          "idx": 17,
+          "status": "ok",
+          "text": "پوشش اجباری زنان مغایر با حقوق بشره. قوانین لباس باید تغییر کنه.",
+          "expected_group": "hijab-dress-code",
+          "policy_topic": "dress-code-policy",
+          "policy_key": "mandatory-hijab-policy",
+          "summary": "Argues that mandatory dress code for women violates human rights and that dress code laws should be changed"
+        },
+        {
+          "idx": 18,
+          "status": "ok",
+          "text": "توییتر و یوتوب و اینستاگرام باید آزاد باشه. دولت نباید تصمیم بگیره مردم چی ببینن",
+          "expected_group": "internet-censorship",
+          "policy_topic": "internet-censorship",
+          "policy_key": "social-media-platform-access",
+          "summary": "Advocates for unrestricted access to social media platforms like Twitter, YouTube, and Instagram, arguing that the government should not control what people can view online"
+        },
+        {
+          "idx": 19,
+          "status": "ok",
+          "text": "من نگرانم اگه حجاب اختیاری بشه، فشار اجتماعی روی زنان محجبه بیشتر بشه.",
+          "expected_group": "hijab-dress-code",
+          "policy_topic": "dress-code-policy",
+          "policy_key": "mandatory-hijab-policy",
+          "summary": "Expresses concern that if hijab becomes optional, social pressure on women who choose to wear hijab might increase"
+        },
+        {
+          "idx": 20,
+          "status": "ok",
+          "text": "National parks and wildlife reserves need more government funding and protection",
+          "expected_group": "outlier",
+          "policy_topic": "environmental-conservation",
+          "policy_key": "national-parks-wildlife-funding",
+          "summary": "Advocates for increased government funding and enhanced protection measures for national parks and wildlife reserves to better preserve natural areas and wildlife habitats."
+        },
+        {
+          "idx": 21,
+          "status": "ok",
+          "text": "آذری‌ها حق دارن که رسانه و تلویزیون به زبان ترکی داشته باشن.",
+          "expected_group": "ethnic-language-rights",
+          "policy_topic": "ethnic-language-education",
+          "policy_key": "minority-language-media",
+          "summary": "Advocates for the right of Azerbaijani people to have media and television programming in the Turkish/Azerbaijani language"
+        },
+        {
+          "idx": 22,
+          "status": "ok",
+          "text": "من فکر می‌کنم اعدام برای قتل عمد باید بمونه ولی برای جرائم مواد مخدر نه.",
+          "expected_group": "death-penalty",
+          "policy_topic": "judicial-reform",
+          "policy_key": "death-penalty-reduction",
+          "summary": "Supports maintaining the death penalty for premeditated murder but opposes it for drug-related crimes"
+        },
+        {
+          "idx": 23,
+          "status": "ok",
+          "text": "State-owned enterprises should be fully privatized to boost economic efficiency.",
+          "expected_group": "state-privatization",
+          "policy_topic": "privatization-policy",
+          "policy_key": "state-enterprise-privatization",
+          "summary": "Advocates for complete privatization of all state-owned enterprises, arguing that this would improve economic efficiency"
+        },
+        {
+          "idx": 24,
+          "status": "ok",
+          "text": "I support maintaining modest dress codes in public spaces. It preserves our cult",
+          "expected_group": "hijab-dress-code",
+          "policy_topic": "dress-code-policy",
+          "policy_key": "mandatory-hijab-policy",
+          "summary": "Advocates for maintaining modest dress codes in public spaces, arguing that such policies preserve cultural values"
+        }
+      ],
+      "pre_normalize_snapshot": {
+        "total_candidates": 25,
+        "distinct_keys": 15,
+        "groups": {
+          "mandatory-hijab-policy": {
+            "count": 5,
+            "expected_breakdown": {
+              "hijab-dress-code": 5
+            },
+            "policy_topic": "dress-code-policy",
+            "summaries": [
+              "Proposes holding a referendum on dress code laws to let the people decide on the policy",
+              "Proposes that women's dress code policy should balance protecting individual freedom with respecting diverse societal beliefs",
+              "Argues that mandatory dress code for women violates human rights and that dress code laws should be changed"
+            ]
+          },
+          "death-penalty-reduction": {
+            "count": 4,
+            "expected_breakdown": {
+              "death-penalty": 4
+            },
+            "policy_topic": "judicial-reform",
+            "summaries": [
+              "Proposes reforming the judicial system and minimizing the use of death penalty as punishment",
+              "Proposes holding a national referendum to allow public input on death penalty policy through democratic voting",
+              "Argues that statistics show the death penalty has no deterrent effect and should be replaced with life imprisonment as an alternative punishment"
+            ]
+          },
+          "minority-language-instruction": {
+            "count": 2,
+            "expected_breakdown": {
+              "ethnic-language-rights": 2
+            },
+            "policy_topic": "ethnic-language-education",
+            "summaries": [
+              "Proposes that ethnic minority languages such as Kurdish and Azerbaijani should be taught in schools as part of the educational curriculum.",
+              "Argues that language rights are human rights and that banning minority language instruction constitutes cultural suppression, advocating for protection of minority language education."
+            ]
+          },
+          "online-content-regulation": {
+            "count": 2,
+            "expected_breakdown": {
+              "internet-censorship": 2
+            },
+            "policy_topic": "internet-censorship",
+            "summaries": [
+              "Question about how a democratic Iran should approach online content regulation, weighing complete freedom versus some form of regulation",
+              "Argues that internet censorship impedes the country's scientific and educational advancement, specifically noting that students lack access to resources"
+            ]
+          },
+          "state-enterprise-privatization": {
+            "count": 2,
+            "expected_breakdown": {
+              "state-privatization": 2
+            },
+            "policy_topic": "privatization-policy",
+            "summaries": [
+              "Proposes that state-owned companies should be privatized, arguing that the government lacks the necessary efficiency to run them effectively.",
+              "Advocates for complete privatization of all state-owned enterprises, arguing that this would improve economic efficiency"
+            ]
+          },
+          "national-space-program-investment": {
+            "count": 1,
+            "expected_breakdown": {
+              "outlier": 1
+            },
+            "policy_topic": "space-program-development",
+            "summaries": [
+              "Proposes that Iran should invest in developing a national space program specifically focused on satellite communications capabilities."
+            ]
+          },
+          "retirement-age-adjustment": {
+            "count": 1,
+            "expected_breakdown": {
+              "outlier": 1
+            },
+            "policy_topic": "retirement-policy",
+            "summaries": [
+              "Proposes reducing the retirement age, citing that people are tired and need earlier retirement"
+            ]
+          },
+          "worker-protection-privatization": {
+            "count": 1,
+            "expected_breakdown": {
+              "state-privatization": 1
+            },
+            "policy_topic": "privatization-policy",
+            "summaries": [
+              "Advocates for protecting workers' rights during privatization processes and preventing mass layoffs when state-owned enterprises are transferred to private ownership."
+            ]
+          },
+          "national-internet-implementation": {
+            "count": 1,
+            "expected_breakdown": {
+              "internet-censorship": 1
+            },
+            "policy_topic": "internet-censorship",
+            "summaries": [
+              "Expresses opposition to the concept of a national internet, viewing it as a dangerous idea that should be prevented or stopped."
+            ]
+          },
+          "curriculum-teaching-methods": {
+            "count": 1,
+            "expected_breakdown": {
+              "outlier": 1
+            },
+            "policy_topic": "education-reform",
+            "summaries": [
+              "Advocates for reforming school curriculum to emphasize critical thinking skills instead of rote memorization methods"
+            ]
+          },
+          "multiple-official-languages": {
+            "count": 1,
+            "expected_breakdown": {
+              "ethnic-language-rights": 1
+            },
+            "policy_topic": "official-language-policy",
+            "summaries": [
+              "Expresses concern that establishing multiple official languages could divide the country, arguing that having one language promotes national unity."
+            ]
+          },
+          "military-enterprise-privatization": {
+            "count": 1,
+            "expected_breakdown": {
+              "state-privatization": 1
+            },
+            "policy_topic": "privatization-policy",
+            "summaries": [
+              "Argues that military-controlled companies should be prioritized for privatization due to their market-distorting effects"
+            ]
+          },
+          "social-media-platform-access": {
+            "count": 1,
+            "expected_breakdown": {
+              "internet-censorship": 1
+            },
+            "policy_topic": "internet-censorship",
+            "summaries": [
+              "Advocates for unrestricted access to social media platforms like Twitter, YouTube, and Instagram, arguing that the government should not control what people can view online"
+            ]
+          },
+          "national-parks-wildlife-funding": {
+            "count": 1,
+            "expected_breakdown": {
+              "outlier": 1
+            },
+            "policy_topic": "environmental-conservation",
+            "summaries": [
+              "Advocates for increased government funding and enhanced protection measures for national parks and wildlife reserves to better preserve natural areas and wildlife habitats."
+            ]
+          },
+          "minority-language-media": {
+            "count": 1,
+            "expected_breakdown": {
+              "ethnic-language-rights": 1
+            },
+            "policy_topic": "ethnic-language-education",
+            "summaries": [
+              "Advocates for the right of Azerbaijani people to have media and television programming in the Turkish/Azerbaijani language"
+            ]
+          }
+        }
+      },
+      "post_normalize_snapshot": {
+        "total_candidates": 25,
+        "distinct_keys": 10,
+        "groups": {
+          "womens-dress-code-policy": {
+            "count": 5,
+            "expected_breakdown": {
+              "hijab-dress-code": 5
+            },
+            "policy_topic": "dress-code-policy",
+            "summaries": [
+              "Proposes holding a referendum on dress code laws to let the people decide on the policy",
+              "Proposes that women's dress code policy should balance protecting individual freedom with respecting diverse societal beliefs",
+              "Argues that mandatory dress code for women violates human rights and that dress code laws should be changed"
+            ]
+          },
+          "internet-freedom-policy": {
+            "count": 4,
+            "expected_breakdown": {
+              "internet-censorship": 4
+            },
+            "policy_topic": "internet-censorship",
+            "summaries": [
+              "Question about how a democratic Iran should approach online content regulation, weighing complete freedom versus some form of regulation",
+              "Expresses opposition to the concept of a national internet, viewing it as a dangerous idea that should be prevented or stopped.",
+              "Argues that internet censorship impedes the country's scientific and educational advancement, specifically noting that students lack access to resources"
+            ]
+          },
+          "death-penalty-policy": {
+            "count": 4,
+            "expected_breakdown": {
+              "death-penalty": 4
+            },
+            "policy_topic": "judicial-reform",
+            "summaries": [
+              "Proposes reforming the judicial system and minimizing the use of death penalty as punishment",
+              "Proposes holding a national referendum to allow public input on death penalty policy through democratic voting",
+              "Argues that statistics show the death penalty has no deterrent effect and should be replaced with life imprisonment as an alternative punishment"
+            ]
+          },
+          "privatization-policy": {
+            "count": 4,
+            "expected_breakdown": {
+              "state-privatization": 4
+            },
+            "policy_topic": "privatization-policy",
+            "summaries": [
+              "Proposes that state-owned companies should be privatized, arguing that the government lacks the necessary efficiency to run them effectively.",
+              "Advocates for protecting workers' rights during privatization processes and preventing mass layoffs when state-owned enterprises are transferred to private ownership.",
+              "Argues that military-controlled companies should be prioritized for privatization due to their market-distorting effects"
+            ]
+          },
+          "minority-language-rights": {
+            "count": 3,
+            "expected_breakdown": {
+              "ethnic-language-rights": 3
+            },
+            "policy_topic": "ethnic-language-education",
+            "summaries": [
+              "Proposes that ethnic minority languages such as Kurdish and Azerbaijani should be taught in schools as part of the educational curriculum.",
+              "Argues that language rights are human rights and that banning minority language instruction constitutes cultural suppression, advocating for protection of minority language education.",
+              "Advocates for the right of Azerbaijani people to have media and television programming in the Turkish/Azerbaijani language"
+            ]
+          },
+          "national-space-program-investment": {
+            "count": 1,
+            "expected_breakdown": {
+              "outlier": 1
+            },
+            "policy_topic": "space-program-development",
+            "summaries": [
+              "Proposes that Iran should invest in developing a national space program specifically focused on satellite communications capabilities."
+            ]
+          },
+          "retirement-age-adjustment": {
+            "count": 1,
+            "expected_breakdown": {
+              "outlier": 1
+            },
+            "policy_topic": "retirement-policy",
+            "summaries": [
+              "Proposes reducing the retirement age, citing that people are tired and need earlier retirement"
+            ]
+          },
+          "curriculum-teaching-methods": {
+            "count": 1,
+            "expected_breakdown": {
+              "outlier": 1
+            },
+            "policy_topic": "education-reform",
+            "summaries": [
+              "Advocates for reforming school curriculum to emphasize critical thinking skills instead of rote memorization methods"
+            ]
+          },
+          "official-language-policy": {
+            "count": 1,
+            "expected_breakdown": {
+              "ethnic-language-rights": 1
+            },
+            "policy_topic": "official-language-policy",
+            "summaries": [
+              "Expresses concern that establishing multiple official languages could divide the country, arguing that having one language promotes national unity."
+            ]
+          },
+          "national-parks-wildlife-funding": {
+            "count": 1,
+            "expected_breakdown": {
+              "outlier": 1
+            },
+            "policy_topic": "environmental-conservation",
+            "summaries": [
+              "Advocates for increased government funding and enhanced protection measures for national parks and wildlife reserves to better preserve natural areas and wildlife habitats."
+            ]
+          }
+        }
+      },
+      "merges": [
+        "death-penalty-reduction",
+        "online-content-regulation",
+        "minority-language-instruction",
+        "worker-protection-privatization",
+        "minority-language-media",
+        "national-internet-implementation",
+        "state-enterprise-privatization",
+        "social-media-platform-access",
+        "mandatory-hijab-policy",
+        "military-enterprise-privatization",
+        "multiple-official-languages"
+      ]
+    },
+    {
+      "round": 2,
+      "submissions_range": "26-50",
+      "canonicalization": [
+        {
+          "idx": 25,
+          "status": "ok",
+          "text": "آلودگی هوای تهران هر سال بدتر میشه. باید اقدام فوری بشه.",
+          "expected_group": "outlier",
+          "policy_topic": "air-pollution-control",
+          "policy_key": "tehran-air-quality-measures",
+          "summary": "Expresses concern about worsening air pollution in Tehran and calls for urgent action to address the environmental crisis"
+        },
+        {
+          "idx": 26,
+          "status": "ok",
+          "text": "صنایع استراتژیک مثل نفت و گاز نباید خصوصی بشن. منافع ملی در خطره.",
+          "expected_group": "state-privatization",
+          "policy_topic": "privatization-policy",
+          "policy_key": "privatization-policy",
+          "summary": "Argues that strategic industries like oil and gas should not be privatized because it would endanger national interests"
+        },
+        {
+          "idx": 27,
+          "status": "ok",
+          "text": "Access to global internet should be a constitutional right for every Iranian cit",
+          "expected_group": "internet-censorship",
+          "policy_topic": "internet-censorship",
+          "policy_key": "internet-freedom-policy",
+          "summary": "Proposes that access to global internet should be established as a constitutional right for all Iranian citizens"
+        },
+        {
+          "idx": 28,
+          "status": "ok",
+          "text": "Ethnic language education should be funded by the central government in all prov",
+          "expected_group": "ethnic-language-rights",
+          "policy_topic": "ethnic-language-education",
+          "policy_key": "minority-language-rights",
+          "summary": "Proposes that the central government should provide funding for ethnic language education programs across all provinces in the country."
+        },
+        {
+          "idx": 29,
+          "status": "ok",
+          "text": "Capital punishment for drug crimes is disproportionate and targets the poorest c",
+          "expected_group": "death-penalty",
+          "policy_topic": "judicial-reform",
+          "policy_key": "death-penalty-policy",
+          "summary": "Argues that capital punishment for drug-related crimes is disproportionate and unfairly targets the poorest citizens in society"
+        },
+        {
+          "idx": 30,
+          "status": "ok",
+          "text": "A new constitution must guarantee the right to education in one's mother tongue.",
+          "expected_group": "ethnic-language-rights",
+          "policy_topic": "ethnic-language-education",
+          "policy_key": "minority-language-rights",
+          "summary": "Proposes that a new constitution should guarantee the right to education in one's mother tongue for all citizens"
+        },
+        {
+          "idx": 31,
+          "status": "ok",
+          "text": "Enforce modest clothing standards but stop arresting women. Education instead of",
+          "expected_group": "hijab-dress-code",
+          "policy_topic": "dress-code-policy",
+          "policy_key": "womens-dress-code-policy",
+          "summary": "Proposes maintaining modest clothing standards while ending arrests of women for dress code violations, advocating for educational approaches instead of punitive enforcement measures"
+        },
+        {
+          "idx": 32,
+          "status": "ok",
+          "text": "I oppose privatizing oil and gas. Natural resources belong to all citizens.",
+          "expected_group": "state-privatization",
+          "policy_topic": "privatization-policy",
+          "policy_key": "privatization-policy",
+          "summary": "Opposes the privatization of oil and gas industries, arguing that natural resources should remain under public ownership as they belong to all citizens"
+        },
+        {
+          "idx": 33,
+          "status": "ok",
+          "text": "Internet censorship in Iran is destroying our tech industry and isolating us fro",
+          "expected_group": "internet-censorship",
+          "policy_topic": "internet-censorship",
+          "policy_key": "internet-freedom-policy",
+          "summary": "Argues that internet censorship in Iran is harming the technology industry and isolating the country from global connections"
+        },
+        {
+          "idx": 34,
+          "status": "ok",
+          "text": "ایران بیشترین اعدام سرانه رو داره. این یه بحران حقوق بشریه.",
+          "expected_group": "death-penalty",
+          "policy_topic": "judicial-reform",
+          "policy_key": "death-penalty-policy",
+          "summary": "Expresses concern about Iran having the highest per capita execution rate globally, characterizing this as a human rights crisis"
+        },
+        {
+          "idx": 35,
+          "status": "ok",
+          "text": "ساعت تابستانی باید حذف بشه. فقط مردم رو گیج می‌کنه.",
+          "expected_group": "outlier",
+          "policy_topic": "time-policy",
+          "policy_key": "daylight-saving-time",
+          "summary": "Proposes eliminating daylight saving time, arguing that it only confuses people and should be removed"
+        },
+        {
+          "idx": 36,
+          "status": "ok",
+          "text": "حق تحصیل به زبان مادری باید در قانون اساسی جدید تضمین بشه.",
+          "expected_group": "ethnic-language-rights",
+          "policy_topic": "ethnic-language-education",
+          "policy_key": "minority-language-rights",
+          "summary": "Proposes that the right to education in one's mother tongue should be guaranteed in the new constitution"
+        },
+        {
+          "idx": 37,
+          "status": "ok",
+          "text": "هر شهروندی باید آزادی انتخاب پوشش داشته باشه، چه حجاب بخواد چه نخواد.",
+          "expected_group": "hijab-dress-code",
+          "policy_topic": "dress-code-policy",
+          "policy_key": "womens-dress-code-policy",
+          "summary": "Proposes that every citizen should have the freedom to choose their clothing, whether they want to wear hijab or not"
+        },
+        {
+          "idx": 38,
+          "status": "ok",
+          "text": "آیا خصوصی‌سازی واقعاً اقتصاد رو بهتر می‌کنه؟ تجربه ایران نشون داده نه.",
+          "expected_group": "state-privatization",
+          "policy_topic": "privatization-policy",
+          "policy_key": "privatization-policy",
+          "summary": "Questions whether privatization actually improves the economy, citing Iran's experience as evidence that it does not"
+        },
+        {
+          "idx": 39,
+          "status": "ok",
+          "text": "باید یه بحث ملی درباره اعدام داشته باشیم. نظر مردم مهمه.",
+          "expected_group": "death-penalty",
+          "policy_topic": "judicial-reform",
+          "policy_key": "death-penalty-policy",
+          "summary": "Calls for a national discussion about the death penalty, emphasizing that public opinion is important in this matter"
+        },
+        {
+          "idx": 40,
+          "status": "ok",
+          "text": "ورزش زنان باید بودجه بیشتری بگیره. تبعیض جنسیتی در ورزش زیاده.",
+          "expected_group": "outlier",
+          "policy_topic": "gender-equality-sports",
+          "policy_key": "womens-sports-funding",
+          "summary": "Proposes that women's sports should receive increased funding, citing high levels of gender discrimination in sports"
+        },
+        {
+          "idx": 41,
+          "status": "ok",
+          "text": "فیلترینگ فقط یه ابزار سرکوب سیاسیه. هیچ فایده امنیتی واقعی نداره.",
+          "expected_group": "internet-censorship",
+          "policy_topic": "internet-censorship",
+          "policy_key": "internet-freedom-policy",
+          "summary": "Argues that internet filtering serves only as a tool for political suppression and provides no real security benefits"
+        },
+        {
+          "idx": 42,
+          "status": "ok",
+          "text": "The death penalty should be abolished. It is a cruel and irreversible punishment",
+          "expected_group": "death-penalty",
+          "policy_topic": "judicial-reform",
+          "policy_key": "death-penalty-policy",
+          "summary": "Advocates for abolishing the death penalty, arguing that it is a cruel and irreversible form of punishment"
+        },
+        {
+          "idx": 43,
+          "status": "ok",
+          "text": "آیا بعد از تغییر حکومت، قوانین پوشش تغییر می‌کنه؟ نظر مردم چیه؟",
+          "expected_group": "hijab-dress-code",
+          "policy_topic": "dress-code-policy",
+          "policy_key": "womens-dress-code-policy",
+          "summary": "Questions whether dress code laws will change after a government transition and asks for public opinion on the matter"
+        },
+        {
+          "idx": 44,
+          "status": "ok",
+          "text": "State enterprise reform is urgent. Corruption thrives in government-run companie",
+          "expected_group": "state-privatization",
+          "policy_topic": "privatization-policy",
+          "policy_key": "privatization-policy",
+          "summary": "Argues that state enterprise reform is urgently needed because corruption thrives in government-run companies"
+        },
+        {
+          "idx": 45,
+          "status": "ok",
+          "text": "I support some content regulation online but blanket censorship of social media ",
+          "expected_group": "internet-censorship",
+          "policy_topic": "internet-censorship",
+          "policy_key": "internet-freedom-policy",
+          "summary": "Supports some form of online content regulation while opposing blanket censorship of social media platforms"
+        },
+        {
+          "idx": 46,
+          "status": "ok",
+          "text": "State television should broadcast in all major ethnic languages, not just Persia",
+          "expected_group": "ethnic-language-rights",
+          "policy_topic": "ethnic-language-media",
+          "policy_key": "multilingual-state-broadcasting",
+          "summary": "Proposes that state television should broadcast programming in all major ethnic languages rather than exclusively in Persian"
+        },
+        {
+          "idx": 47,
+          "status": "ok",
+          "text": "Agricultural subsidies should support small farmers, not large agribusiness corp",
+          "expected_group": "outlier",
+          "policy_topic": "agricultural-subsidies",
+          "policy_key": "small-farmer-subsidy-policy",
+          "summary": "Proposes that agricultural subsidies should be directed toward supporting small farmers rather than large agribusiness corporations"
+        },
+        {
+          "idx": 48,
+          "status": "ok",
+          "text": "دسترسی به اینترنت آزاد برای کسب‌وکارهای آنلاین حیاتیه. فیلترینگ اشتغال‌زایی رو ک",
+          "expected_group": "internet-censorship",
+          "policy_topic": "internet-censorship",
+          "policy_key": "internet-freedom-policy",
+          "summary": "Argues that free internet access is vital for online businesses and that internet filtering has killed job creation opportunities"
+        },
+        {
+          "idx": 49,
+          "status": "ok",
+          "text": "زبان‌های اقلیت در خطر نابودی هستن. دولت باید برنامه حفاظت از زبان داشته باشه.",
+          "expected_group": "ethnic-language-rights",
+          "policy_topic": "ethnic-language-preservation",
+          "policy_key": "minority-language-protection",
+          "summary": "Expresses concern that minority languages are in danger of extinction and proposes that the government should have a language protection program"
+        }
+      ],
+      "pre_normalize_snapshot": {
+        "total_candidates": 50,
+        "distinct_keys": 16,
+        "groups": {
+          "internet-freedom-policy": {
+            "count": 9,
+            "expected_breakdown": {
+              "internet-censorship": 9
+            },
+            "policy_topic": "internet-censorship",
+            "summaries": [
+              "Question about how a democratic Iran should approach online content regulation, weighing complete freedom versus some form of regulation",
+              "Expresses opposition to the concept of a national internet, viewing it as a dangerous idea that should be prevented or stopped.",
+              "Argues that internet censorship impedes the country's scientific and educational advancement, specifically noting that students lack access to resources"
+            ]
+          },
+          "womens-dress-code-policy": {
+            "count": 8,
+            "expected_breakdown": {
+              "hijab-dress-code": 8
+            },
+            "policy_topic": "dress-code-policy",
+            "summaries": [
+              "Proposes holding a referendum on dress code laws to let the people decide on the policy",
+              "Proposes that women's dress code policy should balance protecting individual freedom with respecting diverse societal beliefs",
+              "Argues that mandatory dress code for women violates human rights and that dress code laws should be changed"
+            ]
+          },
+          "death-penalty-policy": {
+            "count": 8,
+            "expected_breakdown": {
+              "death-penalty": 8
+            },
+            "policy_topic": "judicial-reform",
+            "summaries": [
+              "Proposes reforming the judicial system and minimizing the use of death penalty as punishment",
+              "Proposes holding a national referendum to allow public input on death penalty policy through democratic voting",
+              "Argues that statistics show the death penalty has no deterrent effect and should be replaced with life imprisonment as an alternative punishment"
+            ]
+          },
+          "privatization-policy": {
+            "count": 8,
+            "expected_breakdown": {
+              "state-privatization": 8
+            },
+            "policy_topic": "privatization-policy",
+            "summaries": [
+              "Proposes that state-owned companies should be privatized, arguing that the government lacks the necessary efficiency to run them effectively.",
+              "Advocates for protecting workers' rights during privatization processes and preventing mass layoffs when state-owned enterprises are transferred to private ownership.",
+              "Argues that military-controlled companies should be prioritized for privatization due to their market-distorting effects"
+            ]
+          },
+          "minority-language-rights": {
+            "count": 6,
+            "expected_breakdown": {
+              "ethnic-language-rights": 6
+            },
+            "policy_topic": "ethnic-language-education",
+            "summaries": [
+              "Proposes that ethnic minority languages such as Kurdish and Azerbaijani should be taught in schools as part of the educational curriculum.",
+              "Argues that language rights are human rights and that banning minority language instruction constitutes cultural suppression, advocating for protection of minority language education.",
+              "Advocates for the right of Azerbaijani people to have media and television programming in the Turkish/Azerbaijani language"
+            ]
+          },
+          "national-space-program-investment": {
+            "count": 1,
+            "expected_breakdown": {
+              "outlier": 1
+            },
+            "policy_topic": "space-program-development",
+            "summaries": [
+              "Proposes that Iran should invest in developing a national space program specifically focused on satellite communications capabilities."
+            ]
+          },
+          "retirement-age-adjustment": {
+            "count": 1,
+            "expected_breakdown": {
+              "outlier": 1
+            },
+            "policy_topic": "retirement-policy",
+            "summaries": [
+              "Proposes reducing the retirement age, citing that people are tired and need earlier retirement"
+            ]
+          },
+          "curriculum-teaching-methods": {
+            "count": 1,
+            "expected_breakdown": {
+              "outlier": 1
+            },
+            "policy_topic": "education-reform",
+            "summaries": [
+              "Advocates for reforming school curriculum to emphasize critical thinking skills instead of rote memorization methods"
+            ]
+          },
+          "official-language-policy": {
+            "count": 1,
+            "expected_breakdown": {
+              "ethnic-language-rights": 1
+            },
+            "policy_topic": "official-language-policy",
+            "summaries": [
+              "Expresses concern that establishing multiple official languages could divide the country, arguing that having one language promotes national unity."
+            ]
+          },
+          "national-parks-wildlife-funding": {
+            "count": 1,
+            "expected_breakdown": {
+              "outlier": 1
+            },
+            "policy_topic": "environmental-conservation",
+            "summaries": [
+              "Advocates for increased government funding and enhanced protection measures for national parks and wildlife reserves to better preserve natural areas and wildlife habitats."
+            ]
+          },
+          "tehran-air-quality-measures": {
+            "count": 1,
+            "expected_breakdown": {
+              "outlier": 1
+            },
+            "policy_topic": "air-pollution-control",
+            "summaries": [
+              "Expresses concern about worsening air pollution in Tehran and calls for urgent action to address the environmental crisis"
+            ]
+          },
+          "daylight-saving-time": {
+            "count": 1,
+            "expected_breakdown": {
+              "outlier": 1
+            },
+            "policy_topic": "time-policy",
+            "summaries": [
+              "Proposes eliminating daylight saving time, arguing that it only confuses people and should be removed"
+            ]
+          },
+          "womens-sports-funding": {
+            "count": 1,
+            "expected_breakdown": {
+              "outlier": 1
+            },
+            "policy_topic": "gender-equality-sports",
+            "summaries": [
+              "Proposes that women's sports should receive increased funding, citing high levels of gender discrimination in sports"
+            ]
+          },
+          "multilingual-state-broadcasting": {
+            "count": 1,
+            "expected_breakdown": {
+              "ethnic-language-rights": 1
+            },
+            "policy_topic": "ethnic-language-media",
+            "summaries": [
+              "Proposes that state television should broadcast programming in all major ethnic languages rather than exclusively in Persian"
+            ]
+          },
+          "small-farmer-subsidy-policy": {
+            "count": 1,
+            "expected_breakdown": {
+              "outlier": 1
+            },
+            "policy_topic": "agricultural-subsidies",
+            "summaries": [
+              "Proposes that agricultural subsidies should be directed toward supporting small farmers rather than large agribusiness corporations"
+            ]
+          },
+          "minority-language-protection": {
+            "count": 1,
+            "expected_breakdown": {
+              "ethnic-language-rights": 1
+            },
+            "policy_topic": "ethnic-language-preservation",
+            "summaries": [
+              "Expresses concern that minority languages are in danger of extinction and proposes that the government should have a language protection program"
+            ]
+          }
+        }
+      },
+      "post_normalize_snapshot": {
+        "total_candidates": 50,
+        "distinct_keys": 14,
+        "groups": {
+          "internet-freedom-policy": {
+            "count": 9,
+            "expected_breakdown": {
+              "internet-censorship": 9
+            },
+            "policy_topic": "internet-censorship",
+            "summaries": [
+              "Question about how a democratic Iran should approach online content regulation, weighing complete freedom versus some form of regulation",
+              "Expresses opposition to the concept of a national internet, viewing it as a dangerous idea that should be prevented or stopped.",
+              "Argues that internet censorship impedes the country's scientific and educational advancement, specifically noting that students lack access to resources"
+            ]
+          },
+          "womens-dress-code-policy": {
+            "count": 8,
+            "expected_breakdown": {
+              "hijab-dress-code": 8
+            },
+            "policy_topic": "dress-code-policy",
+            "summaries": [
+              "Proposes holding a referendum on dress code laws to let the people decide on the policy",
+              "Proposes that women's dress code policy should balance protecting individual freedom with respecting diverse societal beliefs",
+              "Argues that mandatory dress code for women violates human rights and that dress code laws should be changed"
+            ]
+          },
+          "minority-language-education-policy": {
+            "count": 8,
+            "expected_breakdown": {
+              "ethnic-language-rights": 8
+            },
+            "policy_topic": "ethnic-language-education",
+            "summaries": [
+              "Proposes that ethnic minority languages such as Kurdish and Azerbaijani should be taught in schools as part of the educational curriculum.",
+              "Argues that language rights are human rights and that banning minority language instruction constitutes cultural suppression, advocating for protection of minority language education.",
+              "Advocates for the right of Azerbaijani people to have media and television programming in the Turkish/Azerbaijani language"
+            ]
+          },
+          "death-penalty-policy": {
+            "count": 8,
+            "expected_breakdown": {
+              "death-penalty": 8
+            },
+            "policy_topic": "judicial-reform",
+            "summaries": [
+              "Proposes reforming the judicial system and minimizing the use of death penalty as punishment",
+              "Proposes holding a national referendum to allow public input on death penalty policy through democratic voting",
+              "Argues that statistics show the death penalty has no deterrent effect and should be replaced with life imprisonment as an alternative punishment"
+            ]
+          },
+          "privatization-policy": {
+            "count": 8,
+            "expected_breakdown": {
+              "state-privatization": 8
+            },
+            "policy_topic": "privatization-policy",
+            "summaries": [
+              "Proposes that state-owned companies should be privatized, arguing that the government lacks the necessary efficiency to run them effectively.",
+              "Advocates for protecting workers' rights during privatization processes and preventing mass layoffs when state-owned enterprises are transferred to private ownership.",
+              "Argues that military-controlled companies should be prioritized for privatization due to their market-distorting effects"
+            ]
+          },
+          "national-space-program-investment": {
+            "count": 1,
+            "expected_breakdown": {
+              "outlier": 1
+            },
+            "policy_topic": "space-program-development",
+            "summaries": [
+              "Proposes that Iran should invest in developing a national space program specifically focused on satellite communications capabilities."
+            ]
+          },
+          "retirement-age-adjustment": {
+            "count": 1,
+            "expected_breakdown": {
+              "outlier": 1
+            },
+            "policy_topic": "retirement-policy",
+            "summaries": [
+              "Proposes reducing the retirement age, citing that people are tired and need earlier retirement"
+            ]
+          },
+          "curriculum-teaching-methods": {
+            "count": 1,
+            "expected_breakdown": {
+              "outlier": 1
+            },
+            "policy_topic": "education-reform",
+            "summaries": [
+              "Advocates for reforming school curriculum to emphasize critical thinking skills instead of rote memorization methods"
+            ]
+          },
+          "official-language-policy": {
+            "count": 1,
+            "expected_breakdown": {
+              "ethnic-language-rights": 1
+            },
+            "policy_topic": "official-language-policy",
+            "summaries": [
+              "Expresses concern that establishing multiple official languages could divide the country, arguing that having one language promotes national unity."
+            ]
+          },
+          "national-parks-wildlife-funding": {
+            "count": 1,
+            "expected_breakdown": {
+              "outlier": 1
+            },
+            "policy_topic": "environmental-conservation",
+            "summaries": [
+              "Advocates for increased government funding and enhanced protection measures for national parks and wildlife reserves to better preserve natural areas and wildlife habitats."
+            ]
+          },
+          "tehran-air-quality-measures": {
+            "count": 1,
+            "expected_breakdown": {
+              "outlier": 1
+            },
+            "policy_topic": "air-pollution-control",
+            "summaries": [
+              "Expresses concern about worsening air pollution in Tehran and calls for urgent action to address the environmental crisis"
+            ]
+          },
+          "daylight-saving-time": {
+            "count": 1,
+            "expected_breakdown": {
+              "outlier": 1
+            },
+            "policy_topic": "time-policy",
+            "summaries": [
+              "Proposes eliminating daylight saving time, arguing that it only confuses people and should be removed"
+            ]
+          },
+          "womens-sports-funding": {
+            "count": 1,
+            "expected_breakdown": {
+              "outlier": 1
+            },
+            "policy_topic": "gender-equality-sports",
+            "summaries": [
+              "Proposes that women's sports should receive increased funding, citing high levels of gender discrimination in sports"
+            ]
+          },
+          "small-farmer-subsidy-policy": {
+            "count": 1,
+            "expected_breakdown": {
+              "outlier": 1
+            },
+            "policy_topic": "agricultural-subsidies",
+            "summaries": [
+              "Proposes that agricultural subsidies should be directed toward supporting small farmers rather than large agribusiness corporations"
+            ]
+          }
+        }
+      },
+      "merges": [
+        "multilingual-state-broadcasting",
+        "minority-language-protection",
+        "minority-language-rights"
+      ]
+    },
+    {
+      "round": 3,
+      "submissions_range": "51-75",
+      "canonicalization": [
+        {
+          "idx": 50,
+          "status": "ok",
+          "text": "How do citizens feel about the current dress code enforcement? It needs a refere",
+          "expected_group": "hijab-dress-code",
+          "policy_topic": "dress-code-policy",
+          "policy_key": "womens-dress-code-policy",
+          "summary": "Questions citizen sentiment about current dress code enforcement and advocates for holding a referendum on the issue"
+        },
+        {
+          "idx": 51,
+          "status": "ok",
+          "text": "حکم قصاص نفس باید بازبینی بشه. خانواده مقتول نباید تنها تصمیم‌گیرنده باشه.",
+          "expected_group": "death-penalty",
+          "policy_topic": "judicial-reform",
+          "policy_key": "death-penalty-policy",
+          "summary": "Proposes that the qisas (retribution) law for murder should be reviewed and reformed, arguing that the victim's family should not be the sole decision-maker in determining punishment"
+        },
+        {
+          "idx": 52,
+          "status": "ok",
+          "text": "How should state assets be distributed fairly during privatization? Workers shou",
+          "expected_group": "state-privatization",
+          "policy_topic": "privatization-policy",
+          "policy_key": "privatization-policy",
+          "summary": "Questions how state assets should be fairly distributed during privatization and proposes that workers should receive shares in the privatized companies"
+        },
+        {
+          "idx": 53,
+          "status": "ok",
+          "text": "We need better public transportation in small cities, not just Tehran metro.",
+          "expected_group": "outlier",
+          "policy_topic": "public-transportation",
+          "policy_key": "small-city-transit-development",
+          "summary": "Advocates for improving public transportation infrastructure in small cities across the country, not just focusing on Tehran's metro system"
+        },
+        {
+          "idx": 54,
+          "status": "ok",
+          "text": "خصوصی‌سازی بدون اصلاح قوانین کار فقط به بیکاری بیشتر منجر میشه.",
+          "expected_group": "state-privatization",
+          "policy_topic": "privatization-policy",
+          "policy_key": "privatization-policy",
+          "summary": "Argues that privatization without reforming labor laws will only lead to increased unemployment"
+        },
+        {
+          "idx": 55,
+          "status": "ok",
+          "text": "باید قوانین حمایت از حیوانات سختگیرانه‌تر بشه. حیوان‌آزاری جرمه.",
+          "expected_group": "outlier",
+          "policy_topic": "animal-protection",
+          "policy_key": "animal-cruelty-laws",
+          "summary": "Proposes that animal protection laws should be made stricter, stating that animal cruelty is a crime"
+        },
+        {
+          "idx": 56,
+          "status": "ok",
+          "text": "لغو حجاب اجباری اولین قدم به سوی آزادی زنان در ایران است.",
+          "expected_group": "hijab-dress-code",
+          "policy_topic": "dress-code-policy",
+          "policy_key": "womens-dress-code-policy",
+          "summary": "Proposes that abolishing mandatory hijab is the first step toward women's freedom in Iran"
+        },
+        {
+          "idx": 57,
+          "status": "ok",
+          "text": "من فکر می‌کنم فیلترینگ سیاسی اینترنت باید برداشته بشه ولی محتوای نامناسب برای کو",
+          "expected_group": "internet-censorship",
+          "policy_topic": "internet-censorship",
+          "policy_key": "internet-freedom-policy",
+          "summary": "Proposes removing political internet censorship while maintaining content filtering to protect children from inappropriate material"
+        },
+        {
+          "idx": 58,
+          "status": "ok",
+          "text": "Public executions are a violation of human dignity. They traumatize entire commu",
+          "expected_group": "death-penalty",
+          "policy_topic": "judicial-reform",
+          "policy_key": "death-penalty-policy",
+          "summary": "Argues that public executions violate human dignity and cause trauma to communities, expressing opposition to the practice of conducting executions in public"
+        },
+        {
+          "idx": 59,
+          "status": "ok",
+          "text": "We should have bilingual education: Persian plus the regional language in each p",
+          "expected_group": "ethnic-language-rights",
+          "policy_topic": "ethnic-language-education",
+          "policy_key": "minority-language-education-policy",
+          "summary": "Proposes implementing bilingual education system where Persian is taught alongside the regional language specific to each province"
+        },
+        {
+          "idx": 60,
+          "status": "ok",
+          "text": "فیلترینگ اینترنت باید برداشته بشه. دسترسی آزاد به اطلاعات حق مردمه.",
+          "expected_group": "internet-censorship",
+          "policy_topic": "internet-censorship",
+          "policy_key": "internet-freedom-policy",
+          "summary": "Proposes that internet filtering should be removed, arguing that free access to information is a people's right"
+        },
+        {
+          "idx": 61,
+          "status": "ok",
+          "text": "Why can't government services be offered in Kurdish in Kurdistan province?",
+          "expected_group": "ethnic-language-rights",
+          "policy_topic": "ethnic-language-services",
+          "policy_key": "government-services-minority-languages",
+          "summary": "Questions why government services are not available in Kurdish language in Kurdistan province, raising concerns about linguistic accessibility for Kurdish-speaking citizens"
+        },
+        {
+          "idx": 62,
+          "status": "ok",
+          "text": "The mandatory hijab law must be abolished immediately. Personal clothing is a ba",
+          "expected_group": "hijab-dress-code",
+          "policy_topic": "dress-code-policy",
+          "policy_key": "womens-dress-code-policy",
+          "summary": "Proposes that the mandatory hijab law should be abolished immediately, arguing that personal clothing choices are a basic right"
+        },
+        {
+          "idx": 63,
+          "status": "ok",
+          "text": "Privatization without transparency has led to corruption. We need oversight mech",
+          "expected_group": "state-privatization",
+          "policy_topic": "privatization-policy",
+          "policy_key": "privatization-policy",
+          "summary": "Argues that privatization processes have resulted in corruption due to lack of transparency and calls for implementing oversight mechanisms to address this issue"
+        },
+        {
+          "idx": 64,
+          "status": "ok",
+          "text": "اعدام باید کاملاً لغو بشه. هیچ دولتی حق گرفتن جان کسی رو نداره.",
+          "expected_group": "death-penalty",
+          "policy_topic": "judicial-reform",
+          "policy_key": "death-penalty-policy",
+          "summary": "Proposes that the death penalty should be completely abolished, arguing that no government has the right to take someone's life"
+        },
+        {
+          "idx": 65,
+          "status": "ok",
+          "text": "قانون حجاب اجباری ربطی به دین نداره. این یه ابزار کنترل سیاسیه.",
+          "expected_group": "hijab-dress-code",
+          "policy_topic": "dress-code-policy",
+          "policy_key": "womens-dress-code-policy",
+          "summary": "Argues that mandatory hijab laws are not religiously motivated but rather serve as a tool for political control"
+        },
+        {
+          "idx": 66,
+          "status": "ok",
+          "text": "سهام عدالت یه شوخی بود. خصوصی‌سازی واقعی باید با مشارکت مردم باشه.",
+          "expected_group": "state-privatization",
+          "policy_topic": "privatization-policy",
+          "policy_key": "privatization-policy",
+          "summary": "Criticizes the Justice Shares program as ineffective and proposes that real privatization should involve genuine public participation"
+        },
+        {
+          "idx": 67,
+          "status": "ok",
+          "text": "VPN استفاده می‌کنم ولی سرعت اینترنت خیلی کمه. فیلترینگ اقتصاد دیجیتال رو نابود ک",
+          "expected_group": "internet-censorship",
+          "policy_topic": "internet-censorship",
+          "policy_key": "internet-freedom-policy",
+          "summary": "Expresses concern that internet filtering has destroyed the digital economy, citing personal experience with slow VPN speeds as evidence of the broader economic impact"
+        },
+        {
+          "idx": 68,
+          "status": "ok",
+          "text": "فارسی زبان ملی باشه ولی زبان‌های محلی هم باید حمایت بشن. تنوع زبانی ثروته.",
+          "expected_group": "ethnic-language-rights",
+          "policy_topic": "official-language-policy",
+          "policy_key": "official-language-policy",
+          "summary": "Proposes that Persian should remain the national language while local languages should also receive support, viewing linguistic diversity as a valuable asset"
+        },
+        {
+          "idx": 69,
+          "status": "ok",
+          "text": "اعدام در ملأ عام یه عمل وحشیانه‌ست که باید فوراً متوقف بشه.",
+          "expected_group": "death-penalty",
+          "policy_topic": "judicial-reform",
+          "policy_key": "death-penalty-policy",
+          "summary": "Proposes that public executions should be immediately stopped, describing them as barbaric acts"
+        },
+        {
+          "idx": 70,
+          "status": "ok",
+          "text": "کردی و ترکی و عربی باید در اسناد رسمی استانی قابل استفاده باشن.",
+          "expected_group": "ethnic-language-rights",
+          "policy_topic": "ethnic-language-services",
+          "policy_key": "government-services-minority-languages",
+          "summary": "Proposes that Kurdish, Turkish, and Arabic languages should be usable in official provincial documents"
+        },
+        {
+          "idx": 71,
+          "status": "ok",
+          "text": "What alternatives to capital punishment should a democratic Iran implement?",
+          "expected_group": "death-penalty",
+          "policy_topic": "judicial-reform",
+          "policy_key": "death-penalty-policy",
+          "summary": "Questions what alternative punishments should replace capital punishment in a democratic Iran"
+        },
+        {
+          "idx": 72,
+          "status": "ok",
+          "text": "A free and open internet is fundamental for democracy. End all political content",
+          "expected_group": "internet-censorship",
+          "policy_topic": "internet-censorship",
+          "policy_key": "internet-freedom-policy",
+          "summary": "Advocates for ending all political content filtering on the internet, arguing that a free and open internet is fundamental for democracy"
+        },
+        {
+          "idx": 73,
+          "status": "ok",
+          "text": "من معتقدم حجاب باید اختیاری باشه ولی با احترام به فرهنگ. یه حد وسطی لازمه.",
+          "expected_group": "hijab-dress-code",
+          "policy_topic": "dress-code-policy",
+          "policy_key": "womens-dress-code-policy",
+          "summary": "Proposes that hijab should be optional while maintaining respect for cultural values, suggesting a middle-ground approach to dress code policy"
+        },
+        {
+          "idx": 74,
+          "status": "ok",
+          "text": "Create a transparent privatization agency with citizen oversight and public auct",
+          "expected_group": "state-privatization",
+          "policy_topic": "privatization-policy",
+          "policy_key": "privatization-policy",
+          "summary": "Proposes creating a transparent privatization agency that includes citizen oversight mechanisms and conducts public auctions for state asset sales"
+        }
+      ],
+      "pre_normalize_snapshot": {
+        "total_candidates": 75,
+        "distinct_keys": 17,
+        "groups": {
+          "womens-dress-code-policy": {
+            "count": 13,
+            "expected_breakdown": {
+              "hijab-dress-code": 13
+            },
+            "policy_topic": "dress-code-policy",
+            "summaries": [
+              "Proposes holding a referendum on dress code laws to let the people decide on the policy",
+              "Proposes that women's dress code policy should balance protecting individual freedom with respecting diverse societal beliefs",
+              "Argues that mandatory dress code for women violates human rights and that dress code laws should be changed"
+            ]
+          },
+          "internet-freedom-policy": {
+            "count": 13,
+            "expected_breakdown": {
+              "internet-censorship": 13
+            },
+            "policy_topic": "internet-censorship",
+            "summaries": [
+              "Question about how a democratic Iran should approach online content regulation, weighing complete freedom versus some form of regulation",
+              "Expresses opposition to the concept of a national internet, viewing it as a dangerous idea that should be prevented or stopped.",
+              "Argues that internet censorship impedes the country's scientific and educational advancement, specifically noting that students lack access to resources"
+            ]
+          },
+          "death-penalty-policy": {
+            "count": 13,
+            "expected_breakdown": {
+              "death-penalty": 13
+            },
+            "policy_topic": "judicial-reform",
+            "summaries": [
+              "Proposes reforming the judicial system and minimizing the use of death penalty as punishment",
+              "Proposes holding a national referendum to allow public input on death penalty policy through democratic voting",
+              "Argues that statistics show the death penalty has no deterrent effect and should be replaced with life imprisonment as an alternative punishment"
+            ]
+          },
+          "privatization-policy": {
+            "count": 13,
+            "expected_breakdown": {
+              "state-privatization": 13
+            },
+            "policy_topic": "privatization-policy",
+            "summaries": [
+              "Proposes that state-owned companies should be privatized, arguing that the government lacks the necessary efficiency to run them effectively.",
+              "Advocates for protecting workers' rights during privatization processes and preventing mass layoffs when state-owned enterprises are transferred to private ownership.",
+              "Argues that military-controlled companies should be prioritized for privatization due to their market-distorting effects"
+            ]
+          },
+          "minority-language-education-policy": {
+            "count": 9,
+            "expected_breakdown": {
+              "ethnic-language-rights": 9
+            },
+            "policy_topic": "ethnic-language-education",
+            "summaries": [
+              "Proposes that ethnic minority languages such as Kurdish and Azerbaijani should be taught in schools as part of the educational curriculum.",
+              "Argues that language rights are human rights and that banning minority language instruction constitutes cultural suppression, advocating for protection of minority language education.",
+              "Advocates for the right of Azerbaijani people to have media and television programming in the Turkish/Azerbaijani language"
+            ]
+          },
+          "official-language-policy": {
+            "count": 2,
+            "expected_breakdown": {
+              "ethnic-language-rights": 2
+            },
+            "policy_topic": "official-language-policy",
+            "summaries": [
+              "Expresses concern that establishing multiple official languages could divide the country, arguing that having one language promotes national unity.",
+              "Proposes that Persian should remain the national language while local languages should also receive support, viewing linguistic diversity as a valuable asset"
+            ]
+          },
+          "government-services-minority-languages": {
+            "count": 2,
+            "expected_breakdown": {
+              "ethnic-language-rights": 2
+            },
+            "policy_topic": "ethnic-language-services",
+            "summaries": [
+              "Questions why government services are not available in Kurdish language in Kurdistan province, raising concerns about linguistic accessibility for Kurdish-speaking citizens",
+              "Proposes that Kurdish, Turkish, and Arabic languages should be usable in official provincial documents"
+            ]
+          },
+          "national-space-program-investment": {
+            "count": 1,
+            "expected_breakdown": {
+              "outlier": 1
+            },
+            "policy_topic": "space-program-development",
+            "summaries": [
+              "Proposes that Iran should invest in developing a national space program specifically focused on satellite communications capabilities."
+            ]
+          },
+          "retirement-age-adjustment": {
+            "count": 1,
+            "expected_breakdown": {
+              "outlier": 1
+            },
+            "policy_topic": "retirement-policy",
+            "summaries": [
+              "Proposes reducing the retirement age, citing that people are tired and need earlier retirement"
+            ]
+          },
+          "curriculum-teaching-methods": {
+            "count": 1,
+            "expected_breakdown": {
+              "outlier": 1
+            },
+            "policy_topic": "education-reform",
+            "summaries": [
+              "Advocates for reforming school curriculum to emphasize critical thinking skills instead of rote memorization methods"
+            ]
+          },
+          "national-parks-wildlife-funding": {
+            "count": 1,
+            "expected_breakdown": {
+              "outlier": 1
+            },
+            "policy_topic": "environmental-conservation",
+            "summaries": [
+              "Advocates for increased government funding and enhanced protection measures for national parks and wildlife reserves to better preserve natural areas and wildlife habitats."
+            ]
+          },
+          "tehran-air-quality-measures": {
+            "count": 1,
+            "expected_breakdown": {
+              "outlier": 1
+            },
+            "policy_topic": "air-pollution-control",
+            "summaries": [
+              "Expresses concern about worsening air pollution in Tehran and calls for urgent action to address the environmental crisis"
+            ]
+          },
+          "daylight-saving-time": {
+            "count": 1,
+            "expected_breakdown": {
+              "outlier": 1
+            },
+            "policy_topic": "time-policy",
+            "summaries": [
+              "Proposes eliminating daylight saving time, arguing that it only confuses people and should be removed"
+            ]
+          },
+          "womens-sports-funding": {
+            "count": 1,
+            "expected_breakdown": {
+              "outlier": 1
+            },
+            "policy_topic": "gender-equality-sports",
+            "summaries": [
+              "Proposes that women's sports should receive increased funding, citing high levels of gender discrimination in sports"
+            ]
+          },
+          "small-farmer-subsidy-policy": {
+            "count": 1,
+            "expected_breakdown": {
+              "outlier": 1
+            },
+            "policy_topic": "agricultural-subsidies",
+            "summaries": [
+              "Proposes that agricultural subsidies should be directed toward supporting small farmers rather than large agribusiness corporations"
+            ]
+          },
+          "small-city-transit-development": {
+            "count": 1,
+            "expected_breakdown": {
+              "outlier": 1
+            },
+            "policy_topic": "public-transportation",
+            "summaries": [
+              "Advocates for improving public transportation infrastructure in small cities across the country, not just focusing on Tehran's metro system"
+            ]
+          },
+          "animal-cruelty-laws": {
+            "count": 1,
+            "expected_breakdown": {
+              "outlier": 1
+            },
+            "policy_topic": "animal-protection",
+            "summaries": [
+              "Proposes that animal protection laws should be made stricter, stating that animal cruelty is a crime"
+            ]
+          }
+        }
+      },
+      "post_normalize_snapshot": {
+        "total_candidates": 75,
+        "distinct_keys": 15,
+        "groups": {
+          "womens-dress-code-policy": {
+            "count": 13,
+            "expected_breakdown": {
+              "hijab-dress-code": 13
+            },
+            "policy_topic": "dress-code-policy",
+            "summaries": [
+              "Proposes holding a referendum on dress code laws to let the people decide on the policy",
+              "Proposes that women's dress code policy should balance protecting individual freedom with respecting diverse societal beliefs",
+              "Argues that mandatory dress code for women violates human rights and that dress code laws should be changed"
+            ]
+          },
+          "minority-language-rights": {
+            "count": 13,
+            "expected_breakdown": {
+              "ethnic-language-rights": 13
+            },
+            "policy_topic": "ethnic-language-education",
+            "summaries": [
+              "Proposes that ethnic minority languages such as Kurdish and Azerbaijani should be taught in schools as part of the educational curriculum.",
+              "Argues that language rights are human rights and that banning minority language instruction constitutes cultural suppression, advocating for protection of minority language education.",
+              "Expresses concern that establishing multiple official languages could divide the country, arguing that having one language promotes national unity."
+            ]
+          },
+          "internet-freedom-policy": {
+            "count": 13,
+            "expected_breakdown": {
+              "internet-censorship": 13
+            },
+            "policy_topic": "internet-censorship",
+            "summaries": [
+              "Question about how a democratic Iran should approach online content regulation, weighing complete freedom versus some form of regulation",
+              "Expresses opposition to the concept of a national internet, viewing it as a dangerous idea that should be prevented or stopped.",
+              "Argues that internet censorship impedes the country's scientific and educational advancement, specifically noting that students lack access to resources"
+            ]
+          },
+          "death-penalty-policy": {
+            "count": 13,
+            "expected_breakdown": {
+              "death-penalty": 13
+            },
+            "policy_topic": "judicial-reform",
+            "summaries": [
+              "Proposes reforming the judicial system and minimizing the use of death penalty as punishment",
+              "Proposes holding a national referendum to allow public input on death penalty policy through democratic voting",
+              "Argues that statistics show the death penalty has no deterrent effect and should be replaced with life imprisonment as an alternative punishment"
+            ]
+          },
+          "privatization-policy": {
+            "count": 13,
+            "expected_breakdown": {
+              "state-privatization": 13
+            },
+            "policy_topic": "privatization-policy",
+            "summaries": [
+              "Proposes that state-owned companies should be privatized, arguing that the government lacks the necessary efficiency to run them effectively.",
+              "Advocates for protecting workers' rights during privatization processes and preventing mass layoffs when state-owned enterprises are transferred to private ownership.",
+              "Argues that military-controlled companies should be prioritized for privatization due to their market-distorting effects"
+            ]
+          },
+          "national-space-program-investment": {
+            "count": 1,
+            "expected_breakdown": {
+              "outlier": 1
+            },
+            "policy_topic": "space-program-development",
+            "summaries": [
+              "Proposes that Iran should invest in developing a national space program specifically focused on satellite communications capabilities."
+            ]
+          },
+          "retirement-age-adjustment": {
+            "count": 1,
+            "expected_breakdown": {
+              "outlier": 1
+            },
+            "policy_topic": "retirement-policy",
+            "summaries": [
+              "Proposes reducing the retirement age, citing that people are tired and need earlier retirement"
+            ]
+          },
+          "curriculum-teaching-methods": {
+            "count": 1,
+            "expected_breakdown": {
+              "outlier": 1
+            },
+            "policy_topic": "education-reform",
+            "summaries": [
+              "Advocates for reforming school curriculum to emphasize critical thinking skills instead of rote memorization methods"
+            ]
+          },
+          "national-parks-wildlife-funding": {
+            "count": 1,
+            "expected_breakdown": {
+              "outlier": 1
+            },
+            "policy_topic": "environmental-conservation",
+            "summaries": [
+              "Advocates for increased government funding and enhanced protection measures for national parks and wildlife reserves to better preserve natural areas and wildlife habitats."
+            ]
+          },
+          "tehran-air-quality-measures": {
+            "count": 1,
+            "expected_breakdown": {
+              "outlier": 1
+            },
+            "policy_topic": "air-pollution-control",
+            "summaries": [
+              "Expresses concern about worsening air pollution in Tehran and calls for urgent action to address the environmental crisis"
+            ]
+          },
+          "daylight-saving-time": {
+            "count": 1,
+            "expected_breakdown": {
+              "outlier": 1
+            },
+            "policy_topic": "time-policy",
+            "summaries": [
+              "Proposes eliminating daylight saving time, arguing that it only confuses people and should be removed"
+            ]
+          },
+          "womens-sports-funding": {
+            "count": 1,
+            "expected_breakdown": {
+              "outlier": 1
+            },
+            "policy_topic": "gender-equality-sports",
+            "summaries": [
+              "Proposes that women's sports should receive increased funding, citing high levels of gender discrimination in sports"
+            ]
+          },
+          "small-farmer-subsidy-policy": {
+            "count": 1,
+            "expected_breakdown": {
+              "outlier": 1
+            },
+            "policy_topic": "agricultural-subsidies",
+            "summaries": [
+              "Proposes that agricultural subsidies should be directed toward supporting small farmers rather than large agribusiness corporations"
+            ]
+          },
+          "small-city-transit-development": {
+            "count": 1,
+            "expected_breakdown": {
+              "outlier": 1
+            },
+            "policy_topic": "public-transportation",
+            "summaries": [
+              "Advocates for improving public transportation infrastructure in small cities across the country, not just focusing on Tehran's metro system"
+            ]
+          },
+          "animal-cruelty-laws": {
+            "count": 1,
+            "expected_breakdown": {
+              "outlier": 1
+            },
+            "policy_topic": "animal-protection",
+            "summaries": [
+              "Proposes that animal protection laws should be made stricter, stating that animal cruelty is a crime"
+            ]
+          }
+        }
+      },
+      "merges": [
+        "minority-language-education-policy",
+        "official-language-policy",
+        "government-services-minority-languages"
+      ]
+    },
+    {
+      "round": 4,
+      "submissions_range": "76-100",
+      "canonicalization": [
+        {
+          "idx": 75,
+          "status": "ok",
+          "text": "سپاه و بنیادها باید از اقتصاد خارج بشن. این بزرگ‌ترین مانع خصوصی‌سازی واقعیه.",
+          "expected_group": "state-privatization",
+          "policy_topic": "privatization-policy",
+          "policy_key": "privatization-policy",
+          "summary": "Proposes that the Islamic Revolutionary Guard Corps (IRGC) and religious foundations should be removed from the economy, arguing they are the biggest obstacle to genuine privatization"
+        },
+        {
+          "idx": 76,
+          "status": "ok",
+          "text": "Internet shutdowns during protests must be constitutionally banned in the new go",
+          "expected_group": "internet-censorship",
+          "policy_topic": "internet-censorship",
+          "policy_key": "internet-shutdown-protests",
+          "summary": "Proposes that the new government should constitutionally prohibit internet shutdowns during protests, ensuring digital rights and communication access during civil demonstrations"
+        },
+        {
+          "idx": 77,
+          "status": "ok",
+          "text": "I believe the death penalty deters serious crime and should remain for murder ca",
+          "expected_group": "death-penalty",
+          "policy_topic": "judicial-reform",
+          "policy_key": "death-penalty-policy",
+          "summary": "Argues that the death penalty serves as a deterrent for serious crimes and should be retained specifically for murder cases"
+        },
+        {
+          "idx": 78,
+          "status": "ok",
+          "text": "Should minority languages have official status in their provinces? I think yes.",
+          "expected_group": "ethnic-language-rights",
+          "policy_topic": "official-language-policy",
+          "policy_key": "minority-language-rights",
+          "summary": "Proposes that minority languages should be granted official status within their respective provinces, with the submitter expressing support for this policy."
+        },
+        {
+          "idx": 79,
+          "status": "ok",
+          "text": "I think the hijab debate is overblown. Focus should be on economic issues first.",
+          "expected_group": "hijab-dress-code",
+          "policy_topic": "dress-code-policy",
+          "policy_key": "womens-dress-code-policy",
+          "summary": "Argues that the hijab debate receives too much attention and that economic issues should be prioritized instead"
+        },
+        {
+          "idx": 80,
+          "status": "ok",
+          "text": "تبعیض زبانی باعث شکاف اجتماعی شده. باید همه زبان‌ها رسمیت پیدا کنن.",
+          "expected_group": "ethnic-language-rights",
+          "policy_topic": "official-language-policy",
+          "policy_key": "minority-language-rights",
+          "summary": "Argues that linguistic discrimination has created social divisions and proposes that all languages should be granted official status to address this issue."
+        },
+        {
+          "idx": 81,
+          "status": "ok",
+          "text": "Replace death penalty with life imprisonment. The justice system makes too many ",
+          "expected_group": "death-penalty",
+          "policy_topic": "judicial-reform",
+          "policy_key": "death-penalty-policy",
+          "summary": "Proposes replacing the death penalty with life imprisonment, citing concerns about errors in the justice system"
+        },
+        {
+          "idx": 82,
+          "status": "ok",
+          "text": "Dress code regulations should be reformed, not enforced through morality police ",
+          "expected_group": "hijab-dress-code",
+          "policy_topic": "dress-code-policy",
+          "policy_key": "womens-dress-code-policy",
+          "summary": "Proposes reforming dress code regulations and eliminating enforcement through morality police patrols, suggesting a change in approach to dress code policy implementation."
+        },
+        {
+          "idx": 83,
+          "status": "ok",
+          "text": "Partial privatization with government retaining a golden share is the best appro",
+          "expected_group": "state-privatization",
+          "policy_topic": "privatization-policy",
+          "policy_key": "privatization-policy",
+          "summary": "Proposes that partial privatization where the government retains a golden share (special voting rights) is the optimal approach for state-owned enterprises"
+        },
+        {
+          "idx": 84,
+          "status": "ok",
+          "text": "Should internet filtering remain after regime change? We need a clear digital ri",
+          "expected_group": "internet-censorship",
+          "policy_topic": "internet-censorship",
+          "policy_key": "internet-freedom-policy",
+          "summary": "Questions whether internet filtering should continue after regime change and calls for establishing a clear digital rights framework to govern online content regulation."
+        },
+        {
+          "idx": 85,
+          "status": "ok",
+          "text": "Kurdish, Azerbaijani, Balochi and Arabic should be recognized as official region",
+          "expected_group": "ethnic-language-rights",
+          "policy_topic": "official-language-policy",
+          "policy_key": "minority-language-rights",
+          "summary": "Proposes that Kurdish, Azerbaijani, Balochi and Arabic should be recognized as official regional languages in their respective areas"
+        },
+        {
+          "idx": 86,
+          "status": "ok",
+          "text": "خصوصی‌سازی بدون نظارت فقط به نفع آقازاده‌هاست. باید شفاف باشه.",
+          "expected_group": "state-privatization",
+          "policy_topic": "privatization-policy",
+          "policy_key": "privatization-policy",
+          "summary": "Argues that privatization without proper oversight only benefits the wealthy elite and connected individuals, emphasizing the need for transparency in privatization processes"
+        },
+        {
+          "idx": 87,
+          "status": "ok",
+          "text": "Juvenile executions must stop immediately. Iran is one of the few countries stil",
+          "expected_group": "death-penalty",
+          "policy_topic": "judicial-reform",
+          "policy_key": "juvenile-execution-policy",
+          "summary": "Calls for an immediate end to juvenile executions in Iran, noting that Iran is among the few countries that still practice this form of capital punishment"
+        },
+        {
+          "idx": 88,
+          "status": "ok",
+          "text": "We need net neutrality laws and anti-censorship constitutional protections.",
+          "expected_group": "internet-censorship",
+          "policy_topic": "internet-censorship",
+          "policy_key": "internet-freedom-policy",
+          "summary": "Proposes implementing net neutrality laws and establishing constitutional protections against censorship to ensure internet freedom and equal access"
+        },
+        {
+          "idx": 89,
+          "status": "ok",
+          "text": "گشت ارشاد باید منحل بشه. نباید به خاطر لباس کسی رو بازداشت کرد.",
+          "expected_group": "hijab-dress-code",
+          "policy_topic": "dress-code-policy",
+          "policy_key": "womens-dress-code-policy",
+          "summary": "Proposes that the morality police (Gasht-e Ershad) should be dissolved and that people should not be arrested for their clothing choices"
+        },
+        {
+          "idx": 90,
+          "status": "ok",
+          "text": "حق آموزش به زبان مادری یه حق اساسیه. بچه‌های کرد و ترک باید به زبان خودشون درس ب",
+          "expected_group": "ethnic-language-rights",
+          "policy_topic": "ethnic-language-education",
+          "policy_key": "minority-language-rights",
+          "summary": "Advocates for the fundamental right to education in mother tongue languages, specifically proposing that Kurdish and Turkish children should be able to study in their native languages"
+        },
+        {
+          "idx": 91,
+          "status": "ok",
+          "text": "Should capital punishment continue for drug offenses? The current laws are too h",
+          "expected_group": "death-penalty",
+          "policy_topic": "judicial-reform",
+          "policy_key": "death-penalty-policy",
+          "summary": "Questions whether capital punishment should continue for drug offenses, expressing concern that current laws are too harsh"
+        },
+        {
+          "idx": 92,
+          "status": "ok",
+          "text": "حجاب اجباری باید لغو بشه. هر زنی باید خودش تصمیم بگیره چی بپوشه.",
+          "expected_group": "hijab-dress-code",
+          "policy_topic": "dress-code-policy",
+          "policy_key": "womens-dress-code-policy",
+          "summary": "Proposes that mandatory hijab laws should be abolished, arguing that every woman should have the right to decide what to wear for herself"
+        },
+        {
+          "idx": 93,
+          "status": "ok",
+          "text": "قطع اینترنت در اعتراضات نقض حقوق بشره. هیچ دولتی حق قطع ارتباطات مردم رو نداره.",
+          "expected_group": "internet-censorship",
+          "policy_topic": "internet-censorship",
+          "policy_key": "internet-shutdown-protests",
+          "summary": "Argues that internet shutdowns during protests violate human rights and that no government has the right to cut off people's communications"
+        },
+        {
+          "idx": 94,
+          "status": "ok",
+          "text": "بانک‌های دولتی باید خصوصی بشن ولی با مقررات سختگیرانه.",
+          "expected_group": "state-privatization",
+          "policy_topic": "privatization-policy",
+          "policy_key": "privatization-policy",
+          "summary": "Proposes that government-owned banks should be privatized but with strict regulatory oversight to ensure proper operation and accountability."
+        },
+        {
+          "idx": 95,
+          "status": "ok",
+          "text": "بلوچ‌ها و عرب‌ها و ترکمن‌ها سال‌هاست از تبعیض زبانی رنج می‌برن. باید تمام بشه.",
+          "expected_group": "ethnic-language-rights",
+          "policy_topic": "ethnic-language-discrimination",
+          "policy_key": "minority-language-rights",
+          "summary": "Expresses concern that Baloch, Arab, and Turkmen ethnic groups have suffered from language discrimination for years and calls for ending this discrimination"
+        },
+        {
+          "idx": 96,
+          "status": "ok",
+          "text": "What should happen with the hijab policy after political transition? Should it r",
+          "expected_group": "hijab-dress-code",
+          "policy_topic": "dress-code-policy",
+          "policy_key": "womens-dress-code-policy",
+          "summary": "Questions what should happen with hijab policy following political transition, specifically asking whether it should remain mandatory"
+        },
+        {
+          "idx": 97,
+          "status": "ok",
+          "text": "خصوصی‌سازی اصل ۴۴ فاجعه بود. دارایی‌های ملی به خودی‌ها فروخته شد.",
+          "expected_group": "state-privatization",
+          "policy_topic": "privatization-policy",
+          "policy_key": "privatization-policy",
+          "summary": "Criticizes the privatization process under Article 44 of the constitution, arguing that it was a disaster because national assets were sold to insiders or cronies rather than through proper channels"
+        },
+        {
+          "idx": 98,
+          "status": "ok",
+          "text": "The tech sector cannot grow under censorship. Free internet is an economic neces",
+          "expected_group": "internet-censorship",
+          "policy_topic": "internet-censorship",
+          "policy_key": "internet-freedom-policy",
+          "summary": "Argues that internet censorship hinders tech sector growth and that free internet access is essential for economic development"
+        },
+        {
+          "idx": 99,
+          "status": "ok",
+          "text": "اعدام برای جرائم سیاسی و عقیدتی کاملاً غیرقابل قبوله.",
+          "expected_group": "death-penalty",
+          "policy_topic": "judicial-reform",
+          "policy_key": "death-penalty-policy",
+          "summary": "Expresses strong opposition to the use of death penalty for political and ideological crimes, stating that such executions are completely unacceptable."
+        }
+      ],
+      "pre_normalize_snapshot": {
+        "total_candidates": 100,
+        "distinct_keys": 17,
+        "groups": {
+          "womens-dress-code-policy": {
+            "count": 18,
+            "expected_breakdown": {
+              "hijab-dress-code": 18
+            },
+            "policy_topic": "dress-code-policy",
+            "summaries": [
+              "Proposes holding a referendum on dress code laws to let the people decide on the policy",
+              "Proposes that women's dress code policy should balance protecting individual freedom with respecting diverse societal beliefs",
+              "Argues that mandatory dress code for women violates human rights and that dress code laws should be changed"
+            ]
+          },
+          "minority-language-rights": {
+            "count": 18,
+            "expected_breakdown": {
+              "ethnic-language-rights": 18
+            },
+            "policy_topic": "ethnic-language-education",
+            "summaries": [
+              "Proposes that ethnic minority languages such as Kurdish and Azerbaijani should be taught in schools as part of the educational curriculum.",
+              "Argues that language rights are human rights and that banning minority language instruction constitutes cultural suppression, advocating for protection of minority language education.",
+              "Expresses concern that establishing multiple official languages could divide the country, arguing that having one language promotes national unity."
+            ]
+          },
+          "privatization-policy": {
+            "count": 18,
+            "expected_breakdown": {
+              "state-privatization": 18
+            },
+            "policy_topic": "privatization-policy",
+            "summaries": [
+              "Proposes that state-owned companies should be privatized, arguing that the government lacks the necessary efficiency to run them effectively.",
+              "Advocates for protecting workers' rights during privatization processes and preventing mass layoffs when state-owned enterprises are transferred to private ownership.",
+              "Argues that military-controlled companies should be prioritized for privatization due to their market-distorting effects"
+            ]
+          },
+          "death-penalty-policy": {
+            "count": 17,
+            "expected_breakdown": {
+              "death-penalty": 17
+            },
+            "policy_topic": "judicial-reform",
+            "summaries": [
+              "Proposes reforming the judicial system and minimizing the use of death penalty as punishment",
+              "Proposes holding a national referendum to allow public input on death penalty policy through democratic voting",
+              "Argues that statistics show the death penalty has no deterrent effect and should be replaced with life imprisonment as an alternative punishment"
+            ]
+          },
+          "internet-freedom-policy": {
+            "count": 16,
+            "expected_breakdown": {
+              "internet-censorship": 16
+            },
+            "policy_topic": "internet-censorship",
+            "summaries": [
+              "Question about how a democratic Iran should approach online content regulation, weighing complete freedom versus some form of regulation",
+              "Expresses opposition to the concept of a national internet, viewing it as a dangerous idea that should be prevented or stopped.",
+              "Argues that internet censorship impedes the country's scientific and educational advancement, specifically noting that students lack access to resources"
+            ]
+          },
+          "internet-shutdown-protests": {
+            "count": 2,
+            "expected_breakdown": {
+              "internet-censorship": 2
+            },
+            "policy_topic": "internet-censorship",
+            "summaries": [
+              "Proposes that the new government should constitutionally prohibit internet shutdowns during protests, ensuring digital rights and communication access during civil demonstrations",
+              "Argues that internet shutdowns during protests violate human rights and that no government has the right to cut off people's communications"
+            ]
+          },
+          "national-space-program-investment": {
+            "count": 1,
+            "expected_breakdown": {
+              "outlier": 1
+            },
+            "policy_topic": "space-program-development",
+            "summaries": [
+              "Proposes that Iran should invest in developing a national space program specifically focused on satellite communications capabilities."
+            ]
+          },
+          "retirement-age-adjustment": {
+            "count": 1,
+            "expected_breakdown": {
+              "outlier": 1
+            },
+            "policy_topic": "retirement-policy",
+            "summaries": [
+              "Proposes reducing the retirement age, citing that people are tired and need earlier retirement"
+            ]
+          },
+          "curriculum-teaching-methods": {
+            "count": 1,
+            "expected_breakdown": {
+              "outlier": 1
+            },
+            "policy_topic": "education-reform",
+            "summaries": [
+              "Advocates for reforming school curriculum to emphasize critical thinking skills instead of rote memorization methods"
+            ]
+          },
+          "national-parks-wildlife-funding": {
+            "count": 1,
+            "expected_breakdown": {
+              "outlier": 1
+            },
+            "policy_topic": "environmental-conservation",
+            "summaries": [
+              "Advocates for increased government funding and enhanced protection measures for national parks and wildlife reserves to better preserve natural areas and wildlife habitats."
+            ]
+          },
+          "tehran-air-quality-measures": {
+            "count": 1,
+            "expected_breakdown": {
+              "outlier": 1
+            },
+            "policy_topic": "air-pollution-control",
+            "summaries": [
+              "Expresses concern about worsening air pollution in Tehran and calls for urgent action to address the environmental crisis"
+            ]
+          },
+          "daylight-saving-time": {
+            "count": 1,
+            "expected_breakdown": {
+              "outlier": 1
+            },
+            "policy_topic": "time-policy",
+            "summaries": [
+              "Proposes eliminating daylight saving time, arguing that it only confuses people and should be removed"
+            ]
+          },
+          "womens-sports-funding": {
+            "count": 1,
+            "expected_breakdown": {
+              "outlier": 1
+            },
+            "policy_topic": "gender-equality-sports",
+            "summaries": [
+              "Proposes that women's sports should receive increased funding, citing high levels of gender discrimination in sports"
+            ]
+          },
+          "small-farmer-subsidy-policy": {
+            "count": 1,
+            "expected_breakdown": {
+              "outlier": 1
+            },
+            "policy_topic": "agricultural-subsidies",
+            "summaries": [
+              "Proposes that agricultural subsidies should be directed toward supporting small farmers rather than large agribusiness corporations"
+            ]
+          },
+          "small-city-transit-development": {
+            "count": 1,
+            "expected_breakdown": {
+              "outlier": 1
+            },
+            "policy_topic": "public-transportation",
+            "summaries": [
+              "Advocates for improving public transportation infrastructure in small cities across the country, not just focusing on Tehran's metro system"
+            ]
+          },
+          "animal-cruelty-laws": {
+            "count": 1,
+            "expected_breakdown": {
+              "outlier": 1
+            },
+            "policy_topic": "animal-protection",
+            "summaries": [
+              "Proposes that animal protection laws should be made stricter, stating that animal cruelty is a crime"
+            ]
+          },
+          "juvenile-execution-policy": {
+            "count": 1,
+            "expected_breakdown": {
+              "death-penalty": 1
+            },
+            "policy_topic": "judicial-reform",
+            "summaries": [
+              "Calls for an immediate end to juvenile executions in Iran, noting that Iran is among the few countries that still practice this form of capital punishment"
+            ]
+          }
+        }
+      },
+      "post_normalize_snapshot": {
+        "total_candidates": 100,
+        "distinct_keys": 16,
+        "groups": {
+          "womens-dress-code-policy": {
+            "count": 18,
+            "expected_breakdown": {
+              "hijab-dress-code": 18
+            },
+            "policy_topic": "dress-code-policy",
+            "summaries": [
+              "Proposes holding a referendum on dress code laws to let the people decide on the policy",
+              "Proposes that women's dress code policy should balance protecting individual freedom with respecting diverse societal beliefs",
+              "Argues that mandatory dress code for women violates human rights and that dress code laws should be changed"
+            ]
+          },
+          "minority-language-rights": {
+            "count": 18,
+            "expected_breakdown": {
+              "ethnic-language-rights": 18
+            },
+            "policy_topic": "ethnic-language-education",
+            "summaries": [
+              "Proposes that ethnic minority languages such as Kurdish and Azerbaijani should be taught in schools as part of the educational curriculum.",
+              "Argues that language rights are human rights and that banning minority language instruction constitutes cultural suppression, advocating for protection of minority language education.",
+              "Expresses concern that establishing multiple official languages could divide the country, arguing that having one language promotes national unity."
+            ]
+          },
+          "internet-censorship-policy": {
+            "count": 18,
+            "expected_breakdown": {
+              "internet-censorship": 18
+            },
+            "policy_topic": "internet-censorship",
+            "summaries": [
+              "Question about how a democratic Iran should approach online content regulation, weighing complete freedom versus some form of regulation",
+              "Expresses opposition to the concept of a national internet, viewing it as a dangerous idea that should be prevented or stopped.",
+              "Argues that internet censorship impedes the country's scientific and educational advancement, specifically noting that students lack access to resources"
+            ]
+          },
+          "privatization-policy": {
+            "count": 18,
+            "expected_breakdown": {
+              "state-privatization": 18
+            },
+            "policy_topic": "privatization-policy",
+            "summaries": [
+              "Proposes that state-owned companies should be privatized, arguing that the government lacks the necessary efficiency to run them effectively.",
+              "Advocates for protecting workers' rights during privatization processes and preventing mass layoffs when state-owned enterprises are transferred to private ownership.",
+              "Argues that military-controlled companies should be prioritized for privatization due to their market-distorting effects"
+            ]
+          },
+          "death-penalty-policy": {
+            "count": 17,
+            "expected_breakdown": {
+              "death-penalty": 17
+            },
+            "policy_topic": "judicial-reform",
+            "summaries": [
+              "Proposes reforming the judicial system and minimizing the use of death penalty as punishment",
+              "Proposes holding a national referendum to allow public input on death penalty policy through democratic voting",
+              "Argues that statistics show the death penalty has no deterrent effect and should be replaced with life imprisonment as an alternative punishment"
+            ]
+          },
+          "national-space-program-investment": {
+            "count": 1,
+            "expected_breakdown": {
+              "outlier": 1
+            },
+            "policy_topic": "space-program-development",
+            "summaries": [
+              "Proposes that Iran should invest in developing a national space program specifically focused on satellite communications capabilities."
+            ]
+          },
+          "retirement-age-adjustment": {
+            "count": 1,
+            "expected_breakdown": {
+              "outlier": 1
+            },
+            "policy_topic": "retirement-policy",
+            "summaries": [
+              "Proposes reducing the retirement age, citing that people are tired and need earlier retirement"
+            ]
+          },
+          "curriculum-teaching-methods": {
+            "count": 1,
+            "expected_breakdown": {
+              "outlier": 1
+            },
+            "policy_topic": "education-reform",
+            "summaries": [
+              "Advocates for reforming school curriculum to emphasize critical thinking skills instead of rote memorization methods"
+            ]
+          },
+          "national-parks-wildlife-funding": {
+            "count": 1,
+            "expected_breakdown": {
+              "outlier": 1
+            },
+            "policy_topic": "environmental-conservation",
+            "summaries": [
+              "Advocates for increased government funding and enhanced protection measures for national parks and wildlife reserves to better preserve natural areas and wildlife habitats."
+            ]
+          },
+          "tehran-air-quality-measures": {
+            "count": 1,
+            "expected_breakdown": {
+              "outlier": 1
+            },
+            "policy_topic": "air-pollution-control",
+            "summaries": [
+              "Expresses concern about worsening air pollution in Tehran and calls for urgent action to address the environmental crisis"
+            ]
+          },
+          "daylight-saving-time": {
+            "count": 1,
+            "expected_breakdown": {
+              "outlier": 1
+            },
+            "policy_topic": "time-policy",
+            "summaries": [
+              "Proposes eliminating daylight saving time, arguing that it only confuses people and should be removed"
+            ]
+          },
+          "womens-sports-funding": {
+            "count": 1,
+            "expected_breakdown": {
+              "outlier": 1
+            },
+            "policy_topic": "gender-equality-sports",
+            "summaries": [
+              "Proposes that women's sports should receive increased funding, citing high levels of gender discrimination in sports"
+            ]
+          },
+          "small-farmer-subsidy-policy": {
+            "count": 1,
+            "expected_breakdown": {
+              "outlier": 1
+            },
+            "policy_topic": "agricultural-subsidies",
+            "summaries": [
+              "Proposes that agricultural subsidies should be directed toward supporting small farmers rather than large agribusiness corporations"
+            ]
+          },
+          "small-city-transit-development": {
+            "count": 1,
+            "expected_breakdown": {
+              "outlier": 1
+            },
+            "policy_topic": "public-transportation",
+            "summaries": [
+              "Advocates for improving public transportation infrastructure in small cities across the country, not just focusing on Tehran's metro system"
+            ]
+          },
+          "animal-cruelty-laws": {
+            "count": 1,
+            "expected_breakdown": {
+              "outlier": 1
+            },
+            "policy_topic": "animal-protection",
+            "summaries": [
+              "Proposes that animal protection laws should be made stricter, stating that animal cruelty is a crime"
+            ]
+          },
+          "juvenile-execution-policy": {
+            "count": 1,
+            "expected_breakdown": {
+              "death-penalty": 1
+            },
+            "policy_topic": "judicial-reform",
+            "summaries": [
+              "Calls for an immediate end to juvenile executions in Iran, noting that Iran is among the few countries that still practice this form of capital punishment"
+            ]
+          }
+        }
+      },
+      "merges": [
+        "internet-shutdown-protests",
+        "internet-freedom-policy"
+      ]
+    }
+  ],
+  "final": {
+    "total_processed": 100,
+    "rejected": 0,
+    "candidates": 100,
+    "snapshot": {
+      "total_candidates": 100,
+      "distinct_keys": 16,
+      "groups": {
+        "womens-dress-code-policy": {
+          "count": 18,
+          "expected_breakdown": {
+            "hijab-dress-code": 18
+          },
+          "policy_topic": "dress-code-policy",
+          "summaries": [
+            "Proposes holding a referendum on dress code laws to let the people decide on the policy",
+            "Proposes that women's dress code policy should balance protecting individual freedom with respecting diverse societal beliefs",
+            "Argues that mandatory dress code for women violates human rights and that dress code laws should be changed"
+          ]
+        },
+        "minority-language-rights": {
+          "count": 18,
+          "expected_breakdown": {
+            "ethnic-language-rights": 18
+          },
+          "policy_topic": "ethnic-language-education",
+          "summaries": [
+            "Proposes that ethnic minority languages such as Kurdish and Azerbaijani should be taught in schools as part of the educational curriculum.",
+            "Argues that language rights are human rights and that banning minority language instruction constitutes cultural suppression, advocating for protection of minority language education.",
+            "Expresses concern that establishing multiple official languages could divide the country, arguing that having one language promotes national unity."
+          ]
+        },
+        "internet-censorship-policy": {
+          "count": 18,
+          "expected_breakdown": {
+            "internet-censorship": 18
+          },
+          "policy_topic": "internet-censorship",
+          "summaries": [
+            "Question about how a democratic Iran should approach online content regulation, weighing complete freedom versus some form of regulation",
+            "Expresses opposition to the concept of a national internet, viewing it as a dangerous idea that should be prevented or stopped.",
+            "Argues that internet censorship impedes the country's scientific and educational advancement, specifically noting that students lack access to resources"
+          ]
+        },
+        "privatization-policy": {
+          "count": 18,
+          "expected_breakdown": {
+            "state-privatization": 18
+          },
+          "policy_topic": "privatization-policy",
+          "summaries": [
+            "Proposes that state-owned companies should be privatized, arguing that the government lacks the necessary efficiency to run them effectively.",
+            "Advocates for protecting workers' rights during privatization processes and preventing mass layoffs when state-owned enterprises are transferred to private ownership.",
+            "Argues that military-controlled companies should be prioritized for privatization due to their market-distorting effects"
+          ]
+        },
+        "death-penalty-policy": {
+          "count": 17,
+          "expected_breakdown": {
+            "death-penalty": 17
+          },
+          "policy_topic": "judicial-reform",
+          "summaries": [
+            "Proposes reforming the judicial system and minimizing the use of death penalty as punishment",
+            "Proposes holding a national referendum to allow public input on death penalty policy through democratic voting",
+            "Argues that statistics show the death penalty has no deterrent effect and should be replaced with life imprisonment as an alternative punishment"
+          ]
+        },
+        "national-space-program-investment": {
+          "count": 1,
+          "expected_breakdown": {
+            "outlier": 1
+          },
+          "policy_topic": "space-program-development",
+          "summaries": [
+            "Proposes that Iran should invest in developing a national space program specifically focused on satellite communications capabilities."
+          ]
+        },
+        "retirement-age-adjustment": {
+          "count": 1,
+          "expected_breakdown": {
+            "outlier": 1
+          },
+          "policy_topic": "retirement-policy",
+          "summaries": [
+            "Proposes reducing the retirement age, citing that people are tired and need earlier retirement"
+          ]
+        },
+        "curriculum-teaching-methods": {
+          "count": 1,
+          "expected_breakdown": {
+            "outlier": 1
+          },
+          "policy_topic": "education-reform",
+          "summaries": [
+            "Advocates for reforming school curriculum to emphasize critical thinking skills instead of rote memorization methods"
+          ]
+        },
+        "national-parks-wildlife-funding": {
+          "count": 1,
+          "expected_breakdown": {
+            "outlier": 1
+          },
+          "policy_topic": "environmental-conservation",
+          "summaries": [
+            "Advocates for increased government funding and enhanced protection measures for national parks and wildlife reserves to better preserve natural areas and wildlife habitats."
+          ]
+        },
+        "tehran-air-quality-measures": {
+          "count": 1,
+          "expected_breakdown": {
+            "outlier": 1
+          },
+          "policy_topic": "air-pollution-control",
+          "summaries": [
+            "Expresses concern about worsening air pollution in Tehran and calls for urgent action to address the environmental crisis"
+          ]
+        },
+        "daylight-saving-time": {
+          "count": 1,
+          "expected_breakdown": {
+            "outlier": 1
+          },
+          "policy_topic": "time-policy",
+          "summaries": [
+            "Proposes eliminating daylight saving time, arguing that it only confuses people and should be removed"
+          ]
+        },
+        "womens-sports-funding": {
+          "count": 1,
+          "expected_breakdown": {
+            "outlier": 1
+          },
+          "policy_topic": "gender-equality-sports",
+          "summaries": [
+            "Proposes that women's sports should receive increased funding, citing high levels of gender discrimination in sports"
+          ]
+        },
+        "small-farmer-subsidy-policy": {
+          "count": 1,
+          "expected_breakdown": {
+            "outlier": 1
+          },
+          "policy_topic": "agricultural-subsidies",
+          "summaries": [
+            "Proposes that agricultural subsidies should be directed toward supporting small farmers rather than large agribusiness corporations"
+          ]
+        },
+        "small-city-transit-development": {
+          "count": 1,
+          "expected_breakdown": {
+            "outlier": 1
+          },
+          "policy_topic": "public-transportation",
+          "summaries": [
+            "Advocates for improving public transportation infrastructure in small cities across the country, not just focusing on Tehran's metro system"
+          ]
+        },
+        "animal-cruelty-laws": {
+          "count": 1,
+          "expected_breakdown": {
+            "outlier": 1
+          },
+          "policy_topic": "animal-protection",
+          "summaries": [
+            "Proposes that animal protection laws should be made stricter, stating that animal cruelty is a crime"
+          ]
+        },
+        "juvenile-execution-policy": {
+          "count": 1,
+          "expected_breakdown": {
+            "death-penalty": 1
+          },
+          "policy_topic": "judicial-reform",
+          "summaries": [
+            "Calls for an immediate end to juvenile executions in Iran, noting that Iran is among the few countries that still practice this form of capital punishment"
+          ]
+        }
+      }
+    }
+  }
+}

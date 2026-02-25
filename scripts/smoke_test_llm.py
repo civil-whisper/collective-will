@@ -36,7 +36,7 @@ TIER_TEST_PROMPTS: dict[str, str] = {
 
 PROVIDER_MODELS: dict[str, tuple[str, str]] = {
     "google": ("gemini-2.5-flash", "gemini-embedding-001"),
-    "anthropic": ("claude-sonnet-4-20250514", ""),
+    "anthropic": ("claude-sonnet-4-6", ""),
     "openai": ("", "text-embedding-3-large"),
     "deepseek": ("deepseek-chat", ""),
 }

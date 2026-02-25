@@ -443,6 +443,15 @@ voting with LLM-generated options.
     - Broadened canonicalization validity: now accepts questions, concerns, and expressions of interest about policy topics (not just explicit positions/demands)
     - Rationale: questions and stances cluster together by topic; the option generator creates votable stances from the cluster
 
+70. [done] Claude-first model strategy — swap primary/fallback
+    - Gemini 3.1 Pro hit 25 RPD (requests/day) limit on Paid Tier 1, causing persistent 429 errors and slow fallback-to-Claude during tests and pipeline runs
+    - Switched all primary tiers from `gemini-3.1-pro-preview` to `claude-sonnet-4-6` (released 2026-02-17, same pricing as Sonnet 4)
+    - All fallbacks switched from `claude-sonnet-4-20250514` to `gemini-3.1-pro-preview`
+    - Ensemble models updated to `claude-sonnet-4-6,gemini-3.1-pro-preview`
+    - Embeddings unchanged (Gemini embedding quotas are generous: 3K RPM, unlimited RPD)
+    - Google Search grounding for `option_generation` now only activates on Gemini fallback path; override via env if grounding is critical
+    - Updated config.py, staging/production deploy envs, .env.example, smoke test, all context docs, and decision rationale
+
 ### P0 — Inline Canonicalization & Garbage Rejection
 
 Design rationale: `docs/decision-rationale/pipeline/08-batch-scheduler.md`, `docs/decision-rationale/pipeline/03-canonicalization.md`
@@ -502,7 +511,7 @@ feedback to users.
 
 Design rationale: LLM-driven policy-key grouping replaces HDBSCAN as primary mechanism.
 Two-level structure: `policy_topic` (browsing umbrella) + `policy_key` (ballot-level discussion).
-Both are stance-neutral. Three-stage pipeline: inline assignment → batch normalization → ballot question generation.
+Both are stance-neutral. Three-stage pipeline: inline assignment → hybrid normalization (embedding + LLM) → ballot question generation.
 
 72. [done] Add `policy_topic` + `policy_key` to PolicyCandidate and Cluster models
     - PolicyCandidate: `policy_topic`, `policy_key` columns (indexed, server_default="unassigned")
@@ -522,10 +531,14 @@ Both are stance-neutral. Three-stage pipeline: inline assignment → batch norma
     - Scheduler `_find_or_create_cluster()` creates or updates persistent clusters
     - Growth detection triggers `needs_resummarize` when membership grows 50%+
 
-75. [done] Implement LLM-based key normalization (Phase 2)
-    - `src/pipeline/normalize.py`: `normalize_policy_keys()` reviews keys within each topic
+75. [done] Implement hybrid embedding + LLM key normalization (Phase 2)
+    - `src/pipeline/normalize.py`: `normalize_policy_keys()` uses embedding cosine similarity
+      (agglomerative clustering, threshold 0.55) to create broad clusters across ALL topics,
+      then sends ALL full summaries to LLM which produces a `key_mapping` (old→canonical).
+      LLM may keep, merge, or create new key names.
     - `execute_key_merge()` reassigns candidates, merges cluster IDs, deletes merged clusters
     - All merges evidence-logged as `cluster_merged`
+    - Dependencies: numpy, scipy (pdist, linkage, fcluster)
 
 76. [done] Implement ballot question generation (Phase 3)
     - `src/pipeline/endorsement.py`: `generate_ballot_questions()` for clusters needing summarization
@@ -543,7 +556,7 @@ Both are stance-neutral. Three-stage pipeline: inline assignment → batch norma
 
 79. [done] Tests for all phases (152 passed, 10 skipped)
     - `test_policy_grouping.py`: slug sanitization, grouping, centroid computation
-    - `test_normalize.py`: merge response parsing
+    - `test_normalize.py`: merge response parsing, submissions block building, embedding clustering
     - `test_endorsement.py`: ballot response parsing
     - `test_agenda.py`: combined support gate
     - Updated `test_cluster_agenda.py`, `test_db/test_models.py`, `test_handlers/test_intake.py`
@@ -553,6 +566,16 @@ Both are stance-neutral. Three-stage pipeline: inline assignment → batch norma
     - Updated CONTEXT-shared.md: Clustering decision, model definitions, directory structure
     - Created `docs/agent-context/pipeline/05-policy-key-grouping.md`
     - Updated ACTIVE-action-plan.md
+
+81. [done] Add LLM grouping integration test
+    - `tests/test_pipeline/test_grouping_integration.py`: 100 submissions across 5 policy topics + outliers
+    - Serial canonicalization with cumulative policy context (simulates real submission flow)
+    - Interleaved hybrid normalization (embedding similarity + LLM confirmation) every 25 submissions
+    - `CachingLLMRouter` caches both completions and embeddings to `grouping_cache.json.gz`
+    - Generate mode (`GENERATE_GROUPING_CACHE=1`) calls real LLM; replay mode loads from cache (3s)
+    - Fuzzy assertions: group cohesion 35%+, separation, outlier isolation, topic consistency
+    - Results: hijab 100%, language 100%, internet 100%, privatization 100%, death-penalty 94%
+    - Excluded from CI (`scripts/ci-backend.sh`); run manually to validate grouping quality
 
 ## Definition of Done (This Cycle)
 

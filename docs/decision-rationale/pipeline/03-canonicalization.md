@@ -8,7 +8,7 @@
 
 ## Decision Alignment
 
-- All tiers are now Gemini-first (`gemini-3.1-pro-preview`) with Claude Sonnet as fallback. Canonicalization uses the `canonicalization` tier.
+- All tiers are now Claude-first (`claude-sonnet-4-6`) with Gemini 3.1 Pro as fallback. Canonicalization uses the `canonicalization` tier.
 - Goal is extraction quality and operational simplicity at best cost-performance ratio.
 - Canonicalization runs **inline at submission time** (not only in batch) for immediate user feedback.
 - All canonical output (`title`, `summary`, `entities`) is always in English regardless of input language.

@@ -110,6 +110,7 @@ uv run ruff check src/ tests/
 echo "==> Backend tests (CI parity set)"
 uv run pytest --tb=short -q \
   --ignore=tests/test_pipeline/test_pipeline_comprehensive.py \
+  --ignore=tests/test_pipeline/test_grouping_integration.py \
   --ignore=tests/test_integration/test_telegram_e2e.py
 
 echo "==> Cached replay integration test"
