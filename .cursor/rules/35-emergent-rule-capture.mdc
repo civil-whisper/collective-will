@@ -1,0 +1,20 @@
+---
+description: Detect recurring patterns during a session and propose new Cursor rules
+alwaysApply: true
+---
+
+# Emergent Rule Capture
+
+While working through a sequence of actions, watch for repeating patterns that signal a latent convention — for example:
+
+- The same fix applied in multiple places (code style, import order, error handling shape).
+- A manual step the agent keeps performing (running a specific command, checking a specific file).
+- A corrective loop where the agent or user reverts the same kind of mistake more than once.
+- A structural choice that recurs across files (naming, directory placement, test layout).
+
+When a pattern repeats **at least twice** and is not already covered by an existing rule in `.cursor/rules/`:
+
+1. **Surface it** — tell the user: "I'm noticing a recurring pattern: *<one-line description>*. Want me to capture it as a Cursor rule?"
+2. **On confirmation** — create a new `.mdc` file in `.cursor/rules/` following the existing numbering and format conventions. Set `alwaysApply: true` for cross-cutting patterns, or scope with `globs` for file-specific ones.
+3. **Keep it concise** — the rule should be under 50 lines with concrete examples where helpful.
+4. **Skip noise** — do not propose rules for one-off fixes, user-specific preferences stated only once, or speculative ideas not yet confirmed by practice.

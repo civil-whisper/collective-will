@@ -40,7 +40,7 @@ def run_clustering(
     embeddings: list[list[float]] = []
     embedded_candidates: list[PolicyCandidate] = []
     for candidate in candidates:
-        if candidate.embedding:
+        if candidate.embedding is not None:
             embeddings.append([float(v) for v in candidate.embedding])
             embedded_candidates.append(candidate)
 

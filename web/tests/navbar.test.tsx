@@ -1,5 +1,5 @@
 import React from "react";
-import {render, screen, fireEvent} from "@testing-library/react";
+import {render, screen} from "@testing-library/react";
 import {describe, expect, it} from "vitest";
 
 import {NavBar} from "../components/NavBar";
@@ -40,45 +40,27 @@ describe("NavBar", () => {
 
   it("renders Analytics link text", () => {
     render(<NavBar showOpsLink={false} />);
-    expect(screen.getByText("Analytics")).toBeTruthy();
+    expect(screen.getAllByText("Analytics").length).toBeGreaterThanOrEqual(1);
   });
 
   it("renders Dashboard link text", () => {
     render(<NavBar showOpsLink={false} />);
-    expect(screen.getByText("Dashboard")).toBeTruthy();
+    expect(screen.getAllByText("Dashboard").length).toBeGreaterThanOrEqual(1);
   });
 
   it("renders Audit link text", () => {
     render(<NavBar showOpsLink={false} />);
-    expect(screen.getByText("Audit")).toBeTruthy();
+    expect(screen.getAllByText("Audit").length).toBeGreaterThanOrEqual(1);
   });
 
   it("renders Ops link when flag is enabled", () => {
     render(<NavBar showOpsLink />);
-    expect(screen.getByText("Ops")).toBeTruthy();
+    expect(screen.getAllByText("Ops").length).toBeGreaterThanOrEqual(1);
   });
 
   it("renders the language switcher buttons", () => {
     render(<NavBar showOpsLink={false} />);
     expect(screen.getAllByLabelText("English").length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByLabelText("فارسی").length).toBeGreaterThanOrEqual(1);
-  });
-
-  it("has a mobile menu toggle button", () => {
-    render(<NavBar showOpsLink={false} />);
-    const toggleBtn = screen.getByLabelText("Toggle menu");
-    expect(toggleBtn).toBeTruthy();
-    expect(toggleBtn.getAttribute("aria-expanded")).toBe("false");
-  });
-
-  it("toggles mobile menu on button click", () => {
-    render(<NavBar showOpsLink={false} />);
-    const toggleBtn = screen.getByLabelText("Toggle menu");
-
-    fireEvent.click(toggleBtn);
-    expect(toggleBtn.getAttribute("aria-expanded")).toBe("true");
-
-    fireEvent.click(toggleBtn);
-    expect(toggleBtn.getAttribute("aria-expanded")).toBe("false");
   });
 });

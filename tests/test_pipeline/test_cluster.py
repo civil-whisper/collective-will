@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import cast
+from typing import Any, cast
 from uuid import UUID, uuid4
 
 import numpy as np
+from numpy.typing import NDArray
 
 from src.models.submission import PolicyCandidate, PolicyDomain
 from src.pipeline.cluster import run_clustering, variance_check
@@ -14,7 +15,7 @@ from src.pipeline.cluster import run_clustering, variance_check
 class FakeCandidate:
     id: UUID
     domain: PolicyDomain
-    embedding: list[float] | None
+    embedding: list[float] | NDArray[Any] | None
 
 
 def _make_tight_group(n: int, center: list[float], spread: float = 0.01) -> list[FakeCandidate]:
@@ -26,6 +27,20 @@ def _make_tight_group(n: int, center: list[float], spread: float = 0.01) -> list
         )
         for _ in range(n)
     ]
+
+
+def test_numpy_array_embeddings_do_not_raise() -> None:
+    """pgvector returns numpy arrays, not Python lists — verify no truth-value error."""
+    candidates = cast(
+        list[PolicyCandidate],
+        [
+            FakeCandidate(id=uuid4(), domain=PolicyDomain.ECONOMY, embedding=np.array([float(i), 0.0]))
+            for i in range(10)
+        ],
+    )
+    result = run_clustering(candidates=candidates, cycle_id=uuid4(), min_cluster_size=5)
+    total = sum(c.member_count for c in result.clusters) + len(result.noise_candidate_ids)
+    assert total == len(candidates)
 
 
 def test_too_few_candidates_returns_empty() -> None:

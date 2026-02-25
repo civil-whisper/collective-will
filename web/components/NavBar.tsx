@@ -4,7 +4,6 @@ import Link from "next/link";
 import {signOut} from "next-auth/react";
 import {useLocale, useTranslations} from "next-intl";
 import {usePathname} from "next/navigation";
-import {useState} from "react";
 
 import {LanguageSwitcher} from "./LanguageSwitcher";
 
@@ -19,7 +18,6 @@ export function NavBar({showOpsLink, userEmail}: NavBarProps) {
   const appTitle = common("appTitle");
   const locale = useLocale();
   const pathname = usePathname();
-  const [menuOpen, setMenuOpen] = useState(false);
 
   const links = [
     {href: `/${locale}`, label: t("home")},
@@ -38,15 +36,16 @@ export function NavBar({showOpsLink, userEmail}: NavBarProps) {
       aria-label="Main navigation"
       className="sticky top-0 z-50 border-b border-gray-200 bg-white/80 backdrop-blur-md dark:border-slate-700 dark:bg-slate-900/80"
     >
+      {/* Top row: title + (desktop links) + user/lang */}
       <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3 sm:px-6 lg:px-8">
         <Link
           href={`/${locale}`}
-          className="text-lg font-bold tracking-tight text-gray-900 dark:text-white"
+          className="shrink-0 text-lg font-bold tracking-tight text-gray-900 dark:text-white"
         >
           {appTitle}
         </Link>
 
-        {/* Desktop links */}
+        {/* Desktop nav links (hidden on mobile) */}
         <div className="hidden items-center gap-1 md:flex">
           {links.map((link) => (
             <Link
@@ -61,104 +60,56 @@ export function NavBar({showOpsLink, userEmail}: NavBarProps) {
               {link.label}
             </Link>
           ))}
+        </div>
+
+        {/* Right group: user + language (always visible) */}
+        <div className="flex items-center gap-1.5 sm:gap-2">
           {userEmail ? (
-            <div className="ms-2 flex items-center gap-1.5">
-              <span className="rounded-lg bg-gray-100 px-3 py-1.5 text-sm font-medium text-gray-700 dark:bg-slate-700 dark:text-slate-300">
+            <>
+              <span className="hidden rounded-lg bg-gray-100 px-3 py-1.5 text-sm font-medium text-gray-700 dark:bg-slate-700 dark:text-slate-300 sm:inline">
                 {userEmail}
               </span>
               <button
                 type="button"
                 onClick={() => signOut({callbackUrl: `/${locale}`})}
-                className="rounded-md px-2.5 py-1.5 text-sm font-medium text-gray-500 transition-colors hover:bg-red-50 hover:text-red-600 dark:text-slate-400 dark:hover:bg-red-900/20 dark:hover:text-red-400"
+                className="rounded-md p-1.5 text-sm font-medium text-gray-500 transition-colors hover:bg-red-50 hover:text-red-600 dark:text-slate-400 dark:hover:bg-red-900/20 dark:hover:text-red-400"
                 title={common("logout")}
               >
                 <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15m3 0 3-3m0 0-3-3m3 3H9" />
                 </svg>
               </button>
-            </div>
+            </>
           ) : (
             <Link
               href={`/${locale}/signup`}
-              className="ms-2 rounded-lg bg-accent px-4 py-1.5 text-sm font-semibold text-white transition-colors hover:bg-accent-hover"
+              className="rounded-lg bg-accent px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-accent-hover sm:px-4 sm:text-sm"
             >
               {common("signup")}
             </Link>
           )}
-          <div className="ms-3 border-s border-gray-200 ps-3 dark:border-slate-700">
+          <div className="border-s border-gray-200 ps-1.5 dark:border-slate-700 sm:ps-3">
             <LanguageSwitcher />
           </div>
         </div>
-
-        {/* Mobile hamburger */}
-        <button
-          type="button"
-          onClick={() => setMenuOpen(!menuOpen)}
-          aria-label="Toggle menu"
-          aria-expanded={menuOpen}
-          className="inline-flex items-center justify-center rounded-md p-2 text-gray-600 hover:bg-gray-100 dark:text-slate-300 dark:hover:bg-slate-800 md:hidden"
-        >
-          {menuOpen ? (
-            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          ) : (
-            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
-            </svg>
-          )}
-        </button>
       </div>
 
-      {/* Mobile menu */}
-      {menuOpen && (
-        <div className="border-t border-gray-200 bg-white px-4 pb-4 pt-2 dark:border-slate-700 dark:bg-slate-900 md:hidden">
-          <div className="space-y-1">
-            {links.map((link) => (
-              <Link
-                key={link.href}
-                href={link.href}
-                onClick={() => setMenuOpen(false)}
-                className={`block rounded-md px-3 py-2 text-sm font-medium transition-colors ${
-                  isActive(link.href)
-                    ? "bg-accent/10 text-accent dark:text-indigo-300"
-                    : "text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-slate-300 dark:hover:bg-slate-800"
-                }`}
-              >
-                {link.label}
-              </Link>
-            ))}
-          </div>
-          {userEmail ? (
-            <div className="mt-2 space-y-2">
-              <div className="rounded-lg bg-gray-100 px-4 py-2 text-center text-sm font-medium text-gray-700 dark:bg-slate-700 dark:text-slate-300">
-                {userEmail}
-              </div>
-              <button
-                type="button"
-                onClick={() => { setMenuOpen(false); signOut({callbackUrl: `/${locale}`}); }}
-                className="flex w-full items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-red-600 transition-colors hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20"
-              >
-                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15m3 0 3-3m0 0-3-3m3 3H9" />
-                </svg>
-                {common("logout")}
-              </button>
-            </div>
-          ) : (
-            <Link
-              href={`/${locale}/signup`}
-              onClick={() => setMenuOpen(false)}
-              className="mt-2 block rounded-lg bg-accent px-4 py-2 text-center text-sm font-semibold text-white transition-colors hover:bg-accent-hover"
-            >
-              {common("signup")}
-            </Link>
-          )}
-          <div className="mt-3 border-t border-gray-200 pt-3 dark:border-slate-700">
-            <LanguageSwitcher />
-          </div>
-        </div>
-      )}
+      {/* Mobile scrollable nav strip (hidden on desktop) */}
+      <div className="scrollbar-hide flex overflow-x-auto border-t border-gray-100 px-4 dark:border-slate-800 md:hidden">
+        {links.map((link) => (
+          <Link
+            key={link.href}
+            href={link.href}
+            className={`shrink-0 border-b-2 px-3 py-2 text-xs font-medium whitespace-nowrap transition-colors ${
+              isActive(link.href)
+                ? "border-accent text-accent dark:text-indigo-300"
+                : "border-transparent text-gray-500 hover:text-gray-900 dark:text-slate-400 dark:hover:text-white"
+            }`}
+          >
+            {link.label}
+          </Link>
+        ))}
+      </div>
     </nav>
   );
 }

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import asyncio
+import logging
+import traceback
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 
@@ -26,6 +28,8 @@ from src.pipeline.cluster import run_clustering
 from src.pipeline.embeddings import compute_and_store_embeddings
 from src.pipeline.llm import LLMRouter
 from src.pipeline.summarize import summarize_clusters
+
+logger = logging.getLogger(__name__)
 
 PIPELINE_LOCK = asyncio.Lock()
 
@@ -143,7 +147,9 @@ async def run_pipeline(*, session: AsyncSession, llm_router: LLMRouter | None = 
             return result
         except Exception as exc:  # pragma: no cover
             await session.rollback()
-            result.errors.append(str(exc))
+            tb = traceback.format_exc()
+            logger.exception("Pipeline run failed: %s", exc)
+            result.errors.append(f"{type(exc).__name__}: {exc}\n{tb}")
             return result
 
 
