@@ -11,7 +11,7 @@
 This subcontext coordinates pipeline execution decisions as:
 
 - **Inline at submission**: canonicalization + embedding run immediately when a user submits via messaging channel. Garbage is rejected with contextual LLM feedback. Garbage counts against daily quota to prevent sybil LLM-drain attacks.
-- **Batch scheduler**: clustering -> variance -> summaries -> agenda run on a config-backed interval.
+- **Batch scheduler**: clustering -> variance -> summaries -> option generation -> agenda run on a config-backed interval.
 - **Fallback**: if inline canonicalization fails (LLM outage), submission stays `status="pending"` and the batch scheduler retries.
 - Concurrency lock to prevent parallel pipeline runs.
 

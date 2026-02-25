@@ -9,11 +9,12 @@ Create SQLAlchemy ORM models and Pydantic schemas for all 7 core tables, plus ba
 
 ## Files to create/modify
 
-- `src/models/user.py` — User ORM + Pydantic schemas
+- `src/models/user.py` — User ORM + Pydantic schemas (includes `bot_state` and `bot_state_data`)
 - `src/models/submission.py` — Submission + PolicyCandidate ORM + Pydantic schemas, PolicyDomain enum
-- `src/models/cluster.py` — Cluster ORM + Pydantic schemas
-- `src/models/vote.py` — Vote + VotingCycle ORM + Pydantic schemas
+- `src/models/cluster.py` — Cluster ORM + Pydantic schemas (includes `options` relationship)
+- `src/models/vote.py` — Vote + VotingCycle ORM + Pydantic schemas (includes `selections` JSONB)
 - `src/models/endorsement.py` — PolicyEndorsement ORM + Pydantic schemas
+- `src/models/policy_option.py` — PolicyOption ORM + Pydantic schemas (LLM-generated stance options)
 - `src/models/__init__.py` — re-export all models
 - `src/db/queries.py` — basic CRUD functions
 
@@ -31,6 +32,8 @@ Map exactly to the data models in CONTEXT-shared.md. Key details:
 - `trust_score`: default `0.0` (reserved in v0 unless an explicit policy consumes it)
 - `contribution_count`: default `0` (processed submissions + recorded policy endorsements)
 - `is_anonymous`: default `False`
+- `bot_state`: nullable string — tracks current interaction state (e.g., `"awaiting_submission"`, `"voting"`)
+- `bot_state_data`: nullable JSONB — session data for multi-step flows (e.g., voting progress tracker with `cycle_id`, `cluster_ids`, `current_idx`, `selections`)
 
 **Submission table**
 - `id`: UUID primary key
@@ -54,13 +57,28 @@ Map exactly to the data models in CONTEXT-shared.md. Key details:
 - `centroid_embedding`: pgvector Vector column
 - `variance_flag`: boolean, default False
 - `clustering_params`: JSONB
+- `options`: relationship to `PolicyOption` (ordered by position)
 
 **Vote table**
 - `id`: UUID primary key
 - `user_id`: foreign key to users
 - `cycle_id`: foreign key to voting_cycles
-- `approved_cluster_ids`: ARRAY of UUIDs
+- `approved_cluster_ids`: ARRAY of UUIDs (derived from selections when present)
+- `selections`: nullable JSONB — per-policy stance selections `[{cluster_id, option_id}, ...]`
 - Add query helper(s) that answer per-cluster vote counts so callers don't depend on storage shape
+
+**PolicyOption table**
+- `id`: UUID primary key
+- `cluster_id`: foreign key to clusters (indexed)
+- `position`: int, 1-based display order
+- `label`: string (Farsi), not null
+- `label_en`: string (English), nullable
+- `description`: text (Farsi), not null
+- `description_en`: text (English), nullable
+- `model_version`: string, not null — LLM model that generated the option
+- `created_at`: datetime with timezone
+- `evidence_log_id`: nullable int
+- Relationship: `cluster` back-populates `Cluster.options`
 
 **PolicyEndorsement table**
 - `id`: UUID primary key
@@ -104,7 +122,7 @@ class User(Base):
         return UserRead.from_orm_model(self)
 ```
 
-Use this same pattern for Submission, PolicyCandidate, Cluster, Vote, VotingCycle, and PolicyEndorsement.
+Use this same pattern for Submission, PolicyCandidate, Cluster, Vote, VotingCycle, PolicyEndorsement, and PolicyOption.
 
 ### PolicyDomain enum
 
@@ -132,9 +150,11 @@ Basic async functions:
 - `create_cluster(session, data) -> Cluster`
 - `create_policy_endorsement(session, data) -> PolicyEndorsement`
 - `count_cluster_endorsements(session, cluster_id) -> int`
-- `create_vote(session, data) -> Vote`
+- `create_vote(session, data) -> Vote` — accepts `VoteCreate` with optional `selections`
 - `count_votes_for_cluster(session, cycle_id, cluster_id) -> int`
 - `create_voting_cycle(session, data) -> VotingCycle`
+- `create_policy_option(session, data) -> PolicyOption`
+- `get_options_for_cluster(session, cluster_id) -> list[PolicyOption]`
 
 ## Constraints
 

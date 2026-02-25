@@ -78,38 +78,41 @@ Parse user reply like `"1, 3, 5"` or `"1,3,5"` or `"۱، ۳، ۵"` (Farsi numera
 
 ```python
 async def cast_vote(
+    session: AsyncSession,
     user: User,
     cycle: VotingCycle,
-    approved_indices: list[int],
-    db: AsyncSession,
-) -> Vote | None:
+    approved_cluster_ids: list[UUID] | None = None,
+    selections: list[dict[str, str]] | None = None,
+    min_account_age_hours: int = 48,
+    require_contribution: bool = True,
+) -> tuple[Vote | None, str]:
 ```
 
-1. Check user eligibility: `email_verified`, `messaging_verified`, `contribution_count >= 1`, account age >= `settings.min_account_age_hours` (default 48 in production). Here, `contribution_count` includes processed submissions and pre-ballot endorsements.
-2. Check vote change limit: call `check_vote_change()` from abuse module
-3. Map 1-based indices to cluster UUIDs from `cycle.cluster_ids`
-4. If user already voted this cycle: allow exactly one full vote-set update for the cycle (this is the one allowed change)
-5. If first vote: create new Vote record
-6. Log `vote_cast` event to evidence store
-7. Send confirmation: `"✅ رای شما ثبت شد!"`
-8. Return the Vote, or None if ineligible/rate-limited
+1. Check user eligibility: `email_verified`, `messaging_verified`, `contribution_count >= 1`, account age >= `min_account_age_hours`. `contribution_count` includes processed submissions and pre-ballot endorsements.
+2. Check vote change limit: call `can_change_vote()` from abuse module
+3. If `selections` provided (per-policy voting): auto-derive `approved_cluster_ids` from the selections list
+4. If user already voted this cycle: allow exactly one full vote-set update per cycle (one allowed change)
+5. If first vote: create new Vote record with both `approved_cluster_ids` and `selections`
+6. Log `vote_cast` event to evidence store (includes `selections` in payload when present)
+7. Return `(vote, status)` — status is `"recorded"`, `"not_eligible"`, or `"vote_change_limit_reached"`
 
 ### close_and_tally()
 
 ```python
 async def close_and_tally(
-    cycle_id: UUID,
-    db: AsyncSession,
+    session: AsyncSession,
+    cycle: VotingCycle,
 ) -> VotingCycle:
 ```
 
 1. Load all votes for this cycle
 2. Count approvals per cluster
 3. Compute approval_rate = approvals / total_voters for each cluster
-4. Update VotingCycle with `status="tallied"`, `results`, `total_voters`
-5. Update each Cluster's `approval_count`
-6. Log `cycle_closed` event to evidence store
-7. Return the updated cycle
+4. For votes with `selections`: aggregate per-option counts into `option_counts` dict per cluster
+5. Update VotingCycle with `status="tallied"`, `results` (including `option_counts` when available), `total_voters`
+6. Update each Cluster's `approval_count`
+7. Log `cycle_closed` event to evidence store
+8. Return the updated cycle
 
 ### send_reminder()
 
@@ -127,16 +130,18 @@ Send a reminder to all verified users who haven't voted yet, 24 hours before cyc
 
 - Vote eligibility requires `contribution_count >= 1` (accepted contribution = processed submission OR recorded endorsement signature).
 - Final ballot must only include pre-qualified clusters returned by agenda builder.
-- Vote-change semantics are explicit: one full approval-set re-submission is allowed per cycle (total max: 2 vote submissions). After that, further changes are blocked.
+- Vote-change semantics are explicit: one full vote-set re-submission is allowed per cycle (total max: 2 vote submissions). After that, further changes are blocked.
 - Tally math must be exact — no floating point errors in counts. Use integer counts; compute rates as `Decimal` or round consistently.
+- When `selections` are provided, `approved_cluster_ids` is auto-derived (every cluster with a selection counts as approved).
+- Tally produces both `approval_count`/`approval_rate` and `option_counts` per cluster when per-policy selections are present.
 - All voting events logged to evidence store.
-- Keep messaging transport abstracted: use `BaseChannel` methods so voting logic remains reusable beyond WhatsApp.
+- Keep messaging transport abstracted: use `BaseChannel` methods so voting logic remains reusable across channels.
 - Do not hardcode `48` for age checks; use config (`MIN_ACCOUNT_AGE_HOURS`) so test environments can run with lower thresholds.
 - No manual vote edits/overrides at per-user level. Any corrections must come from deterministic policy logic and be evidence-logged.
 
 ## Tests
 
-Write tests in `tests/test_handlers/test_voting.py` covering:
+Tests in `tests/test_handlers/test_voting.py` covering:
 - `open_cycle()` creates cycle with correct dates and logs evidence
 - `parse_ballot("1, 3, 5", 10)` returns `[1, 3, 5]`
 - `parse_ballot("۱، ۳", 5)` returns `[1, 3]` (Farsi numerals)
@@ -144,12 +149,13 @@ Write tests in `tests/test_handlers/test_voting.py` covering:
 - `parse_ballot("hello", 5)` returns None
 - `record_endorsement()` creates one signature per user per cluster (duplicate requests are idempotent)
 - `cast_vote()` stores vote with correct cluster IDs and logs evidence
+- `cast_vote()` with `selections` parameter stores selections and derives approved_cluster_ids
 - Ineligible user (no accepted contributions) cannot vote
 - Eligible user with no submissions but at least one recorded endorsement can vote
 - Ineligible user (account age below configured minimum) cannot vote
 - With `MIN_ACCOUNT_AGE_HOURS=1` in test config, users older than 1 hour can vote (assuming other checks pass)
 - Vote change semantics: first full re-submission succeeds, second re-submission is blocked
-- `close_and_tally()` produces correct counts and rates
-- `close_and_tally()` updates cluster approval_count values
-- `send_reminder()` only sends to users who haven't voted
+- `close_and_tally()` produces correct counts and rates (without selections)
+- `close_and_tally()` with per-option selections produces `option_counts` in results
+- `send_reminder()` only sends to users who haven't voted (includes inline_keyboard in reminder)
 - Evidence logged for cycle_opened, vote_cast, cycle_closed

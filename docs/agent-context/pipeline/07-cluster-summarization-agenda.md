@@ -90,17 +90,41 @@ def determine_cluster_domain(candidates: list[PolicyCandidate]) -> PolicyDomain:
     return domain_counts.most_common(1)[0][0]
 ```
 
+### Policy Option Generation (post-summarization)
+
+After cluster summarization, `src/pipeline/options.py` generates 2–4 distinct stance options per cluster using the LLM. This is called in the scheduler pipeline after `summarize_clusters()`.
+
+```python
+async def generate_policy_options(
+    session: AsyncSession,
+    clusters: list[Cluster],
+    candidates_by_id: dict[UUID, PolicyCandidate],
+    llm_router: LLMRouter,
+) -> list[PolicyOption]:
+```
+
+Steps:
+1. For each cluster, build a submissions block from member candidates (title, summary, stance)
+2. Call LLM with `tier="english_reasoning"` to generate 2–4 stance options with bilingual labels and descriptions
+3. Parse JSON output, validate 2–4 options with required fields (label, label_en, description, description_en)
+4. Create `PolicyOption` records linked to the cluster
+5. Log `policy_options_generated` evidence event
+6. On LLM failure: fall back to generic Support/Oppose binary options with `model_version="fallback"`
+
+The options are used in the per-policy voting flow (see `messaging/08-message-commands`).
+
 ## Constraints
 
 - Only aggregated/anonymized content is sent to the LLM. Never individual submissions or user data.
 - Ballot inclusion requires BOTH gates: size threshold and endorsement-signature threshold. No editorial filtering beyond these gates.
 - Small clusters (below threshold) are NOT deleted. They remain visible on the analytics dashboard but don't appear in the voting ballot.
 - Summary generation must always have a fallback path configured for risk management (`english_reasoning_fallback_model`).
-- Keep provider/model choice behind `tier="english_reasoning"` only; this module must not hardcode provider model IDs.
+- Policy option generation must have a fallback path (generic support/oppose) so voting is never blocked by LLM failures.
+- Keep provider/model choice behind `tier="english_reasoning"` only; these modules must not hardcode provider model IDs.
 
 ## Tests
 
-Write tests in `tests/test_pipeline/test_summarize.py` and `tests/test_pipeline/test_agenda.py` covering:
+Tests in `tests/test_pipeline/test_summarize.py`, `tests/test_pipeline/test_agenda.py`, and `tests/test_pipeline/test_options.py` covering:
 
 **Summarization:**
 - Cluster with members gets a summary generated (mock LLM response)
@@ -118,3 +142,11 @@ Write tests in `tests/test_pipeline/test_summarize.py` and `tests/test_pipeline/
 - All qualifying clusters included (no filtering beyond size + endorsements)
 - `determine_cluster_domain()` returns most common domain
 - Domain tie-breaking is deterministic
+
+**Options (tests/test_pipeline/test_options.py):**
+- `_parse_options_json()` handles valid JSON, markdown fences, truncation to 4, rejects < 2 options
+- `_build_submissions_block()` formats candidates with stance labels
+- `_fallback_options()` produces 2 generic support/oppose options
+- `generate_policy_options()` creates PolicyOption records via LLM
+- `generate_policy_options()` uses fallback on LLM error
+- `PolicyOptionCreate` schema validation (rejects empty label, zero position)

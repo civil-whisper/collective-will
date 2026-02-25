@@ -8,8 +8,30 @@
 
 ## Decision Alignment
 
-- Commands are currently triggered from WhatsApp messages in v0.
-- Router behavior should still run on normalized `UnifiedMessage` data to keep command logic reusable.
-- Include explicit pre-ballot endorsement commands (`sign <n>` / `امضا <n>`) so users can contribute without creating new submissions.
+- All Telegram interaction is button-driven via inline keyboards (callback queries). No typed commands.
+- This eliminates misinterpretation of user input (misspellings, unknown commands being treated as submissions).
+- Router behavior runs on normalized `UnifiedMessage` data using the `callback_data` and `callback_query_id` fields.
+- Endorsement callbacks use compact `e:{index}` format, not typed commands.
+- Voting is per-policy with LLM-generated stance options, presented one policy at a time with a summary review page.
 
-**Guardrail**: Do not inspect Evolution raw payload shape inside command routing, and allow endorsement commands only during pre-ballot stage.
+## Decision: Button-only UX over typed commands
+
+**Why this is correct**
+
+- Users don't need to memorize or type commands — reduces errors and support burden.
+- Callback data encoding is compact and deterministic — no parsing ambiguity.
+- Inline keyboards provide discoverability — all available actions visible at all times.
+- State machine (`bot_state` + `bot_state_data`) persists across bot restarts.
+
+**Risk**
+
+- Inline keyboards are Telegram-specific; WhatsApp has limited interactive message support.
+- `bot_state_data` JSONB could grow if not cleaned up after flow completion.
+
+**Guardrail**
+
+- Keep routing based on `BaseChannel` + `UnifiedMessage` — callback handling is dispatched generically.
+- Always clear `bot_state` and `bot_state_data` on flow completion (submit, vote, cancel).
+- `answer_callback()` and `edit_message_markup()` default to no-op on platforms without callback support.
+
+**Verdict**: **Keep with guardrail**

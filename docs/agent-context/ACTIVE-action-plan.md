@@ -371,6 +371,62 @@ compatibility with old sparse payloads).
 
 53. [done] Document volume nuke reset in deploy README
 
+### P0 — Telegram UX Redesign & Per-Policy Voting
+
+Goal: Evolve the Telegram bot from ambiguous text commands to a button-only inline
+keyboard UX, and upgrade the voting model from approval voting to per-policy stance
+voting with LLM-generated options.
+
+**Phase 1 — Button-Only Telegram UX**
+
+60. [done] Replace text commands with inline keyboard buttons
+    - Removed all typed command detection (`/start`, `status`, `help`, `vote`, etc.)
+    - Main menu rendered as inline keyboard (Submit, Vote, Language toggle)
+    - State machine tracks `user.bot_state` for multi-step flows
+    - Cancel callback clears state and returns to menu
+    - After every action, auto-return to main menu
+
+61. [done] Add callback query support to BaseChannel
+    - Extended `UnifiedMessage` with `callback_data` and `callback_query_id`
+    - Extended `OutboundMessage` with `reply_markup`
+    - Added `answer_callback()` and `edit_message_markup()` to `BaseChannel` (concrete defaults)
+    - Implemented in `TelegramChannel`
+
+62. [done] Add analytics deep links
+    - After submission: link to public analytics page
+    - After voting: link to public analytics with cycle ID
+
+**Phase 2 — Per-Policy Voting with LLM-Generated Options**
+
+63. [done] Create PolicyOption model and migration
+    - `policy_options` table (cluster_id, position, label, label_en, description, description_en, model_version)
+    - Added `bot_state_data` (JSONB) to `users` table
+    - Added `selections` (JSONB) to `votes` table
+    - Alembic migrations `004_add_user_bot_state` and `005_per_policy_voting`
+
+64. [done] Implement LLM option generation pipeline (`src/pipeline/options.py`)
+    - System prompt for nonpartisan multi-angle option generation
+    - 2–4 bilingual stance options per cluster
+    - Fallback to generic support/oppose on LLM failure
+    - Evidence logging (`policy_options_generated` event)
+    - Integrated into scheduler after `summarize_clusters()`
+
+65. [done] Implement paginated per-policy voting UX
+    - One policy at a time with inline keyboard options
+    - Skip, Back, Change navigation
+    - Summary review page before final submission
+    - `bot_state_data` persists voting session (cycle_id, cluster_ids, current_idx, selections)
+
+66. [done] Update voting backend for per-policy selections
+    - `cast_vote()` accepts `selections` parameter, auto-derives `approved_cluster_ids`
+    - `close_and_tally()` produces `option_counts` alongside approval rates
+    - Evidence payloads include `selections` data
+
+67. [done] Comprehensive tests (60 handler/pipeline tests, 321 total passing)
+    - 23 command handler tests covering all callback paths + edge cases
+    - 17 voting handler tests (including selections and option_counts)
+    - 13 pipeline options tests (parse, fallback, generation, schema)
+
 ### P0 — Inline Canonicalization & Garbage Rejection
 
 Design rationale: `docs/decision-rationale/pipeline/08-batch-scheduler.md`, `docs/decision-rationale/pipeline/03-canonicalization.md`

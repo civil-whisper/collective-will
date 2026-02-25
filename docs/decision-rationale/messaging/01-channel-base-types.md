@@ -27,12 +27,14 @@ This task implements the cross-cutting channel decision from shared context:
 
 **Risk if not enforced**
 
-- WhatsApp payload assumptions leak into handlers and router logic
+- Platform payload assumptions leak into handlers and router logic
 - Future second-channel support requires refactoring many modules instead of one
 - Test coverage becomes provider-coupled and fragile
 
 **Guardrail**
 
-- Tests must prove that a fake class implementing `BaseChannel` can drive handler logic without importing `WhatsAppChannel`.
+- Tests must prove that a fake class implementing `BaseChannel` can drive handler logic without importing `TelegramChannel`.
+- `answer_callback()` and `edit_message_markup()` are concrete methods with default no-op returns (`False`) so platforms without interactive keyboard support don't need to override them.
+- `UnifiedMessage` carries `callback_data` and `callback_query_id` as optional fields — platforms that don't support callbacks simply leave them `None`.
 
 **Verdict**: **Keep with guardrail**

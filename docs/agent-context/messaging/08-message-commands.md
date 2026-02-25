@@ -1,120 +1,158 @@
-# Task: Message Command Router
+# Task: Message Command Router (Button-Only UX)
 
 ## Depends on
 - `messaging/03-webhook-endpoint` (route_message stub)
 - `messaging/04-submission-intake` (handle_submission)
-- `messaging/07-voting-service` (cast_vote, parse_ballot)
-- `messaging/02-whatsapp-evolution-client` (WhatsAppChannel)
-- `database/03-core-models` (User, Submission, VotingCycle queries)
+- `messaging/07-voting-service` (cast_vote, record_endorsement)
+- `messaging/01-channel-base-types` (BaseChannel, UnifiedMessage, OutboundMessage)
+- `database/03-core-models` (User, VotingCycle, Cluster, PolicyOption queries)
 
 ## Goal
-Implement the message router that detects whether an incoming WhatsApp message is a command or a freeform submission, and dispatches accordingly. The routing logic should stay channel-agnostic so adding a second channel in v1 does not require rewriting command handling.
+Implement a button-only Telegram UX that dispatches all user interactions through inline keyboard callbacks. Users never type commands — all actions are selected via buttons. The voting flow presents one policy at a time with LLM-generated stance options, a summary review page, and final submission.
 
 ## Files to create/modify
 
-- `src/handlers/commands.py` — command detection and routing
-- Update `src/api/routes/webhooks.py` — replace `route_message` stub with real implementation
+- `src/handlers/commands.py` — callback router and all interaction flows
 
 ## Specification
 
-### Commands
+### Interaction Model: Button-Only
 
-| User Input | Action |
-|------------|--------|
-| `وضعیت` or `status` | Show pending submissions count, active voting cycle status |
-| `کمک` or `help` | Show available commands |
-| `رای` or `vote` | Show current voting agenda (if active cycle exists) |
-| `امضا 3` or `sign 3` | Record pre-ballot endorsement/signature for listed agenda item |
-| `زبان` or `language` | Toggle locale between Farsi and English, persist to user record |
-| `انصراف` or `skip` | Skip current voting cycle (acknowledge, do nothing) |
-| `1, 3, 5` (numbers during active vote) | Parse as ballot and cast vote |
-| Any other freeform text | Route to submission intake |
+All user interaction is driven by Telegram inline keyboards (callback queries). There are no typed commands. The main menu is an inline keyboard sent after linking, after each action completes, and when unrecognized text is received.
 
-### Command detection
+### Main Menu Buttons
+
+| Button Label (en) | Button Label (fa) | Callback Data |
+|---|---|---|
+| Submit a concern | ثبت نگرانی | `submit` |
+| Vote on policies | رای‌گیری | `vote` |
+| Language: EN/FA | زبان: FA/EN | `lang` |
+
+### State Machine
+
+User interaction state is tracked via two columns on the `User` model:
+
+- `bot_state: str | None` — current high-level state (e.g., `"awaiting_submission"`, `"voting"`)
+- `bot_state_data: dict | None` — JSONB session data for multi-step flows
+
+#### States
+
+| State | Trigger | Behavior |
+|---|---|---|
+| `None` (default) | Any text | Show menu hint + main menu keyboard |
+| `None` | Callback `submit` | Set state to `awaiting_submission`, prompt user to type concern |
+| `awaiting_submission` | Any text | Route to `handle_submission()`, clear state, show menu |
+| `None` | Callback `vote` | Initialize voting session (see below) |
+| `voting` | Callbacks `vo:N`, `vsk`, `vbk`, `vchg`, `vsub` | Navigate per-policy voting flow |
+| Any | Callback `cancel` | Clear state + state_data, show menu |
+| Any | Callback `lang` | Toggle locale, show menu in new language |
+
+### Per-Policy Voting Flow
+
+When the user taps "Vote on policies":
+
+1. **Session initialization**: Query active `VotingCycle`, load `cluster_ids`. Store session in `bot_state_data`:
+   ```json
+   {
+     "cycle_id": "...",
+     "cluster_ids": ["...", "..."],
+     "current_idx": 0,
+     "selections": {}
+   }
+   ```
+   Set `bot_state = "voting"`.
+
+2. **Policy display** (one at a time): Show "Policy X of N", cluster summary (locale-aware), then each `PolicyOption` as an inline keyboard button. Navigation buttons: Skip (→), Back (←).
+
+3. **Option select** (`vo:{position}`): Record selection in `bot_state_data["selections"][cluster_id] = option_id`, advance to next policy.
+
+4. **Skip** (`vsk`): Advance without recording a selection.
+
+5. **Back** (`vbk`): Decrement `current_idx`, re-show previous policy.
+
+6. **Summary** (after last policy): Show all selections with labels. Buttons: Submit Vote (`vsub`), Change Answers (`vchg`).
+
+7. **Change** (`vchg`): Reset `current_idx` to 0, re-show first policy (selections preserved).
+
+8. **Submit** (`vsub`): Convert `selections` dict to `[{cluster_id, option_id}, ...]`, call `cast_vote()` with `selections` parameter. Clear state, show confirmation + analytics link + menu.
+
+### Endorsement Flow
+
+During pre-ballot stage, endorsement buttons are displayed alongside clusters. Callback data: `e:{1-based-index}`. Calls `record_endorsement()` and shows confirmation.
+
+### Callback Data Encoding
+
+Compact strings to fit Telegram's 64-byte limit:
+
+| Action | Format | Example |
+|---|---|---|
+| Option select | `vo:{position}` | `vo:2` |
+| Skip policy | `vsk` | |
+| Back to prev | `vbk` | |
+| Change answers | `vchg` | |
+| Submit vote | `vsub` | |
+| Endorse | `e:{index}` | `e:3` |
+| Submit concern | `submit` | |
+| Vote menu | `vote` | |
+| Language toggle | `lang` | |
+| Cancel | `cancel` | |
+
+### Locale-Aware Messages
+
+All user-facing text is stored in `_MESSAGES: dict[str, dict[str, str]]` with `"en"` and `"fa"` keys. The `_msg(locale, key, **kwargs)` helper selects the appropriate language based on `user.locale`.
+
+### Analytics Deep Links
+
+After submission or voting, include a link to the public analytics page:
+- Submission: `{app_public_base_url}/{locale}/analytics`
+- Vote: `{app_public_base_url}/{locale}/analytics?cycle={cycle_id}`
+
+### route_message() Implementation
 
 ```python
-def detect_command(text: str) -> str | None:
-    """Returns command name if text matches a known command, else None."""
+async def route_message(
+    session: AsyncSession, message: UnifiedMessage, channel: BaseChannel
+) -> str:
 ```
 
-- Normalize: strip whitespace, lowercase for English commands
-- Check Farsi commands first, then English equivalents
-- During an active voting cycle, check if text looks like a ballot (comma/space-separated numbers) before treating as command or submission
-- During pre-ballot endorsement window, support `sign <number>` / `امضا <شماره>` for endorsement recording
+1. If `callback_data` present → look up user, dispatch to `_route_callback()`
+2. Else look up user by `sender_ref`
+3. If user not found and text matches linking code → handle linking
+4. If user not found → send bilingual registration prompt
+5. If `bot_state == "awaiting_submission"` → route to `handle_submission()`
+6. Else → show menu hint with keyboard
 
-### route_message() implementation
-
-Replace the stub in webhooks.py:
-
-```python
-async def route_message(message: UnifiedMessage, db: AsyncSession) -> None:
-    # 1. Look up user by messaging_account_ref
-    # 2. If user not found and message matches linking code pattern → handle linking
-    # 3. If user not found → send "please register first" message
-    # 4. Detect command
-    # 5. If command → dispatch to command handler
-    # 6. If pre-ballot stage and message is sign command → dispatch to record_endorsement
-    # 7. If active voting cycle and text looks like ballot → dispatch to voting
-    # 8. Else → dispatch to submission intake
-```
-
-### Command responses (Farsi primary)
-
-**status** response:
-```
-📊 وضعیت شما:
-ارسالی‌ها: {count} ({pending} در انتظار)
-رای‌گیری فعال: {yes/no}
-```
-
-**help** response:
-```
-🔹 دستورات:
-وضعیت — وضعیت حساب شما
-رای — مشاهده رای‌گیری فعال
-زبان — تغییر زبان
-انصراف — رد کردن رای‌گیری
-یا هر متنی بفرستید تا نگرانی شما ثبت شود.
-```
-
-**vote** response:
-- If active cycle: send ballot via `send_ballot_prompt()`
-- If no active cycle: `"در حال حاضر رای‌گیری فعالی وجود ندارد."` ("No active voting cycle.")
-
-**sign** response:
-- If pre-ballot endorsement list is open: record endorsement and confirm `"✅ امضای شما ثبت شد."`
-- If not in pre-ballot stage: return `"در حال حاضر مرحله امضا فعال نیست."`
-
-**language** response:
-- Toggle user.locale between "fa" and "en"
-- Confirm: `"Language changed to English."` or `"زبان به فارسی تغییر کرد."`
-
-**skip** response:
-- `"✅ از این دور رای‌گیری رد شدید."` ("You skipped this voting cycle.")
+Returns a status string for logging/testing (e.g., `"policy_shown"`, `"vote_recorded"`, `"menu_resent"`).
 
 ## Constraints
 
-- Command detection must handle both Farsi and English variants.
-- During active voting, a message like `"1, 3"` should be parsed as a ballot, NOT as a submission.
-- Endorsement commands (`sign 3` / `امضا ۳`) are only valid during pre-ballot stage.
-- Unknown users (no account linked) should receive a clear message directing them to register via the website.
-- All responses should be in the user's preferred locale (`user.locale`), defaulting to Farsi.
-- Keep command routing based on normalized `UnifiedMessage`; avoid WhatsApp-specific payload checks in router logic.
+- No typed commands — all interaction through inline keyboard callbacks.
+- During voting, `bot_state_data` stores the full session. State is persisted to DB so it survives bot restarts.
+- After every completed action (submit, vote, cancel, lang), automatically return to main menu.
+- Keep routing based on `UnifiedMessage` + `BaseChannel` — no Telegram-specific payload checks in router logic.
+- All responses use the user's preferred locale (`user.locale`).
 
 ## Tests
 
-Write tests in `tests/test_handlers/test_commands.py` covering:
-- `detect_command("وضعیت")` returns `"status"`
-- `detect_command("status")` returns `"status"`
-- `detect_command("STATUS")` returns `"status"` (case-insensitive English)
-- `detect_command("کمک")` returns `"help"`
-- `detect_command("امضا 3")` returns `"sign"`
-- `detect_command("1, 3, 5")` returns None (not a command — handled separately as ballot)
-- `detect_command("I am worried about inflation")` returns None (freeform text)
-- `route_message` dispatches status command to status handler (mock handlers)
-- `route_message` dispatches freeform text to submission intake
-- `route_message` dispatches sign command to endorsement handler during pre-ballot stage
-- `route_message` dispatches ballot-like text to voting during active cycle
-- `route_message` sends registration prompt for unknown users
-- Language toggle persists to user record
-- Each command responds with the correct Farsi message content (verify via mock channel)
+Tests in `tests/test_handlers/test_commands.py` covering:
+- Unknown user → registration prompt
+- Successful linking → welcome message with menu
+- Callback `submit` → sets `awaiting_submission` state
+- Text in awaiting state → triggers submission, clears state
+- Callback `cancel` → clears state and state_data
+- Callback `lang` → toggles locale
+- Callback `vote` with no active cycle → no_active_cycle message
+- Callback `vote` with active cycle → shows first policy with options
+- `vo:N` → advances to next policy, records selection
+- `vsk` → skips without selection
+- `vbk` → goes back to previous policy
+- `vsub` → calls cast_vote with selections, clears state
+- `vsub` with empty selections → returns to menu
+- `vsub` with expired cycle → no_active_cycle
+- `vsub` with rejection → shows error message
+- `vo:N` without active session → returns to menu
+- `vchg` → resets to first policy
+- `e:{index}` → calls record_endorsement
+- Last policy option select → shows summary page
+- Unrecognized text → re-sends menu
+- Bilingual message content verification

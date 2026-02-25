@@ -28,8 +28,9 @@ The scheduler handles clustering, summarization, and agenda building for submiss
 3. **Cluster**: `run_clustering()` → produces Clusters
 4. **Variance check**: `variance_check()` → flags unstable clusters
 5. **Summarize**: `summarize_clusters()` → generates summaries
-6. **Build agenda**: `build_agenda()` → selects clusters for voting
-7. **Update statuses**: Mark all as `status="processed"`
+6. **Generate options**: `generate_policy_options()` → creates 2–4 LLM-generated stance options per cluster
+7. **Build agenda**: `build_agenda()` → selects clusters for voting
+8. **Update statuses**: Mark all as `status="processed"`
 
 ## Files
 

@@ -499,6 +499,254 @@ async def test_vote_submit_calls_cast_vote(mock_settings: MagicMock, mock_cast: 
 
 
 # ---------------------------------------------------------------------------
+# Callback: vote submit — empty selections
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_vote_submit_empty_selections_returns_to_menu() -> None:
+    cycle_id = uuid4()
+    session_data = {
+        "cycle_id": str(cycle_id),
+        "cluster_ids": [str(uuid4())],
+        "current_idx": 1,
+        "selections": {},
+    }
+    user = _make_user(locale="en", bot_state="voting", bot_state_data=session_data)
+    channel = FakeChannel()
+    db = AsyncMock()
+
+    user_result = MagicMock()
+    user_result.scalar_one_or_none.return_value = user
+
+    cycle = MagicMock()
+    cycle.id = cycle_id
+    cycle.status = "active"
+    cycle_result = MagicMock()
+    cycle_result.scalar_one_or_none.return_value = cycle
+
+    db.execute.side_effect = [user_result, cycle_result]
+
+    status = await route_message(session=db, message=_callback_msg("vsub"), channel=channel)
+    assert status == "empty_vote"
+    assert user.bot_state is None
+    assert user.bot_state_data is None
+
+
+# ---------------------------------------------------------------------------
+# Callback: vote submit — cycle expired
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_vote_submit_cycle_expired() -> None:
+    cycle_id = uuid4()
+    session_data = {
+        "cycle_id": str(cycle_id),
+        "cluster_ids": [str(uuid4())],
+        "current_idx": 1,
+        "selections": {str(uuid4()): str(uuid4())},
+    }
+    user = _make_user(locale="en", bot_state="voting", bot_state_data=session_data)
+    channel = FakeChannel()
+    db = AsyncMock()
+
+    user_result = MagicMock()
+    user_result.scalar_one_or_none.return_value = user
+
+    cycle = MagicMock()
+    cycle.id = cycle_id
+    cycle.status = "tallied"
+    cycle_result = MagicMock()
+    cycle_result.scalar_one_or_none.return_value = cycle
+
+    db.execute.side_effect = [user_result, cycle_result]
+
+    status = await route_message(session=db, message=_callback_msg("vsub"), channel=channel)
+    assert status == "no_active_cycle"
+    assert user.bot_state is None
+
+
+# ---------------------------------------------------------------------------
+# Callback: vote submit — cast_vote rejects
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+@patch("src.handlers.commands.cast_vote", new_callable=AsyncMock)
+@patch("src.handlers.commands.get_settings")
+async def test_vote_submit_rejected(mock_settings: MagicMock, mock_cast: AsyncMock) -> None:
+    mock_settings.return_value.min_account_age_hours = 48
+    mock_settings.return_value.require_contribution_for_vote = True
+    mock_settings.return_value.app_public_base_url = "https://example.com"
+    mock_cast.return_value = (None, "not_eligible")
+
+    cycle_id = uuid4()
+    cid = str(uuid4())
+    session_data = {
+        "cycle_id": str(cycle_id),
+        "cluster_ids": [cid],
+        "current_idx": 1,
+        "selections": {cid: str(uuid4())},
+    }
+    user = _make_user(locale="en", bot_state="voting", bot_state_data=session_data)
+    channel = FakeChannel()
+    db = AsyncMock()
+
+    user_result = MagicMock()
+    user_result.scalar_one_or_none.return_value = user
+
+    cycle = MagicMock()
+    cycle.id = cycle_id
+    cycle.status = "active"
+    cycle_result = MagicMock()
+    cycle_result.scalar_one_or_none.return_value = cycle
+
+    db.execute.side_effect = [user_result, cycle_result]
+
+    status = await route_message(session=db, message=_callback_msg("vsub"), channel=channel)
+    assert status == "not_eligible"
+    assert any("Vote rejected" in m.text for m in channel.messages)
+
+
+# ---------------------------------------------------------------------------
+# Callback: option select without active vote session
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_option_select_no_session_returns_menu() -> None:
+    user = _make_user(locale="en", bot_state=None, bot_state_data=None)
+    channel = FakeChannel()
+    db = AsyncMock()
+
+    user_result = MagicMock()
+    user_result.scalar_one_or_none.return_value = user
+    db.execute.return_value = user_result
+
+    status = await route_message(session=db, message=_callback_msg("vo:1"), channel=channel)
+    assert status == "no_vote_session"
+    assert any(m.reply_markup for m in channel.messages)
+
+
+# ---------------------------------------------------------------------------
+# Callback: vote change (restart from summary)
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_vote_change_resets_to_first_policy() -> None:
+    cluster1_id = uuid4()
+    cluster2_id = uuid4()
+    session_data = {
+        "cycle_id": str(uuid4()),
+        "cluster_ids": [str(cluster1_id), str(cluster2_id)],
+        "current_idx": 2,
+        "selections": {str(cluster1_id): str(uuid4())},
+    }
+    user = _make_user(locale="en", bot_state="voting", bot_state_data=session_data)
+    channel = FakeChannel()
+    db = AsyncMock()
+
+    user_result = MagicMock()
+    user_result.scalar_one_or_none.return_value = user
+
+    cluster1 = _make_cluster(cluster1_id)
+    opt = _make_option(cluster1_id, 1, "Opt")
+    cluster1.options = [opt]
+    cluster1_result = MagicMock()
+    cluster1_result.scalar_one_or_none.return_value = cluster1
+
+    db.execute.side_effect = [user_result, cluster1_result]
+
+    status = await route_message(session=db, message=_callback_msg("vchg"), channel=channel)
+    assert status == "policy_shown"
+    assert user.bot_state_data["current_idx"] == 0
+
+
+# ---------------------------------------------------------------------------
+# Callback: endorse with new format
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+@patch("src.handlers.commands.record_endorsement", new_callable=AsyncMock)
+async def test_endorse_callback(mock_endorse: AsyncMock) -> None:
+    mock_endorse.return_value = (True, "recorded")
+    user = _make_user(locale="en")
+    channel = FakeChannel()
+    db = AsyncMock()
+
+    user_result = MagicMock()
+    user_result.scalar_one_or_none.return_value = user
+
+    cluster_id = uuid4()
+    cycle = MagicMock()
+    cycle.id = uuid4()
+    cycle.cluster_ids = [cluster_id]
+    cycle.status = "active"
+    cycle_scalars = MagicMock()
+    cycle_scalars.first.return_value = cycle
+    cycle_result = MagicMock()
+    cycle_result.scalars.return_value = cycle_scalars
+
+    db.execute.side_effect = [user_result, cycle_result]
+
+    status = await route_message(session=db, message=_callback_msg("e:1"), channel=channel)
+    assert status == "recorded"
+    mock_endorse.assert_called_once()
+    assert any(_MESSAGES["en"]["endorsement_recorded"] in m.text for m in channel.messages)
+
+
+# ---------------------------------------------------------------------------
+# Vote summary shown after last policy
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_last_policy_option_select_shows_summary() -> None:
+    cluster1_id = uuid4()
+    session_data = {
+        "cycle_id": str(uuid4()),
+        "cluster_ids": [str(cluster1_id)],
+        "current_idx": 0,
+        "selections": {},
+    }
+    user = _make_user(locale="en", bot_state="voting", bot_state_data=session_data)
+    channel = FakeChannel()
+    db = AsyncMock()
+
+    user_result = MagicMock()
+    user_result.scalar_one_or_none.return_value = user
+
+    opt_a = _make_option(cluster1_id, 1, "Option A")
+    cluster1 = _make_cluster(cluster1_id, "Healthcare")
+    cluster1.options = [opt_a]
+
+    cluster1_result = MagicMock()
+    cluster1_result.scalar_one_or_none.return_value = cluster1
+
+    # After selection: _show_current_policy sees idx=1 >= total=1,
+    # so it calls _show_vote_summary which queries DB twice per cluster.
+    summary_cluster_result = MagicMock()
+    summary_cluster_result.scalar_one_or_none.return_value = cluster1
+
+    db.execute.side_effect = [
+        user_result,
+        cluster1_result,       # _load_cluster_with_options for option select
+        cluster1_result,       # _load_cluster_with_options in summary (cache)
+        summary_cluster_result,  # select(Cluster) in summary loop
+    ]
+
+    status = await route_message(session=db, message=_callback_msg("vo:1"), channel=channel)
+    assert status == "summary_shown"
+    assert user.bot_state_data["current_idx"] == 1
+    summary_msg = channel.messages[-1]
+    assert "Your selections" in summary_msg.text
+    assert summary_msg.reply_markup is not None
+    keyboard_data = [
+        btn["callback_data"]
+        for row in summary_msg.reply_markup["inline_keyboard"]
+        for btn in row
+    ]
+    assert "vsub" in keyboard_data
+    assert "vchg" in keyboard_data
+
+
+# ---------------------------------------------------------------------------
 # Unrecognized text re-sends menu
 # ---------------------------------------------------------------------------
 

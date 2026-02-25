@@ -5,7 +5,9 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
 import pytest
+from pydantic import ValidationError
 
+from src.models.policy_option import PolicyOptionCreate
 from src.pipeline.llm import LLMResponse
 from src.pipeline.options import (
     _build_submissions_block,
@@ -32,6 +34,44 @@ def _make_candidate(cid: object, stance: str = "support") -> MagicMock:
     c.summary = "Everyone should have access to healthcare."
     c.stance = stance
     return c
+
+
+# ---------------------------------------------------------------------------
+# PolicyOptionCreate schema validation
+# ---------------------------------------------------------------------------
+
+def test_policy_option_create_valid() -> None:
+    data = PolicyOptionCreate(
+        cluster_id=uuid4(),
+        position=1,
+        label="Support",
+        description="Support this policy",
+        model_version="test-model",
+    )
+    assert data.position == 1
+    assert data.label_en is None
+
+
+def test_policy_option_create_rejects_empty_label() -> None:
+    with pytest.raises(ValidationError):
+        PolicyOptionCreate(
+            cluster_id=uuid4(),
+            position=1,
+            label="",
+            description="desc",
+            model_version="m",
+        )
+
+
+def test_policy_option_create_rejects_zero_position() -> None:
+    with pytest.raises(ValidationError):
+        PolicyOptionCreate(
+            cluster_id=uuid4(),
+            position=0,
+            label="Label",
+            description="desc",
+            model_version="m",
+        )
 
 
 # ---------------------------------------------------------------------------

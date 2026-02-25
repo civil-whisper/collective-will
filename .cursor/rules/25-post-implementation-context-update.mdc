@@ -1,0 +1,16 @@
+---
+description: Update context docs after every implementation change
+alwaysApply: true
+---
+
+# Post-Implementation Context Update
+
+After completing any implementation task that changes behavior, models, APIs, or flow:
+
+1. **Identify affected context files** — scan `docs/agent-context/**` and `docs/decision-rationale/**` for files that describe the changed area (models, handlers, pipeline, channels, etc.).
+2. **Update implementation contracts** (`docs/agent-context/**`) — reflect new/changed models, function signatures, flow descriptions, file lists, constraints, and test inventories.
+3. **Update decision rationale** (`docs/decision-rationale/**`) — if the *why* or guardrails changed, update the corresponding rationale file.
+4. **Update shared ground truth** (`docs/agent-context/CONTEXT-shared.md`) — if the change touches data models, event types, directory structure, scope, or frozen decisions.
+5. **Update action plan** (`docs/agent-context/ACTIVE-action-plan.md`) — mark completed items, add new items if work was discovered.
+
+This is not optional. Context drift between code and docs causes future agents to make incorrect assumptions. Treat context updates as part of the task, not a follow-up.
