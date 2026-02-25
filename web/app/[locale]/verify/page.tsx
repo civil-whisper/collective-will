@@ -120,15 +120,6 @@ export default function VerifyPage() {
                 <p className="mt-1 text-sm text-gray-500 dark:text-slate-400">{t("nowConnectTelegram")}</p>
               </div>
 
-              {loggedIn && (
-                <Link
-                  href={`/${locale}/dashboard`}
-                  className="inline-block w-full rounded-lg bg-accent px-6 py-2.5 text-center text-sm font-semibold text-white transition-colors hover:bg-accent-hover"
-                >
-                  {t("goToDashboard")}
-                </Link>
-              )}
-
               {linkingCode && (
                 <>
                   <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 dark:border-slate-600 dark:bg-slate-700/50">
