@@ -4,6 +4,11 @@ from src.models.endorsement import (
     PolicyEndorsementCreate,
     PolicyEndorsementRead,
 )
+from src.models.policy_option import (
+    PolicyOption,
+    PolicyOptionCreate,
+    PolicyOptionRead,
+)
 from src.models.submission import (
     PolicyCandidate,
     PolicyCandidateCreate,
@@ -46,5 +51,8 @@ __all__ = [
     "PolicyEndorsement",
     "PolicyEndorsementCreate",
     "PolicyEndorsementRead",
+    "PolicyOption",
+    "PolicyOptionCreate",
+    "PolicyOptionRead",
 ]
 

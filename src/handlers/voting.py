@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy import select
@@ -18,7 +19,6 @@ from src.db.queries import (
     create_voting_cycle,
 )
 from src.handlers.abuse import can_change_vote
-from src.models.cluster import Cluster
 from src.models.endorsement import PolicyEndorsementCreate
 from src.models.user import User
 from src.models.vote import Vote, VoteCreate, VotingCycle, VotingCycleCreate
@@ -104,50 +104,15 @@ async def open_cycle(
     return cycle
 
 
-_BALLOT_MESSAGES: dict[str, dict[str, str]] = {
-    "fa": {
-        "header": "🗳️ صندوق رای باز است!\n",
-        "subheader": "این هفته، این سیاست‌ها مطرح شدند:\n",
-        "instructions": "\nبرای رای دادن، شماره‌های موردنظر خود را بفرستید.",
-        "example": "مثال: 1, 3",
-        "skip_hint": '\nبرای انصراف: "انصراف" بفرستید',
-        "reminder": "⏰ یادآوری: رای‌گیری هنوز باز است. برای مشاهده گزینه‌ها، 'رای' بفرستید.",
-    },
-    "en": {
-        "header": "🗳️ The ballot is open!\n",
-        "subheader": "This week, these policies were proposed:\n",
-        "instructions": "\nTo vote, send the numbers of your choices.",
-        "example": "Example: 1, 3",
-        "skip_hint": '\nTo skip: send "skip"',
-        "reminder": "⏰ Reminder: voting is still open. Send 'vote' to see the options.",
-    },
+_REMINDER_MESSAGES: dict[str, str] = {
+    "fa": "⏰ یادآوری: رای‌گیری هنوز باز است!",
+    "en": "⏰ Reminder: voting is still open!",
 }
 
-
-def _ballot_msg(locale: str, key: str) -> str:
-    lang = locale if locale in _BALLOT_MESSAGES else "en"
-    return _BALLOT_MESSAGES[lang][key]
-
-
-async def send_ballot_prompt(
-    user: User,
-    cycle: VotingCycle,
-    clusters: list[Cluster],
-    channel: BaseChannel,
-) -> bool:
-    locale = user.locale
-    lines = [_ballot_msg(locale, "header"), _ballot_msg(locale, "subheader")]
-    for i, cluster in enumerate(clusters, 1):
-        lines.append(f"{i}. {cluster.summary}")
-    lines.append(_ballot_msg(locale, "instructions"))
-    lines.append(_ballot_msg(locale, "example"))
-    lines.append(_ballot_msg(locale, "skip_hint"))
-    ballot_text = "\n".join(lines)
-
-    ref = user.messaging_account_ref
-    if not ref:
-        return False
-    return await channel.send_message(OutboundMessage(recipient_ref=ref, text=ballot_text))
+_REMINDER_BUTTON: dict[str, str] = {
+    "fa": "🗳️ مشاهده رای‌گیری",
+    "en": "🗳️ View ballot",
+}
 
 
 async def record_endorsement(
@@ -184,7 +149,8 @@ async def cast_vote(
     session: AsyncSession,
     user: User,
     cycle: VotingCycle,
-    approved_cluster_ids: list[UUID],
+    approved_cluster_ids: list[UUID] | None = None,
+    selections: list[dict[str, str]] | None = None,
     min_account_age_hours: int,
     require_contribution: bool = True,
 ) -> tuple[Vote | None, str]:
@@ -197,20 +163,32 @@ async def cast_vote(
     if not await can_change_vote(session=session, user_id=user.id, cycle_id=cycle.id):
         return None, "vote_change_limit_reached"
 
+    effective_approved = approved_cluster_ids or []
+    if selections and not approved_cluster_ids:
+        effective_approved = [UUID(s["cluster_id"]) for s in selections if s.get("option_id")]
+
     vote = await create_vote(
         session,
-        VoteCreate(user_id=user.id, cycle_id=cycle.id, approved_cluster_ids=approved_cluster_ids),
+        VoteCreate(
+            user_id=user.id,
+            cycle_id=cycle.id,
+            approved_cluster_ids=effective_approved,
+            selections=selections,
+        ),
     )
+    payload: dict[str, object] = {
+        "user_id": str(user.id),
+        "cycle_id": str(cycle.id),
+        "approved_cluster_ids": [str(v) for v in effective_approved],
+    }
+    if selections:
+        payload["selections"] = selections
     await append_evidence(
         session=session,
         event_type="vote_cast",
         entity_type="vote",
         entity_id=vote.id,
-        payload={
-            "user_id": str(user.id),
-            "cycle_id": str(cycle.id),
-            "approved_cluster_ids": [str(v) for v in approved_cluster_ids],
-        },
+        payload=payload,
     )
     await session.commit()
     return vote, "recorded"
@@ -221,17 +199,28 @@ async def close_and_tally(*, session: AsyncSession, cycle: VotingCycle) -> Votin
     votes = list(total_voters_result.scalars().all())
     cycle.total_voters = len(votes)
 
-    results: list[dict[str, float | str]] = []
+    results: list[dict[str, Any]] = []
     for cluster_id in cycle.cluster_ids:
         approvals = await count_votes_for_cluster(session, cycle.id, cluster_id)
         rate = approvals / cycle.total_voters if cycle.total_voters else 0.0
-        results.append(
-            {
-                "cluster_id": str(cluster_id),
-                "approval_count": float(approvals),
-                "approval_rate": float(rate),
-            }
-        )
+        cluster_result: dict[str, Any] = {
+            "cluster_id": str(cluster_id),
+            "approval_count": float(approvals),
+            "approval_rate": float(rate),
+        }
+
+        option_counts: dict[str, int] = {}
+        for vote in votes:
+            if vote.selections:
+                for sel in vote.selections:
+                    if sel.get("cluster_id") == str(cluster_id) and sel.get("option_id"):
+                        oid = sel["option_id"]
+                        option_counts[oid] = option_counts.get(oid, 0) + 1
+        if option_counts:
+            cluster_result["option_counts"] = option_counts
+
+        results.append(cluster_result)
+
     cycle.results = results
     cycle.status = "tallied"
     await append_evidence(
@@ -262,9 +251,16 @@ async def send_reminder(
     sent = 0
     for user in all_users:
         if user.id not in voted_user_ids and user.messaging_account_ref:
-            reminder_text = _ballot_msg(user.locale, "reminder")
+            locale = user.locale if user.locale in _REMINDER_MESSAGES else "en"
+            reminder_text = _REMINDER_MESSAGES[locale]
+            btn_text = _REMINDER_BUTTON.get(locale, _REMINDER_BUTTON["en"])
+            keyboard = {"inline_keyboard": [[{"text": btn_text, "callback_data": "vote"}]]}
             success = await channel.send_message(
-                OutboundMessage(recipient_ref=user.messaging_account_ref, text=reminder_text)
+                OutboundMessage(
+                    recipient_ref=user.messaging_account_ref,
+                    text=reminder_text,
+                    reply_markup=keyboard,
+                )
             )
             if success:
                 sent += 1

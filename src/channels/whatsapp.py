@@ -69,12 +69,3 @@ class WhatsAppChannel(BaseChannel):
             logger.exception("Failed to send message to %s", message.recipient_ref)
             return False
 
-    async def send_ballot(self, recipient_ref: str, policies: list[dict[str, Any]]) -> bool:
-        lines = ["🗳️ صندوق رای باز است!\n", "این هفته، این سیاست‌ها مطرح شدند:\n"]
-        for i, p in enumerate(policies, 1):
-            lines.append(f"{i}. {p.get('summary', '')}")
-        lines.append("\nبرای رای دادن، شماره‌های موردنظر خود را بفرستید.")
-        lines.append("مثال: 1, 3")
-        lines.append('\nبرای انصراف: "انصراف" بفرستید')
-        ballot_text = "\n".join(lines)
-        return await self.send_message(OutboundMessage(recipient_ref=recipient_ref, text=ballot_text))

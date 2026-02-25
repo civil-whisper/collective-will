@@ -15,6 +15,8 @@ class UnifiedMessage(BaseModel):
     timestamp: datetime = Field(default_factory=lambda: datetime.now(UTC))
     message_id: str
     raw_payload: dict[str, Any] | None = None
+    callback_data: str | None = None
+    callback_query_id: str | None = None
 
 
 class OutboundMessage(BaseModel):
@@ -23,3 +25,4 @@ class OutboundMessage(BaseModel):
     recipient_ref: str
     text: str
     platform: Literal["whatsapp", "telegram"] = "whatsapp"
+    reply_markup: dict[str, Any] | None = None

@@ -16,6 +16,7 @@ from src.models.submission import PolicyDomain
 
 if TYPE_CHECKING:
     from src.models.endorsement import PolicyEndorsement
+    from src.models.policy_option import PolicyOption
     from src.models.vote import VotingCycle
 
 
@@ -45,6 +46,9 @@ class Cluster(Base):
 
     cycle: Mapped[VotingCycle] = relationship(back_populates="clusters")
     endorsements: Mapped[list[PolicyEndorsement]] = relationship(back_populates="cluster")
+    options: Mapped[list[PolicyOption]] = relationship(
+        back_populates="cluster", order_by="PolicyOption.position"
+    )
 
     def to_schema(self) -> ClusterRead:
         return ClusterRead.from_orm_model(self)

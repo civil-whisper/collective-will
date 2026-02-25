@@ -21,9 +21,6 @@ class FakeChannel(BaseChannel):
         self.sent.append(message)
         return True
 
-    async def send_ballot(self, recipient_ref: str, policies: list[dict[str, Any]]) -> bool:
-        return True
-
 
 def test_unified_message_validates_correct_input() -> None:
     msg = UnifiedMessage(sender_ref="abc", text="hello", message_id="msg-1")

@@ -31,11 +31,11 @@ _MESSAGES = {
         "confirmation": (
             "✅ دریافت شد! نظر شما ثبت شد.\n"
             "ما پیام شما را اینطور فهمیدیم: «{title}»\n"
-            "می‌توانید وضعیت آن را در وبسایت ببینید."
+            "📊 مشاهده در وبسایت: {url}"
         ),
         "confirmation_fallback": (
             "✅ دریافت شد! نظر شما ثبت شد.\n"
-            "می‌توانید وضعیت آن را در وبسایت ببینید."
+            "📊 مشاهده در وبسایت: {url}"
         ),
         "rejection": (
             "❌ پیام شما به عنوان یک پیشنهاد سیاستی قابل پردازش نبود.\n"
@@ -50,11 +50,11 @@ _MESSAGES = {
         "confirmation": (
             "✅ Received! Your submission has been recorded.\n"
             'We understood it as: "{title}"\n'
-            "You can track its status on the website."
+            "📊 View on website: {url}"
         ),
         "confirmation_fallback": (
             "✅ Received! Your submission has been recorded.\n"
-            "You can track its status on the website."
+            "📊 View on website: {url}"
         ),
         "rejection": (
             "❌ Your message could not be processed as a policy proposal.\n"
@@ -74,7 +74,6 @@ def _msg(locale: str, key: str, **kwargs: str) -> str:
     return template.format(**kwargs) if kwargs else template
 
 
-CONFIRMATION_FALLBACK_FA = _MESSAGES["fa"]["confirmation_fallback"]
 NOT_ELIGIBLE_FA = _MESSAGES["fa"]["not_eligible"]
 PII_WARNING_FA = _MESSAGES["fa"]["pii_warning"]
 RATE_LIMIT_FA = _MESSAGES["fa"]["rate_limit"]
@@ -193,14 +192,19 @@ async def handle_submission(
         await compute_and_store_embeddings(session=db, candidates=[db_candidate], llm_router=router)
         submission.status = "canonicalized"
         await db.commit()
-        text = _msg(locale, "confirmation", title=result.title)
+        analytics_url = f"{settings.app_public_base_url}/{locale}/analytics"
+        text = _msg(locale, "confirmation", title=result.title, url=analytics_url)
         await channel.send_message(OutboundMessage(recipient_ref=message.sender_ref, text=text))
     except Exception:
         logger.exception("Inline canonicalization failed for submission %s, deferring to batch", submission.id)
         submission.status = "pending"
         await db.commit()
+        analytics_url = f"{settings.app_public_base_url}/{locale}/analytics"
         await channel.send_message(
-            OutboundMessage(recipient_ref=message.sender_ref, text=_msg(locale, "confirmation_fallback"))
+            OutboundMessage(
+                recipient_ref=message.sender_ref,
+                text=_msg(locale, "confirmation_fallback", url=analytics_url),
+            )
         )
 
 

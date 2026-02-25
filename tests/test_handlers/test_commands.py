@@ -11,12 +11,7 @@ from src.channels.types import OutboundMessage, UnifiedMessage
 from src.handlers.commands import (
     _MESSAGES,
     _WELCOME,
-    HELP_FA,
-    NO_ACTIVE_CYCLE_FA,
     REGISTER_HINT,
-    SKIP_FA,
-    detect_command,
-    is_command,
     route_message,
 )
 
@@ -24,6 +19,8 @@ from src.handlers.commands import (
 class FakeChannel(BaseChannel):
     def __init__(self) -> None:
         self.messages: list[OutboundMessage] = []
+        self.answered_callbacks: list[str] = []
+        self.edited_markups: list[tuple[str, str, dict[str, Any]]] = []
 
     async def parse_webhook(self, payload: dict[str, Any]) -> UnifiedMessage | None:
         return None
@@ -32,72 +29,76 @@ class FakeChannel(BaseChannel):
         self.messages.append(message)
         return True
 
-    async def send_ballot(self, recipient_ref: str, policies: list[dict[str, Any]]) -> bool:
+    async def answer_callback(self, callback_query_id: str, text: str | None = None) -> bool:
+        self.answered_callbacks.append(callback_query_id)
+        return True
+
+    async def edit_message_markup(
+        self, recipient_ref: str, message_id: str, reply_markup: dict[str, Any]
+    ) -> bool:
+        self.edited_markups.append((recipient_ref, message_id, reply_markup))
         return True
 
 
-def _msg(text: str, sender_ref: str = "ref-1") -> UnifiedMessage:
-    return UnifiedMessage(sender_ref=sender_ref, text=text, message_id=f"test-{uuid4().hex[:8]}")
+def _text_msg(text: str, sender_ref: str = "ref-1") -> UnifiedMessage:
+    return UnifiedMessage(
+        sender_ref=sender_ref, text=text, platform="telegram",
+        message_id=f"test-{uuid4().hex[:8]}",
+    )
 
 
-def _make_user(locale: str = "fa") -> MagicMock:
+def _callback_msg(
+    data: str, sender_ref: str = "ref-1", message_id: str = "msg-100"
+) -> UnifiedMessage:
+    return UnifiedMessage(
+        sender_ref=sender_ref, text="", platform="telegram",
+        message_id=message_id,
+        callback_data=data, callback_query_id=f"cbq-{uuid4().hex[:8]}",
+    )
+
+
+def _make_user(
+    locale: str = "fa",
+    bot_state: str | None = None,
+    bot_state_data: dict[str, Any] | None = None,
+) -> MagicMock:
     user = MagicMock()
     user.id = uuid4()
     user.locale = locale
+    user.bot_state = bot_state
+    user.bot_state_data = bot_state_data
+    user.messaging_account_ref = "ref-1"
     return user
 
 
-# --- detect_command tests ---
-
-def test_detect_command_status_farsi() -> None:
-    assert detect_command("وضعیت") == "status"
-
-
-def test_detect_command_status_english() -> None:
-    assert detect_command("status") == "status"
-
-
-def test_detect_command_status_case_insensitive() -> None:
-    assert detect_command("STATUS") == "status"
-
-
-def test_detect_command_help() -> None:
-    assert detect_command("کمک") == "help"
+def _make_cluster(
+    cluster_id: Any = None,
+    summary: str = "Test policy",
+    summary_en: str = "Test policy EN",
+) -> MagicMock:
+    cluster = MagicMock()
+    cluster.id = cluster_id or uuid4()
+    cluster.summary = summary
+    cluster.summary_en = summary_en
+    cluster.options = []
+    return cluster
 
 
-def test_detect_command_sign() -> None:
-    assert detect_command("امضا 3") == "sign"
+def _make_option(cluster_id: Any, position: int = 1, label: str = "Option A") -> MagicMock:
+    opt = MagicMock()
+    opt.id = uuid4()
+    opt.cluster_id = cluster_id
+    opt.position = position
+    opt.label = label
+    opt.label_en = f"{label} EN"
+    opt.description = f"Description for {label}"
+    opt.description_en = f"EN description for {label}"
+    return opt
 
 
-def test_detect_command_ballot_numbers_not_command() -> None:
-    assert detect_command("1, 3, 5") is None
-
-
-def test_detect_command_freeform_not_command() -> None:
-    assert detect_command("I am worried about inflation") is None
-
-
-def test_detect_command_vote() -> None:
-    assert detect_command("رای") == "vote"
-    assert detect_command("vote") == "vote"
-
-
-def test_detect_command_skip() -> None:
-    assert detect_command("انصراف") == "skip"
-    assert detect_command("skip") == "skip"
-
-
-def test_detect_command_language() -> None:
-    assert detect_command("زبان") == "language"
-    assert detect_command("language") == "language"
-
-
-def test_is_command_delegates() -> None:
-    assert is_command("status") is True
-    assert is_command("random text") is False
-
-
-# --- route_message tests ---
+# ---------------------------------------------------------------------------
+# Linking flow (text messages from unknown users)
+# ---------------------------------------------------------------------------
 
 @pytest.mark.asyncio
 async def test_route_unknown_user_prompts_registration() -> None:
@@ -112,14 +113,14 @@ async def test_route_unknown_user_prompts_registration() -> None:
         new_callable=AsyncMock,
         return_value=(False, "invalid", None),
     ):
-        status = await route_message(session=db, message=_msg("hello", "unknown-ref"), channel=channel)
+        status = await route_message(session=db, message=_text_msg("hello", "unknown-ref"), channel=channel)
 
     assert status == "registration_prompted"
     assert any(REGISTER_HINT in m.text for m in channel.messages)
 
 
 @pytest.mark.asyncio
-async def test_route_successful_linking_sends_welcome_en() -> None:
+async def test_route_successful_linking_sends_welcome_with_menu() -> None:
     channel = FakeChannel()
     db = AsyncMock()
 
@@ -135,7 +136,7 @@ async def test_route_successful_linking_sends_welcome_en() -> None:
         new_callable=AsyncMock,
         return_value=(True, "linked", "t***t@example.com"),
     ):
-        status = await route_message(session=db, message=_msg("_TC856VsVWs", "new-ref"), channel=channel)
+        status = await route_message(session=db, message=_text_msg("_TC856VsVWs", "new-ref"), channel=channel)
 
     assert status == "account_linked"
     assert len(channel.messages) == 1
@@ -143,7 +144,9 @@ async def test_route_successful_linking_sends_welcome_en() -> None:
     assert "t***t@example.com" in text
     assert "✅" in text
     assert "Welcome to Collective Will" in text
-    assert "Commands:" in text
+    markup = channel.messages[0].reply_markup
+    assert markup is not None
+    assert "inline_keyboard" in markup
 
 
 @pytest.mark.asyncio
@@ -163,58 +166,19 @@ async def test_route_successful_linking_sends_welcome_fa() -> None:
         new_callable=AsyncMock,
         return_value=(True, "linked", "t***t@example.com"),
     ):
-        status = await route_message(session=db, message=_msg("_TC856VsVWs", "new-ref"), channel=channel)
+        status = await route_message(session=db, message=_text_msg("_TC856VsVWs", "new-ref"), channel=channel)
 
     assert status == "account_linked"
-    assert len(channel.messages) == 1
     text = channel.messages[0].text
-    assert "t***t@example.com" in text
     assert "خوش آمدید" in text
-    assert "دستورات:" in text
 
 
-@pytest.mark.asyncio
-async def test_route_status_command() -> None:
-    user = _make_user(locale="fa")
-    channel = FakeChannel()
-    db = AsyncMock()
-
-    user_result = MagicMock()
-    user_result.scalar_one_or_none.return_value = user
-
-    count_result = MagicMock()
-    count_result.scalar_one.return_value = 3
-
-    cycle_scalars = MagicMock()
-    cycle_scalars.first.return_value = None
-    cycle_result = MagicMock()
-    cycle_result.scalars.return_value = cycle_scalars
-
-    db.execute.side_effect = [user_result, count_result, count_result, cycle_result]
-
-    status = await route_message(session=db, message=_msg("وضعیت"), channel=channel)
-    assert status == "status_sent"
-    assert channel.messages
-    assert "📊" in channel.messages[0].text
-
+# ---------------------------------------------------------------------------
+# Callback: submit concern flow
+# ---------------------------------------------------------------------------
 
 @pytest.mark.asyncio
-async def test_route_help_command_farsi() -> None:
-    user = _make_user(locale="fa")
-    channel = FakeChannel()
-    db = AsyncMock()
-
-    user_result = MagicMock()
-    user_result.scalar_one_or_none.return_value = user
-    db.execute.return_value = user_result
-
-    status = await route_message(session=db, message=_msg("کمک"), channel=channel)
-    assert status == "help_sent"
-    assert any(HELP_FA in m.text for m in channel.messages)
-
-
-@pytest.mark.asyncio
-async def test_route_help_command_english() -> None:
+async def test_callback_submit_sets_awaiting_state() -> None:
     user = _make_user(locale="en")
     channel = FakeChannel()
     db = AsyncMock()
@@ -223,103 +187,82 @@ async def test_route_help_command_english() -> None:
     user_result.scalar_one_or_none.return_value = user
     db.execute.return_value = user_result
 
-    status = await route_message(session=db, message=_msg("help"), channel=channel)
-    assert status == "help_sent"
+    status = await route_message(session=db, message=_callback_msg("submit"), channel=channel)
+    assert status == "awaiting_submission"
+    assert user.bot_state == "awaiting_submission"
     assert len(channel.messages) == 1
-    assert _MESSAGES["en"]["help"] in channel.messages[0].text
-    assert "Commands:" in channel.messages[0].text
-
-
-@pytest.mark.asyncio
-async def test_route_skip_command_farsi() -> None:
-    user = _make_user(locale="fa")
-    channel = FakeChannel()
-    db = AsyncMock()
-
-    user_result = MagicMock()
-    user_result.scalar_one_or_none.return_value = user
-    db.execute.return_value = user_result
-
-    status = await route_message(session=db, message=_msg("انصراف"), channel=channel)
-    assert status == "skipped"
-    assert any(SKIP_FA in m.text for m in channel.messages)
-
-
-@pytest.mark.asyncio
-async def test_route_skip_command_english() -> None:
-    user = _make_user(locale="en")
-    channel = FakeChannel()
-    db = AsyncMock()
-
-    user_result = MagicMock()
-    user_result.scalar_one_or_none.return_value = user
-    db.execute.return_value = user_result
-
-    status = await route_message(session=db, message=_msg("skip"), channel=channel)
-    assert status == "skipped"
-    assert _MESSAGES["en"]["skip"] in channel.messages[0].text
-
-
-@pytest.mark.asyncio
-async def test_route_language_toggle() -> None:
-    user = _make_user(locale="fa")
-    channel = FakeChannel()
-    db = AsyncMock()
-
-    user_result = MagicMock()
-    user_result.scalar_one_or_none.return_value = user
-    db.execute.return_value = user_result
-
-    status = await route_message(session=db, message=_msg("زبان"), channel=channel)
-    assert status == "language_updated"
-    assert user.locale == "en"
-
-
-@pytest.mark.asyncio
-async def test_route_vote_no_active_cycle_farsi() -> None:
-    user = _make_user(locale="fa")
-    channel = FakeChannel()
-    db = AsyncMock()
-
-    user_result = MagicMock()
-    user_result.scalar_one_or_none.return_value = user
-
-    cycle_scalars = MagicMock()
-    cycle_scalars.first.return_value = None
-    cycle_result = MagicMock()
-    cycle_result.scalars.return_value = cycle_scalars
-
-    db.execute.side_effect = [user_result, cycle_result]
-
-    status = await route_message(session=db, message=_msg("رای"), channel=channel)
-    assert status == "no_active_cycle"
-    assert any(NO_ACTIVE_CYCLE_FA in m.text for m in channel.messages)
-
-
-@pytest.mark.asyncio
-async def test_route_vote_no_active_cycle_english() -> None:
-    user = _make_user(locale="en")
-    channel = FakeChannel()
-    db = AsyncMock()
-
-    user_result = MagicMock()
-    user_result.scalar_one_or_none.return_value = user
-
-    cycle_scalars = MagicMock()
-    cycle_scalars.first.return_value = None
-    cycle_result = MagicMock()
-    cycle_result.scalars.return_value = cycle_scalars
-
-    db.execute.side_effect = [user_result, cycle_result]
-
-    status = await route_message(session=db, message=_msg("vote"), channel=channel)
-    assert status == "no_active_cycle"
-    assert _MESSAGES["en"]["no_active_cycle"] in channel.messages[0].text
+    assert _MESSAGES["en"]["submission_prompt"] in channel.messages[0].text
+    assert channel.answered_callbacks
 
 
 @pytest.mark.asyncio
 @patch("src.handlers.commands.handle_submission", new_callable=AsyncMock)
-async def test_route_freeform_to_intake(mock_intake: AsyncMock) -> None:
+async def test_text_in_awaiting_state_triggers_submission(mock_intake: AsyncMock) -> None:
+    user = _make_user(locale="en", bot_state="awaiting_submission")
+    channel = FakeChannel()
+    db = AsyncMock()
+
+    user_result = MagicMock()
+    user_result.scalar_one_or_none.return_value = user
+    db.execute.return_value = user_result
+
+    status = await route_message(
+        session=db, message=_text_msg("I am worried about economy"), channel=channel
+    )
+    assert status == "submission_received"
+    mock_intake.assert_called_once()
+    assert user.bot_state is None
+    assert any(m.reply_markup and "inline_keyboard" in m.reply_markup for m in channel.messages)
+
+
+# ---------------------------------------------------------------------------
+# Callback: cancel
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_callback_cancel_clears_state_and_sends_menu() -> None:
+    user = _make_user(locale="fa", bot_state="awaiting_submission")
+    channel = FakeChannel()
+    db = AsyncMock()
+
+    user_result = MagicMock()
+    user_result.scalar_one_or_none.return_value = user
+    db.execute.return_value = user_result
+
+    status = await route_message(session=db, message=_callback_msg("cancel"), channel=channel)
+    assert status == "cancelled"
+    assert user.bot_state is None
+    assert user.bot_state_data is None
+    assert any(m.reply_markup for m in channel.messages)
+
+
+# ---------------------------------------------------------------------------
+# Callback: language toggle
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_callback_lang_toggles_locale() -> None:
+    user = _make_user(locale="fa")
+    channel = FakeChannel()
+    db = AsyncMock()
+
+    user_result = MagicMock()
+    user_result.scalar_one_or_none.return_value = user
+    db.execute.return_value = user_result
+
+    status = await route_message(session=db, message=_callback_msg("lang"), channel=channel)
+    assert status == "language_updated"
+    assert user.locale == "en"
+    menu_msg = channel.messages[-1]
+    assert menu_msg.reply_markup is not None
+
+
+# ---------------------------------------------------------------------------
+# Callback: vote (no active cycle)
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_callback_vote_no_active_cycle() -> None:
     user = _make_user(locale="en")
     channel = FakeChannel()
     db = AsyncMock()
@@ -334,25 +277,262 @@ async def test_route_freeform_to_intake(mock_intake: AsyncMock) -> None:
 
     db.execute.side_effect = [user_result, cycle_result]
 
-    status = await route_message(session=db, message=_msg("I am worried about economy"), channel=channel)
-    assert status == "submission_received"
-    mock_intake.assert_called_once()
+    status = await route_message(session=db, message=_callback_msg("vote"), channel=channel)
+    assert status == "no_active_cycle"
+    assert any(_MESSAGES["en"]["no_active_cycle"] in m.text for m in channel.messages)
 
+
+# ---------------------------------------------------------------------------
+# Callback: vote with active cycle shows first policy
+# ---------------------------------------------------------------------------
 
 @pytest.mark.asyncio
-async def test_register_hint_is_bilingual() -> None:
+async def test_callback_vote_with_cycle_shows_first_policy() -> None:
+    user = _make_user(locale="en")
+    cluster1_id = uuid4()
+    cluster2_id = uuid4()
+    channel = FakeChannel()
+    db = AsyncMock()
+
+    user_result = MagicMock()
+    user_result.scalar_one_or_none.return_value = user
+
+    cycle = MagicMock()
+    cycle.id = uuid4()
+    cycle.cluster_ids = [cluster1_id, cluster2_id]
+    cycle.status = "active"
+    cycle_scalars = MagicMock()
+    cycle_scalars.first.return_value = cycle
+    cycle_result = MagicMock()
+    cycle_result.scalars.return_value = cycle_scalars
+
+    opt1 = _make_option(cluster1_id, 1, "Support")
+    opt2 = _make_option(cluster1_id, 2, "Oppose")
+    cluster1 = _make_cluster(cluster1_id, "Healthcare policy", "Healthcare policy EN")
+    cluster1.options = [opt1, opt2]
+
+    cluster_scalars = MagicMock()
+    cluster_scalars.scalar_one_or_none = MagicMock(return_value=cluster1)
+    cluster_result = MagicMock()
+    cluster_result.scalar_one_or_none = MagicMock(return_value=cluster1)
+
+    db.execute.side_effect = [user_result, cycle_result, cluster_result]
+
+    status = await route_message(session=db, message=_callback_msg("vote"), channel=channel)
+    assert status == "policy_shown"
+    assert user.bot_state == "voting"
+    assert user.bot_state_data is not None
+    assert user.bot_state_data["current_idx"] == 0
+    assert len(user.bot_state_data["cluster_ids"]) == 2
+
+    assert len(channel.messages) >= 1
+    ballot_msg = channel.messages[0]
+    assert "Policy 1 of 2" in ballot_msg.text
+    assert ballot_msg.reply_markup is not None
+    keyboard = ballot_msg.reply_markup["inline_keyboard"]
+    option_labels = [row[0]["text"] for row in keyboard if row[0].get("callback_data", "").startswith("vo:")]
+    assert len(option_labels) == 2
+
+
+# ---------------------------------------------------------------------------
+# Callback: option select advances to next policy
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_option_select_advances_to_next() -> None:
+    cluster1_id = uuid4()
+    cluster2_id = uuid4()
+    session_data = {
+        "cycle_id": str(uuid4()),
+        "cluster_ids": [str(cluster1_id), str(cluster2_id)],
+        "current_idx": 0,
+        "selections": {},
+    }
+    user = _make_user(locale="en", bot_state="voting", bot_state_data=session_data)
+    channel = FakeChannel()
+    db = AsyncMock()
+
+    user_result = MagicMock()
+    user_result.scalar_one_or_none.return_value = user
+
+    opt_a = _make_option(cluster1_id, 1, "Option A")
+    opt_b = _make_option(cluster1_id, 2, "Option B")
+    cluster1 = _make_cluster(cluster1_id)
+    cluster1.options = [opt_a, opt_b]
+
+    cluster2 = _make_cluster(cluster2_id, "Second policy")
+    opt_c = _make_option(cluster2_id, 1, "Option C")
+    cluster2.options = [opt_c]
+
+    cluster1_result = MagicMock()
+    cluster1_result.scalar_one_or_none.return_value = cluster1
+
+    cluster2_result = MagicMock()
+    cluster2_result.scalar_one_or_none.return_value = cluster2
+
+    db.execute.side_effect = [user_result, cluster1_result, cluster2_result]
+
+    status = await route_message(session=db, message=_callback_msg("vo:1"), channel=channel)
+    assert status == "policy_shown"
+    assert user.bot_state_data["current_idx"] == 1
+    assert str(cluster1_id) in user.bot_state_data["selections"]
+    assert user.bot_state_data["selections"][str(cluster1_id)] == str(opt_a.id)
+
+
+# ---------------------------------------------------------------------------
+# Callback: skip cluster
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_skip_cluster_advances() -> None:
+    cluster1_id = uuid4()
+    cluster2_id = uuid4()
+    session_data = {
+        "cycle_id": str(uuid4()),
+        "cluster_ids": [str(cluster1_id), str(cluster2_id)],
+        "current_idx": 0,
+        "selections": {},
+    }
+    user = _make_user(locale="en", bot_state="voting", bot_state_data=session_data)
+    channel = FakeChannel()
+    db = AsyncMock()
+
+    user_result = MagicMock()
+    user_result.scalar_one_or_none.return_value = user
+
+    cluster2 = _make_cluster(cluster2_id)
+    opt = _make_option(cluster2_id, 1, "Opt")
+    cluster2.options = [opt]
+    cluster2_result = MagicMock()
+    cluster2_result.scalar_one_or_none.return_value = cluster2
+
+    db.execute.side_effect = [user_result, cluster2_result]
+
+    status = await route_message(session=db, message=_callback_msg("vsk"), channel=channel)
+    assert status == "policy_shown"
+    assert user.bot_state_data["current_idx"] == 1
+    assert str(cluster1_id) not in user.bot_state_data["selections"]
+
+
+# ---------------------------------------------------------------------------
+# Callback: vote back
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_vote_back_goes_to_previous() -> None:
+    cluster1_id = uuid4()
+    cluster2_id = uuid4()
+    session_data = {
+        "cycle_id": str(uuid4()),
+        "cluster_ids": [str(cluster1_id), str(cluster2_id)],
+        "current_idx": 1,
+        "selections": {},
+    }
+    user = _make_user(locale="en", bot_state="voting", bot_state_data=session_data)
+    channel = FakeChannel()
+    db = AsyncMock()
+
+    user_result = MagicMock()
+    user_result.scalar_one_or_none.return_value = user
+
+    cluster1 = _make_cluster(cluster1_id)
+    opt = _make_option(cluster1_id, 1, "Opt")
+    cluster1.options = [opt]
+    cluster1_result = MagicMock()
+    cluster1_result.scalar_one_or_none.return_value = cluster1
+
+    db.execute.side_effect = [user_result, cluster1_result]
+
+    status = await route_message(session=db, message=_callback_msg("vbk"), channel=channel)
+    assert status == "policy_shown"
+    assert user.bot_state_data["current_idx"] == 0
+
+
+# ---------------------------------------------------------------------------
+# Callback: vote submit
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+@patch("src.handlers.commands.cast_vote", new_callable=AsyncMock)
+@patch("src.handlers.commands.get_settings")
+async def test_vote_submit_calls_cast_vote(mock_settings: MagicMock, mock_cast: AsyncMock) -> None:
+    mock_settings.return_value.min_account_age_hours = 48
+    mock_settings.return_value.require_contribution_for_vote = True
+    mock_settings.return_value.app_public_base_url = "https://example.com"
+
+    cluster1_id = uuid4()
+    opt_id = uuid4()
+    cycle_id = uuid4()
+    session_data = {
+        "cycle_id": str(cycle_id),
+        "cluster_ids": [str(cluster1_id)],
+        "current_idx": 1,
+        "selections": {str(cluster1_id): str(opt_id)},
+    }
+    user = _make_user(locale="en", bot_state="voting", bot_state_data=session_data)
+    channel = FakeChannel()
+    db = AsyncMock()
+
+    user_result = MagicMock()
+    user_result.scalar_one_or_none.return_value = user
+
+    cycle = MagicMock()
+    cycle.id = cycle_id
+    cycle.status = "active"
+    cycle_result = MagicMock()
+    cycle_result.scalar_one_or_none.return_value = cycle
+
+    db.execute.side_effect = [user_result, cycle_result]
+
+    vote_mock = MagicMock()
+    vote_mock.id = uuid4()
+    mock_cast.return_value = (vote_mock, "recorded")
+
+    status = await route_message(session=db, message=_callback_msg("vsub"), channel=channel)
+    assert status == "vote_recorded"
+    mock_cast.assert_called_once()
+    call_kwargs = mock_cast.call_args.kwargs
+    assert call_kwargs["selections"] == [{"cluster_id": str(cluster1_id), "option_id": str(opt_id)}]
+    assert user.bot_state is None
+    assert user.bot_state_data is None
+    assert any(_MESSAGES["en"]["vote_recorded"] in m.text for m in channel.messages)
+
+
+# ---------------------------------------------------------------------------
+# Unrecognized text re-sends menu
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_unrecognized_text_resends_menu() -> None:
+    user = _make_user(locale="en")
+    channel = FakeChannel()
+    db = AsyncMock()
+
+    user_result = MagicMock()
+    user_result.scalar_one_or_none.return_value = user
+    db.execute.return_value = user_result
+
+    status = await route_message(session=db, message=_text_msg("random text"), channel=channel)
+    assert status == "menu_resent"
+    assert len(channel.messages) == 1
+    assert _MESSAGES["en"]["menu_hint"] in channel.messages[0].text
+    assert channel.messages[0].reply_markup is not None
+
+
+# ---------------------------------------------------------------------------
+# Static message content tests
+# ---------------------------------------------------------------------------
+
+def test_register_hint_is_bilingual() -> None:
     assert "Please sign up" in REGISTER_HINT
     assert "ثبت‌نام" in REGISTER_HINT
 
 
-@pytest.mark.asyncio
-async def test_welcome_messages_have_both_locales() -> None:
+def test_welcome_messages_have_both_locales() -> None:
     en_text = _WELCOME["en"].format(email="t***t@test.com")
     assert "Welcome to Collective Will" in en_text
-    assert "Commands:" in en_text
     assert "t***t@test.com" in en_text
 
     fa_text = _WELCOME["fa"].format(email="t***t@test.com")
     assert "خوش آمدید" in fa_text
-    assert "دستورات:" in fa_text
     assert "t***t@test.com" in fa_text

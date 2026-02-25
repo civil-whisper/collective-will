@@ -16,7 +16,6 @@ from src.handlers.voting import (
     open_cycle,
     parse_ballot,
     record_endorsement,
-    send_ballot_prompt,
     send_reminder,
 )
 
@@ -32,8 +31,6 @@ class FakeChannel(BaseChannel):
         self.sent.append(message)
         return True
 
-    async def send_ballot(self, recipient_ref: str, policies: list[dict[str, Any]]) -> bool:
-        return True
 
 
 def _make_user(
@@ -212,6 +209,37 @@ async def test_cast_vote_success(
 
 
 @pytest.mark.asyncio
+@patch("src.handlers.voting.append_evidence", new_callable=AsyncMock)
+@patch("src.handlers.voting.create_vote", new_callable=AsyncMock)
+@patch("src.handlers.voting.can_change_vote", new_callable=AsyncMock, return_value=True)
+async def test_cast_vote_with_selections(
+    mock_change: AsyncMock, mock_create: AsyncMock, mock_evidence: AsyncMock,
+) -> None:
+    vote = MagicMock()
+    vote.id = uuid4()
+    mock_create.return_value = vote
+
+    user = _make_user()
+    cycle = MagicMock()
+    cycle.id = uuid4()
+    db = AsyncMock()
+    cid = str(uuid4())
+    oid = str(uuid4())
+    selections = [{"cluster_id": cid, "option_id": oid}]
+
+    result_vote, status = await cast_vote(
+        session=db, user=user, cycle=cycle,
+        selections=selections, min_account_age_hours=48,
+    )
+    assert result_vote is not None
+    assert status == "recorded"
+    vote_create_data = mock_create.call_args[0][1]
+    assert vote_create_data.selections == selections
+    evidence_payload = mock_evidence.call_args.kwargs["payload"]
+    assert "selections" in evidence_payload
+
+
+@pytest.mark.asyncio
 async def test_cast_vote_ineligible_no_contributions() -> None:
     user = _make_user(contribution_count=0)
     cycle = MagicMock()
@@ -246,8 +274,11 @@ async def test_cast_vote_change_limit(mock_change: AsyncMock) -> None:
 @patch("src.handlers.voting.count_votes_for_cluster", new_callable=AsyncMock, return_value=3)
 async def test_close_and_tally(mock_count: AsyncMock, mock_evidence: AsyncMock) -> None:
     vote1 = MagicMock()
+    vote1.selections = None
     vote2 = MagicMock()
+    vote2.selections = None
     vote3 = MagicMock()
+    vote3.selections = None
     scalars_mock = MagicMock()
     scalars_mock.all.return_value = [vote1, vote2, vote3]
     result_mock = MagicMock()
@@ -274,20 +305,42 @@ async def test_close_and_tally(mock_count: AsyncMock, mock_evidence: AsyncMock) 
     assert mock_evidence.call_args.kwargs["event_type"] == "cycle_closed"
 
 
-# --- send_ballot_prompt tests ---
-
 @pytest.mark.asyncio
-async def test_send_ballot_prompt_formats() -> None:
-    channel = FakeChannel()
-    user = _make_user()
-    cycle = MagicMock()
-    cluster = MagicMock()
-    cluster.summary = "اقتصاد بهتر"
+@patch("src.handlers.voting.append_evidence", new_callable=AsyncMock)
+@patch("src.handlers.voting.count_votes_for_cluster", new_callable=AsyncMock, return_value=2)
+async def test_close_and_tally_with_option_counts(mock_count: AsyncMock, mock_evidence: AsyncMock) -> None:
+    cluster_id = uuid4()
+    option_a_id = str(uuid4())
+    option_b_id = str(uuid4())
 
-    result = await send_ballot_prompt(user, cycle, [cluster], channel)
-    assert result is True
-    assert len(channel.sent) == 1
-    assert "1. اقتصاد بهتر" in channel.sent[0].text
+    vote1 = MagicMock()
+    vote1.selections = [{"cluster_id": str(cluster_id), "option_id": option_a_id}]
+    vote2 = MagicMock()
+    vote2.selections = [{"cluster_id": str(cluster_id), "option_id": option_b_id}]
+    vote3 = MagicMock()
+    vote3.selections = [{"cluster_id": str(cluster_id), "option_id": option_a_id}]
+
+    scalars_mock = MagicMock()
+    scalars_mock.all.return_value = [vote1, vote2, vote3]
+    result_mock = MagicMock()
+    result_mock.scalars.return_value = scalars_mock
+
+    db = AsyncMock()
+    db.execute.return_value = result_mock
+
+    cycle = MagicMock()
+    cycle.id = uuid4()
+    cycle.cluster_ids = [cluster_id]
+    cycle.results = None
+    cycle.total_voters = 0
+
+    updated = await close_and_tally(session=db, cycle=cycle)
+    assert updated.total_voters == 3
+    assert updated.results is not None
+    result = updated.results[0]
+    assert "option_counts" in result
+    assert result["option_counts"][option_a_id] == 2
+    assert result["option_counts"][option_b_id] == 1
 
 
 # --- send_reminder tests ---
@@ -326,3 +379,5 @@ async def test_send_reminder_skips_already_voted() -> None:
     sent = await send_reminder(cycle, channel, db)
     assert sent == 1
     assert channel.sent[0].recipient_ref == "ref-2"
+    assert channel.sent[0].reply_markup is not None
+    assert "inline_keyboard" in channel.sent[0].reply_markup

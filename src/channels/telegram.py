@@ -23,6 +23,10 @@ class TelegramChannel(BaseChannel):
         self._session = session
 
     async def parse_webhook(self, payload: dict[str, Any]) -> UnifiedMessage | None:
+        callback = payload.get("callback_query")
+        if callback is not None:
+            return await self._parse_callback_query(callback)
+
         message = payload.get("message")
         if message is None:
             return None
@@ -50,6 +54,29 @@ class TelegramChannel(BaseChannel):
             raw_payload=payload,
         )
 
+    async def _parse_callback_query(self, callback: dict[str, Any]) -> UnifiedMessage | None:
+        msg = callback.get("message", {})
+        chat = msg.get("chat", {})
+        chat_id = str(chat.get("id", ""))
+        if not chat_id:
+            return None
+
+        sender_ref = await get_or_create_account_ref(self._session, "telegram", chat_id)
+        message_id = str(msg.get("message_id", ""))
+        date_ts = msg.get("date")
+        timestamp = datetime.fromtimestamp(int(date_ts), tz=UTC) if date_ts else datetime.now(UTC)
+
+        return UnifiedMessage(
+            sender_ref=sender_ref,
+            text="",
+            platform="telegram",
+            timestamp=timestamp,
+            message_id=message_id,
+            raw_payload={"callback_query": callback},
+            callback_data=callback.get("data", ""),
+            callback_query_id=str(callback.get("id", "")),
+        )
+
     async def send_message(self, message: OutboundMessage) -> bool:
         chat_id = await get_platform_id_by_ref(self._session, message.recipient_ref)
         if chat_id is None:
@@ -57,7 +84,9 @@ class TelegramChannel(BaseChannel):
             return False
 
         url = f"{self.api_url}/sendMessage"
-        body = {"chat_id": chat_id, "text": message.text}
+        body: dict[str, Any] = {"chat_id": chat_id, "text": message.text}
+        if message.reply_markup:
+            body["reply_markup"] = message.reply_markup
         try:
             response = await self.client.post(url, json=body)
             response.raise_for_status()
@@ -66,14 +95,37 @@ class TelegramChannel(BaseChannel):
             logger.exception("Failed to send Telegram message to account_ref %s", message.recipient_ref)
             return False
 
-    async def send_ballot(self, recipient_ref: str, policies: list[dict[str, Any]]) -> bool:
-        lines = ["🗳️ صندوق رای باز است!\n", "این هفته، این سیاست‌ها مطرح شدند:\n"]
-        for i, p in enumerate(policies, 1):
-            lines.append(f"{i}. {p.get('summary', '')}")
-        lines.append("\nبرای رای دادن، شماره‌های موردنظر خود را بفرستید.")
-        lines.append("مثال: 1, 3")
-        lines.append('\nبرای انصراف: "انصراف" بفرستید')
-        ballot_text = "\n".join(lines)
-        return await self.send_message(
-            OutboundMessage(recipient_ref=recipient_ref, text=ballot_text, platform="telegram")
-        )
+    async def answer_callback(self, callback_query_id: str, text: str | None = None) -> bool:
+        url = f"{self.api_url}/answerCallbackQuery"
+        body: dict[str, Any] = {"callback_query_id": callback_query_id}
+        if text:
+            body["text"] = text
+        try:
+            response = await self.client.post(url, json=body)
+            response.raise_for_status()
+            return True
+        except (httpx.HTTPStatusError, httpx.RequestError):
+            logger.exception("Failed to answer callback query %s", callback_query_id)
+            return False
+
+    async def edit_message_markup(
+        self, recipient_ref: str, message_id: str, reply_markup: dict[str, Any]
+    ) -> bool:
+        chat_id = await get_platform_id_by_ref(self._session, recipient_ref)
+        if chat_id is None:
+            logger.error("No chat_id mapping for account_ref %s", recipient_ref)
+            return False
+
+        url = f"{self.api_url}/editMessageReplyMarkup"
+        body: dict[str, Any] = {
+            "chat_id": chat_id,
+            "message_id": int(message_id),
+            "reply_markup": reply_markup,
+        }
+        try:
+            response = await self.client.post(url, json=body)
+            response.raise_for_status()
+            return True
+        except (httpx.HTTPStatusError, httpx.RequestError):
+            logger.exception("Failed to edit message markup for account_ref %s", recipient_ref)
+            return False

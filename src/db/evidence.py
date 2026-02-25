@@ -33,6 +33,7 @@ VALID_EVENT_TYPES = {
     "dispute_metrics_recorded",
     "dispute_tuning_recommended",
     "anchor_computed",
+    "policy_options_generated",
 }
 
 

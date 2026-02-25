@@ -11,7 +11,6 @@ import pytest
 from src.channels.base import BaseChannel
 from src.channels.types import OutboundMessage, UnifiedMessage
 from src.handlers.intake import (
-    CONFIRMATION_FALLBACK_FA,
     NOT_ELIGIBLE_FA,
     PII_WARNING_FA,
     RATE_LIMIT_FA,
@@ -35,8 +34,6 @@ class FakeChannel(BaseChannel):
         self.sent.append(message)
         return True
 
-    async def send_ballot(self, recipient_ref: str, policies: list[dict[str, Any]]) -> bool:
-        return True
 
 
 def _make_user(
@@ -231,7 +228,7 @@ async def test_handle_submission_llm_failure_falls_back(
 
     assert sub.status == "pending"
     assert len(channel.sent) == 1
-    assert CONFIRMATION_FALLBACK_FA in channel.sent[0].text
+    assert "دریافت شد" in channel.sent[0].text
 
 
 @pytest.mark.asyncio

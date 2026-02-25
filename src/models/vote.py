@@ -53,6 +53,9 @@ class Vote(Base):
     approved_cluster_ids: Mapped[list[UUID]] = mapped_column(
         ARRAY(PGUUID(as_uuid=True)), nullable=False, default=list
     )
+    selections: Mapped[list[dict[str, Any]] | None] = mapped_column(
+        JSONB, nullable=True, default=None
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(UTC), nullable=False
     )
@@ -69,6 +72,7 @@ class VoteCreate(BaseModel):
     user_id: UUID
     cycle_id: UUID
     approved_cluster_ids: list[UUID] = Field(default_factory=list)
+    selections: list[dict[str, Any]] | None = None
 
 
 class VoteRead(BaseModel):
@@ -76,6 +80,7 @@ class VoteRead(BaseModel):
     user_id: UUID
     cycle_id: UUID
     approved_cluster_ids: list[UUID]
+    selections: list[dict[str, Any]] | None
     created_at: datetime
     evidence_log_id: int | None
 
@@ -86,6 +91,7 @@ class VoteRead(BaseModel):
             user_id=db_vote.user_id,
             cycle_id=db_vote.cycle_id,
             approved_cluster_ids=list(db_vote.approved_cluster_ids),
+            selections=db_vote.selections,
             created_at=db_vote.created_at,
             evidence_log_id=db_vote.evidence_log_id,
         )

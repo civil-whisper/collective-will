@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 from uuid import UUID, uuid4
 
 from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy import Boolean, DateTime, Float, Integer, String
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -37,6 +38,8 @@ class User(Base):
     trust_score: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
     contribution_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     is_anonymous: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    bot_state: Mapped[str | None] = mapped_column(String(32), nullable=True, default=None)
+    bot_state_data: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True, default=None)
 
     submissions: Mapped[list[Submission]] = relationship(back_populates="user")
     votes: Mapped[list[Vote]] = relationship(back_populates="user")
@@ -66,6 +69,7 @@ class UserRead(BaseModel):
     trust_score: float
     contribution_count: int
     is_anonymous: bool
+    bot_state: str | None = None
 
     @classmethod
     def from_orm_model(cls, db_user: User) -> UserRead:
@@ -83,4 +87,5 @@ class UserRead(BaseModel):
             trust_score=db_user.trust_score,
             contribution_count=db_user.contribution_count,
             is_anonymous=db_user.is_anonymous,
+            bot_state=db_user.bot_state,
         )

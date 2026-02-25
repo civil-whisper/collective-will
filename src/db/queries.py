@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models.cluster import Cluster, ClusterCreate
 from src.models.endorsement import PolicyEndorsement, PolicyEndorsementCreate
+from src.models.policy_option import PolicyOption, PolicyOptionCreate
 from src.models.submission import (
     PolicyCandidate,
     PolicyCandidateCreate,
@@ -115,6 +116,31 @@ async def create_policy_endorsement(
     return endorsement
 
 
+async def create_policy_option(session: AsyncSession, data: PolicyOptionCreate) -> PolicyOption:
+    option = PolicyOption(
+        cluster_id=data.cluster_id,
+        position=data.position,
+        label=data.label,
+        label_en=data.label_en,
+        description=data.description,
+        description_en=data.description_en,
+        model_version=data.model_version,
+    )
+    session.add(option)
+    await session.flush()
+    await session.refresh(option)
+    return option
+
+
+async def get_options_for_cluster(session: AsyncSession, cluster_id: UUID) -> list[PolicyOption]:
+    result = await session.execute(
+        select(PolicyOption)
+        .where(PolicyOption.cluster_id == cluster_id)
+        .order_by(PolicyOption.position)
+    )
+    return list(result.scalars().all())
+
+
 async def count_cluster_endorsements(session: AsyncSession, cluster_id: UUID) -> int:
     result = await session.execute(
         select(func.count(PolicyEndorsement.id)).where(PolicyEndorsement.cluster_id == cluster_id)
@@ -127,6 +153,7 @@ async def create_vote(session: AsyncSession, data: VoteCreate) -> Vote:
         user_id=data.user_id,
         cycle_id=data.cycle_id,
         approved_cluster_ids=data.approved_cluster_ids,
+        selections=data.selections,
     )
     session.add(vote)
     await session.flush()

@@ -27,6 +27,7 @@ from src.pipeline.canonicalize import canonicalize_batch
 from src.pipeline.cluster import run_clustering
 from src.pipeline.embeddings import compute_and_store_embeddings
 from src.pipeline.llm import LLMRouter
+from src.pipeline.options import generate_policy_options
 from src.pipeline.summarize import summarize_clusters
 
 logger = logging.getLogger(__name__)
@@ -121,6 +122,13 @@ async def run_pipeline(*, session: AsyncSession, llm_router: LLMRouter | None = 
 
             candidates_by_id = {candidate.id: candidate for candidate in db_candidates}
             await summarize_clusters(
+                session=session,
+                clusters=db_clusters,
+                candidates_by_id=candidates_by_id,
+                llm_router=router,
+            )
+
+            await generate_policy_options(
                 session=session,
                 clusters=db_clusters,
                 candidates_by_id=candidates_by_id,

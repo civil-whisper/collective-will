@@ -120,40 +120,6 @@ async def test_send_message_returns_false_on_http_error(
 
 
 @pytest.mark.asyncio
-@patch("src.channels.whatsapp.get_platform_id_by_ref", new_callable=AsyncMock, return_value=_WA_JID)
-async def test_send_ballot_formats_correctly(
-    mock_reverse: AsyncMock, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    channel = _make_channel()
-    sent_texts: list[str] = []
-
-    class FakeResponse:
-        def raise_for_status(self) -> None:
-            return None
-
-    class FakeClient:
-        async def __aenter__(self):  # type: ignore[no-untyped-def]
-            return self
-
-        async def __aexit__(self, *args: object) -> None:
-            return None
-
-        async def post(self, url: str, **kwargs: object) -> FakeResponse:
-            json_data = kwargs.get("json", {})
-            if isinstance(json_data, dict):
-                sent_texts.append(json_data.get("text", ""))
-            return FakeResponse()
-
-    monkeypatch.setattr("src.channels.whatsapp.httpx.AsyncClient", lambda **kw: FakeClient())
-    policies = [{"summary": "اقتصاد"}, {"summary": "آموزش"}]
-    result = await channel.send_ballot(recipient_ref="opaque-ref", policies=policies)
-    assert result is True
-    assert len(sent_texts) == 1
-    assert "1. اقتصاد" in sent_texts[0]
-    assert "2. آموزش" in sent_texts[0]
-
-
-@pytest.mark.asyncio
 @patch("src.channels.whatsapp.get_platform_id_by_ref", new_callable=AsyncMock, return_value=None)
 async def test_send_message_returns_false_without_reverse_mapping(mock_reverse: AsyncMock) -> None:
     channel = _make_channel()

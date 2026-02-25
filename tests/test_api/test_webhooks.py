@@ -123,3 +123,32 @@ def test_telegram_webhook_ignores_non_text(monkeypatch: pytest.MonkeyPatch) -> N
     response = client.post("/webhooks/telegram", json=payload)
     assert response.status_code == 200
     assert response.json()["status"] == "ignored"
+
+
+@patch("src.channels.telegram.get_or_create_account_ref", new_callable=AsyncMock, return_value="opaque-ref")
+@patch("src.api.routes.webhooks.route_message", new_callable=AsyncMock)
+def test_telegram_webhook_accepts_callback_query(
+    mock_route: AsyncMock, mock_mapping: AsyncMock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "fake-bot-token")
+    from src.config import get_settings
+
+    get_settings.cache_clear()
+    client = TestClient(app)
+    payload = {
+        "update_id": 125,
+        "callback_query": {
+            "id": "cbq-999",
+            "from": {"id": 987654321, "is_bot": False},
+            "message": {
+                "message_id": 50,
+                "chat": {"id": 987654321, "type": "private"},
+                "date": 1707000000,
+                "text": "old message",
+            },
+            "data": "vote",
+        },
+    }
+    response = client.post("/webhooks/telegram", json=payload)
+    assert response.status_code == 200
+    assert response.json()["status"] == "accepted"
