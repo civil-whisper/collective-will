@@ -62,8 +62,19 @@ export function NavBar({showOpsLink, userEmail}: NavBarProps) {
           ))}
         </div>
 
-        {/* Right group: user + language (always visible) */}
+        {/* Right group: telegram + user + language (always visible) */}
         <div className="flex items-center gap-1.5 sm:gap-2">
+          <a
+            href="https://t.me/collective_will_dev_bot"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center justify-center rounded-full bg-[#2AABEE] p-1.5 text-white transition-opacity hover:opacity-80"
+            title="Telegram"
+          >
+            <svg className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M9.78 18.65l.28-4.23 7.68-6.92c.34-.31-.07-.46-.52-.19L7.74 13.3 3.64 12c-.88-.25-.89-.86.2-1.3l15.97-6.16c.73-.33 1.43.18 1.15 1.3l-2.72 12.81c-.19.91-.74 1.13-1.5.71L12.6 16.3l-1.99 1.93c-.23.23-.42.42-.83.42z" />
+            </svg>
+          </a>
           {userEmail ? (
             <>
               <span className="hidden rounded-lg bg-gray-100 px-3 py-1.5 text-sm font-medium text-gray-700 dark:bg-slate-700 dark:text-slate-300 sm:inline">
@@ -82,10 +93,10 @@ export function NavBar({showOpsLink, userEmail}: NavBarProps) {
             </>
           ) : (
             <Link
-              href={`/${locale}/signup`}
+              href={`/${locale}/sign-in`}
               className="rounded-lg bg-accent px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-accent-hover sm:px-4 sm:text-sm"
             >
-              {common("signup")}
+              {common("login")}
             </Link>
           )}
           <div className="border-s border-gray-200 ps-1.5 dark:border-slate-700 sm:ps-3">

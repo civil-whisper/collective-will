@@ -101,7 +101,9 @@ def _make_option(cluster_id: Any, position: int = 1, label: str = "Option A") ->
 # ---------------------------------------------------------------------------
 
 @pytest.mark.asyncio
-async def test_route_unknown_user_prompts_registration() -> None:
+@patch("src.handlers.commands.get_settings")
+async def test_route_unknown_user_prompts_registration(mock_settings: MagicMock) -> None:
+    mock_settings.return_value.app_public_base_url = "https://example.com"
     channel = FakeChannel()
     db = AsyncMock()
     result_mock = MagicMock()
@@ -116,7 +118,8 @@ async def test_route_unknown_user_prompts_registration() -> None:
         status = await route_message(session=db, message=_text_msg("hello", "unknown-ref"), channel=channel)
 
     assert status == "registration_prompted"
-    assert any(REGISTER_HINT in m.text for m in channel.messages)
+    expected = REGISTER_HINT.format(url="https://example.com")
+    assert any(expected in m.text for m in channel.messages)
 
 
 @pytest.mark.asyncio
@@ -772,8 +775,10 @@ async def test_unrecognized_text_resends_menu() -> None:
 # ---------------------------------------------------------------------------
 
 def test_register_hint_is_bilingual() -> None:
-    assert "Please sign up" in REGISTER_HINT
-    assert "ثبت‌نام" in REGISTER_HINT
+    rendered = REGISTER_HINT.format(url="https://example.com")
+    assert "please sign up" in rendered
+    assert "https://example.com" in rendered
+    assert "ثبت‌نام" in rendered
 
 
 def test_welcome_messages_have_both_locales() -> None:

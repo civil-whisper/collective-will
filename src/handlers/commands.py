@@ -21,8 +21,10 @@ from src.models.vote import VotingCycle
 # Pre-auth messages (bilingual — user locale unknown)
 # ---------------------------------------------------------------------------
 REGISTER_HINT = (
-    "Please sign up through the website first.\n"
-    "برای شروع، لطفاً از طریق وبسایت ثبت‌نام کنید."
+    "If you have not signed up on our website, please sign up at {url} and get your verification code.\n"
+    "If you have your verification code, please paste it here.\n\n"
+    "اگر در وبسایت ما ثبت‌نام نکرده‌اید، لطفاً در {url} ثبت‌نام کنید و کد تأیید خود را دریافت کنید.\n"
+    "اگر کد تأیید خود را دارید، لطفاً آن را اینجا وارد کنید."
 )
 USER_ALREADY_LINKED = (
     "⚠️ Your email is already linked to another Telegram account.\n"
@@ -745,8 +747,10 @@ async def route_message(
                 recipient_ref=message.sender_ref, text=ACCOUNT_ALREADY_LINKED
             ))
             return status
+        base_url = get_settings().app_public_base_url
         await channel.send_message(OutboundMessage(
-            recipient_ref=message.sender_ref, text=REGISTER_HINT
+            recipient_ref=message.sender_ref,
+            text=REGISTER_HINT.format(url=base_url),
         ))
         return "registration_prompted"
 
