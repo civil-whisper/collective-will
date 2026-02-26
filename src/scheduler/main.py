@@ -274,12 +274,27 @@ async def _run_daily_anchoring(*, session: AsyncSession, router: LLMRouter) -> N
     await publish_daily_merkle_root(root, datetime.now(UTC).date(), settings, session=session)
 
 
+async def _count_unprocessed(session: AsyncSession) -> int:
+    from sqlalchemy import func
+
+    result = await session.execute(
+        select(func.count())
+        .select_from(Submission)
+        .where(Submission.status.in_(["canonicalized", "pending"]))
+    )
+    return result.scalar_one()
+
+
 async def scheduler_loop(
     *,
     session_factory,
     interval_hours: float,
     min_interval_hours: float,
+    batch_threshold: int = 10,
+    poll_seconds: float = 60.0,
 ) -> None:  # type: ignore[no-untyped-def]
+    max_wait = max(interval_hours, min_interval_hours) * 3600
+
     while True:
         async with session_factory() as session:
             result = await run_pipeline(session=session)
@@ -293,4 +308,18 @@ async def scheduler_loop(
             if result.errors:
                 detail += f" errors={result.errors}"
             await upsert_heartbeat(session, status=status, detail=detail)
-        await asyncio.sleep(max(interval_hours, min_interval_hours) * 3600)
+
+        elapsed = 0.0
+        while elapsed < max_wait:
+            await asyncio.sleep(poll_seconds)
+            elapsed += poll_seconds
+            async with session_factory() as session:
+                count = await _count_unprocessed(session)
+            if count >= batch_threshold:
+                logger.info(
+                    "Batch threshold reached (%d >= %d), triggering pipeline",
+                    count,
+                    batch_threshold,
+                    extra={"event_type": "scheduler.threshold_trigger"},
+                )
+                break

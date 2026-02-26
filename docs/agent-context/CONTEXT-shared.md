@@ -509,7 +509,7 @@ collective-will/
 - Canonicalization (Claude Sonnet, cloud, inline at submission time with batch fallback; always outputs English)
 - Garbage rejection (LLM detects invalid submissions, rejects with user-language feedback; garbage counts against daily quota)
 - Embeddings (quality-first cloud model in v0; computed inline after canonicalization)
-- Clustering (LLM-driven policy-key grouping, batch on a config-backed interval via `PIPELINE_INTERVAL_HOURS`)
+- Clustering (LLM-driven policy-key grouping, batch on hybrid trigger: `BATCH_THRESHOLD` unprocessed submissions OR `PIPELINE_INTERVAL_HOURS` max interval)
 - LLM-generated per-policy stance options (2–4 options per cluster via `pipeline/options.py`)
 - Pre-ballot endorsement/signature stage for cluster qualification
 - Per-policy stance voting via Telegram (paginated one-policy-at-a-time flow with summary review)

@@ -34,6 +34,8 @@ class Settings(BaseSettings):
     voting_cycle_hours: int = 48
     pipeline_interval_hours: float = 6.0
     pipeline_min_interval_hours: float = 0.01
+    batch_threshold: int = 10
+    batch_poll_seconds: float = 60.0
     max_submissions_per_day: int = 5
     require_contribution_for_vote: bool = True
     max_vote_submissions_per_cycle: int = 2

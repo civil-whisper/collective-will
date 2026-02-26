@@ -591,6 +591,12 @@ Both are stance-neutral. Three-stage pipeline: inline assignment → hybrid norm
     - Tests: intake verifies count on success/rejection/LLM-failure; voting verifies 3 sequential endorsements → count==3; scheduler verifies batch increment
     - Context docs updated: `04-submission-intake.md`, `07-voting-service.md`, `08-batch-scheduler.md`, `architecture-flow.md`
 
+84. [done] Hybrid scheduler trigger
+    - Added `BATCH_THRESHOLD` (default 10) and `BATCH_POLL_SECONDS` (default 60) config settings
+    - Scheduler polls every 60s between runs; triggers immediately when unprocessed count >= threshold
+    - Falls back to max interval (`PIPELINE_INTERVAL_HOURS`) if threshold never reached
+    - Tests: `test_count_unprocessed`, `test_scheduler_loop_threshold_trigger`, `test_scheduler_loop_time_trigger`
+
 ## Definition of Done (This Cycle)
 
 - No CI/CD job performs paid LLM API calls

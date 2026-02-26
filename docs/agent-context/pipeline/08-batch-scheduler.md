@@ -56,18 +56,25 @@ class PipelineResult(BaseModel):
 
 ### Scheduler
 
-Use a simple async loop with sleep, or `apscheduler`:
+Hybrid trigger loop — runs when either condition fires first:
+1. Unprocessed submission count reaches `BATCH_THRESHOLD` (default 10)
+2. Time since last run exceeds `PIPELINE_INTERVAL_HOURS` (default 6h, used as max interval)
+
+Polls every `BATCH_POLL_SECONDS` (default 60s) between runs to check unprocessed count.
 
 ```python
-async def scheduler_main():
-    """Entry point for the scheduler process."""
+async def scheduler_loop(*, session_factory, interval_hours, min_interval_hours,
+                         batch_threshold=10, poll_seconds=60.0):
     while True:
-        try:
-            result = await run_pipeline()
-            log_pipeline_result(result)
-        except Exception as e:
-            log_pipeline_error(e)
-        await asyncio.sleep(settings.pipeline_interval_hours * 3600)
+        result = await run_pipeline(session=session)
+        upsert_heartbeat(...)
+        # Poll until threshold or max interval reached
+        elapsed = 0.0
+        while elapsed < max_wait:
+            await asyncio.sleep(poll_seconds)
+            elapsed += poll_seconds
+            if count_unprocessed() >= batch_threshold:
+                break
 ```
 
 Run as a separate process: `python -m src.scheduler`

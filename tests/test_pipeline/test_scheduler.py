@@ -9,7 +9,7 @@ import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.pipeline.llm import LLMResponse
-from src.scheduler import PipelineResult, run_pipeline
+from src.scheduler import PipelineResult, _count_unprocessed, run_pipeline
 
 
 class FakeScalars:
@@ -166,3 +166,114 @@ async def test_batch_canonicalization_increments_contribution_count() -> None:
 
     assert fake_user.contribution_count == 1
     assert result.processed_submissions == 1
+
+
+# --- _count_unprocessed tests ---
+
+
+@pytest.mark.asyncio
+async def test_count_unprocessed_returns_count() -> None:
+    scalar_mock = MagicMock()
+    scalar_mock.scalar_one.return_value = 7
+    session = AsyncMock(spec=AsyncSession)
+    session.execute = AsyncMock(return_value=scalar_mock)
+
+    count = await _count_unprocessed(session)  # type: ignore[arg-type]
+    assert count == 7
+    session.execute.assert_called_once()
+
+
+# --- scheduler_loop hybrid trigger tests ---
+
+
+@pytest.mark.asyncio
+async def test_scheduler_loop_threshold_trigger() -> None:
+    """Pipeline runs again when unprocessed count reaches batch_threshold."""
+    run_count = 0
+
+    async def _fake_run_pipeline(*, session: object, **kw: object) -> PipelineResult:
+        nonlocal run_count
+        run_count += 1
+        if run_count >= 2:
+            raise _StopLoop
+        return PipelineResult()
+
+    poll_count = 0
+
+    async def _fake_count(session: object) -> int:
+        nonlocal poll_count
+        poll_count += 1
+        return 10
+
+    from src.scheduler.main import scheduler_loop
+
+    fake_session = AsyncMock()
+    fake_factory = AsyncMock()
+    fake_factory.__aenter__ = AsyncMock(return_value=fake_session)
+    fake_factory.__aexit__ = AsyncMock(return_value=False)
+
+    def _session_factory() -> object:
+        return fake_factory
+
+    with (
+        patch("src.scheduler.main.run_pipeline", side_effect=_fake_run_pipeline),
+        patch("src.scheduler.main._count_unprocessed", side_effect=_fake_count),
+        patch("src.scheduler.main.upsert_heartbeat", new_callable=AsyncMock),
+        pytest.raises(_StopLoop),
+    ):
+        await scheduler_loop(
+            session_factory=_session_factory,
+            interval_hours=1.0,
+            min_interval_hours=0.001,
+            batch_threshold=10,
+            poll_seconds=0.01,
+        )
+
+    assert run_count == 2
+    assert poll_count >= 1
+
+
+@pytest.mark.asyncio
+async def test_scheduler_loop_time_trigger() -> None:
+    """Pipeline runs after max interval even when below threshold."""
+    run_count = 0
+
+    async def _fake_run_pipeline(*, session: object, **kw: object) -> PipelineResult:
+        nonlocal run_count
+        run_count += 1
+        if run_count >= 2:
+            raise _StopLoop
+        return PipelineResult()
+
+    async def _always_zero(session: object) -> int:
+        return 0
+
+    from src.scheduler.main import scheduler_loop
+
+    fake_session = AsyncMock()
+    fake_factory = AsyncMock()
+    fake_factory.__aenter__ = AsyncMock(return_value=fake_session)
+    fake_factory.__aexit__ = AsyncMock(return_value=False)
+
+    def _session_factory() -> object:
+        return fake_factory
+
+    with (
+        patch("src.scheduler.main.run_pipeline", side_effect=_fake_run_pipeline),
+        patch("src.scheduler.main._count_unprocessed", side_effect=_always_zero),
+        patch("src.scheduler.main.upsert_heartbeat", new_callable=AsyncMock),
+        pytest.raises(_StopLoop),
+    ):
+        await scheduler_loop(
+            session_factory=_session_factory,
+            interval_hours=0.0001,
+            min_interval_hours=0.0001,
+            batch_threshold=999,
+            poll_seconds=0.01,
+        )
+
+    assert run_count == 2
+
+
+class _StopLoop(Exception):
+    """Raised to break out of the infinite scheduler loop in tests."""
