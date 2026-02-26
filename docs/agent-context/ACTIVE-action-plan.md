@@ -605,6 +605,37 @@ Both are stance-neutral. Three-stage pipeline: inline assignment → hybrid norm
     - `summarize.py`: confirmed dead code (not called anywhere in src/); left as-is
     - No prompt token limit exists in the LLM router; truncation was unjustified defensive boilerplate
 
+86. [done] Wire Telegram endorse button (pre-ballot endorsement flow)
+    - Added "Endorse policies" button to main menu in both locales
+    - Paginated one-at-a-time flow: shows ballot question, member count, endorsement count per cluster
+    - Pre-ballot only: clusters with `ballot_question IS NOT NULL` excluding those in active voting cycles
+    - Tracks already-endorsed clusters in session (hides Endorse button, shows label)
+    - Navigation: Endorse (`e:{N}`), Skip (`esk`), Back (`ebk`), Cancel
+    - Rewrote `_handle_endorse` to use `bot_state_data` session instead of active voting cycle
+    - Rewrote `_build_endorsement_keyboard` for per-cluster display (was all-in-one-row, never called)
+    - Added `get_user_endorsed_cluster_ids` query to `db/queries.py`
+    - 8 new tests: menu with/without clusters, endorse from session, skip, back, no-session fallback, done state, active-cycle exclusion
+    - Context docs updated: `08-message-commands.md`, `architecture-flow.md`
+
+### P1 — Audit Ledger Quality Pass
+
+87. [done] Reverse evidence ledger order to newest-first
+    - `GET /analytics/evidence` now orders by `id DESC` (was `ASC`)
+    - Page 1 = newest events, higher pages = older
+    - Test: `test_returns_newest_first_order`
+
+88. [done] Emit missing cluster_created and cluster_updated evidence events
+    - `_find_or_create_cluster()` in `scheduler/main.py` now emits:
+      - `cluster_created` when a new cluster is created
+      - `cluster_updated` when an existing cluster gains members (skipped if no change)
+    - Tests: `test_find_or_create_cluster_emits_cluster_created`, `_updated`, `_skips_event_when_no_change`
+
+89. [done] Complete frontend evidence event coverage
+    - Added `submission_rejected_not_policy`, `cluster_merged`, `ballot_question_generated`, `policy_options_generated` to filter categories
+    - Split `cluster_created` and `cluster_updated` into separate eventDescription cases
+    - Added all missing event descriptions and i18n keys (en + fa)
+    - Extended payloadDisplayKeys for new fields (policy_key, growth, survivor/merged keys, option_count)
+
 ## Definition of Done (This Cycle)
 
 - No CI/CD job performs paid LLM API calls

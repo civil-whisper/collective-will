@@ -12,6 +12,7 @@ from sqlalchemy.orm import selectinload
 
 from src.config import get_settings
 from src.db.anchoring import compute_daily_merkle_root, publish_daily_merkle_root
+from src.db.evidence import append_evidence
 from src.db.heartbeat import upsert_heartbeat
 from src.db.queries import (
     count_cluster_endorsements,
@@ -240,6 +241,19 @@ async def _find_or_create_cluster(
         if growth >= settings.resummarize_growth_threshold:
             existing.needs_resummarize = True
         await session.flush()
+        if existing.member_count != old_count:
+            await append_evidence(
+                session=session,
+                event_type="cluster_updated",
+                entity_type="cluster",
+                entity_id=existing.id,
+                payload={
+                    "cluster_id": str(existing.id),
+                    "policy_key": policy_key,
+                    "old_member_count": old_count,
+                    "new_member_count": existing.member_count,
+                },
+            )
         return existing
 
     topic = members[0].policy_topic if members else "unassigned"
@@ -253,6 +267,18 @@ async def _find_or_create_cluster(
         needs_resummarize=True,
     )
     db_cluster = await create_cluster(session, data)
+    await append_evidence(
+        session=session,
+        event_type="cluster_created",
+        entity_type="cluster",
+        entity_id=db_cluster.id,
+        payload={
+            "cluster_id": str(db_cluster.id),
+            "policy_key": policy_key,
+            "policy_topic": topic,
+            "member_count": len(members),
+        },
+    )
     return db_cluster
 
 

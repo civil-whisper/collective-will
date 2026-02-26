@@ -27,6 +27,9 @@ class FakeResult:
     def scalars(self) -> FakeScalars:
         return FakeScalars(self._items)
 
+    def scalar_one_or_none(self) -> object | None:
+        return self._items[0] if self._items else None
+
 
 class FakeRouter:
     async def complete(self, *, tier: str, prompt: str, **kwargs: object) -> LLMResponse:
@@ -277,3 +280,101 @@ async def test_scheduler_loop_time_trigger() -> None:
 
 class _StopLoop(Exception):
     """Raised to break out of the infinite scheduler loop in tests."""
+
+
+# --- _find_or_create_cluster evidence event tests ---
+
+
+@pytest.mark.asyncio
+async def test_find_or_create_cluster_emits_cluster_created() -> None:
+    """New clusters should produce a cluster_created evidence event."""
+    from src.scheduler.main import _find_or_create_cluster
+
+    cluster_id = uuid4()
+    candidate = SimpleNamespace(id=uuid4(), policy_topic="economy", policy_key="tax-reform")
+    fake_cluster = SimpleNamespace(id=cluster_id, policy_key="tax-reform")
+
+    session = AsyncMock(spec=AsyncSession)
+    session.execute = AsyncMock(return_value=FakeResult([]))
+    session.flush = AsyncMock()
+
+    with (
+        patch("src.scheduler.main.create_cluster", new_callable=AsyncMock, return_value=fake_cluster) as _,
+        patch("src.scheduler.main.append_evidence", new_callable=AsyncMock) as mock_evidence,
+    ):
+        result = await _find_or_create_cluster(
+            session=session, policy_key="tax-reform", members=[candidate],
+        )
+
+    assert result is fake_cluster
+    mock_evidence.assert_called_once()
+    call_kwargs = mock_evidence.call_args[1]
+    assert call_kwargs["event_type"] == "cluster_created"
+    assert call_kwargs["entity_type"] == "cluster"
+    assert call_kwargs["entity_id"] == cluster_id
+    assert call_kwargs["payload"]["policy_key"] == "tax-reform"
+    assert call_kwargs["payload"]["policy_topic"] == "economy"
+
+
+@pytest.mark.asyncio
+async def test_find_or_create_cluster_emits_cluster_updated() -> None:
+    """Existing clusters gaining new members should produce a cluster_updated event."""
+    from src.scheduler.main import _find_or_create_cluster
+
+    cluster_id = uuid4()
+    old_member_id = uuid4()
+    new_member_id = uuid4()
+
+    existing = SimpleNamespace(
+        id=cluster_id,
+        policy_key="tax-reform",
+        candidate_ids=[old_member_id],
+        member_count=1,
+        needs_resummarize=False,
+    )
+    new_candidate = SimpleNamespace(id=new_member_id, policy_topic="economy", policy_key="tax-reform")
+
+    session = AsyncMock(spec=AsyncSession)
+    session.execute = AsyncMock(return_value=FakeResult([existing]))
+    session.flush = AsyncMock()
+
+    with patch("src.scheduler.main.append_evidence", new_callable=AsyncMock) as mock_evidence:
+        result = await _find_or_create_cluster(
+            session=session, policy_key="tax-reform", members=[new_candidate],
+        )
+
+    assert result is existing
+    assert existing.member_count == 2
+    mock_evidence.assert_called_once()
+    call_kwargs = mock_evidence.call_args[1]
+    assert call_kwargs["event_type"] == "cluster_updated"
+    assert call_kwargs["entity_type"] == "cluster"
+    assert call_kwargs["payload"]["old_member_count"] == 1
+    assert call_kwargs["payload"]["new_member_count"] == 2
+
+
+@pytest.mark.asyncio
+async def test_find_or_create_cluster_skips_event_when_no_change() -> None:
+    """No evidence event if existing cluster already contains all the members."""
+    from src.scheduler.main import _find_or_create_cluster
+
+    member_id = uuid4()
+    existing = SimpleNamespace(
+        id=uuid4(),
+        policy_key="tax-reform",
+        candidate_ids=[member_id],
+        member_count=1,
+        needs_resummarize=False,
+    )
+    same_candidate = SimpleNamespace(id=member_id, policy_topic="economy", policy_key="tax-reform")
+
+    session = AsyncMock(spec=AsyncSession)
+    session.execute = AsyncMock(return_value=FakeResult([existing]))
+    session.flush = AsyncMock()
+
+    with patch("src.scheduler.main.append_evidence", new_callable=AsyncMock) as mock_evidence:
+        await _find_or_create_cluster(
+            session=session, policy_key="tax-reform", members=[same_candidate],
+        )
+
+    mock_evidence.assert_not_called()

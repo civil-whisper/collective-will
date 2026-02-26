@@ -144,6 +144,20 @@ async def count_cluster_endorsements(session: AsyncSession, cluster_id: UUID) ->
     return int(result.scalar_one())
 
 
+async def get_user_endorsed_cluster_ids(
+    session: AsyncSession, user_id: UUID, cluster_ids: list[UUID]
+) -> set[UUID]:
+    """Return the subset of *cluster_ids* the user has already endorsed."""
+    if not cluster_ids:
+        return set()
+    result = await session.execute(
+        select(PolicyEndorsement.cluster_id)
+        .where(PolicyEndorsement.user_id == user_id)
+        .where(PolicyEndorsement.cluster_id.in_(cluster_ids))
+    )
+    return {row[0] for row in result.all()}
+
+
 async def create_vote(session: AsyncSession, data: VoteCreate) -> Vote:
     vote = Vote(
         user_id=data.user_id,

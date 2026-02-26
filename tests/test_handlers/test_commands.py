@@ -661,13 +661,16 @@ async def test_vote_change_resets_to_first_policy() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Callback: endorse with new format
+# Endorsement flow
 # ---------------------------------------------------------------------------
 
 @pytest.mark.asyncio
-@patch("src.handlers.commands.record_endorsement", new_callable=AsyncMock)
-async def test_endorse_callback(mock_endorse: AsyncMock) -> None:
-    mock_endorse.return_value = (True, "recorded")
+@patch("src.handlers.commands.count_cluster_endorsements", new_callable=AsyncMock)
+@patch("src.handlers.commands.get_user_endorsed_cluster_ids", new_callable=AsyncMock)
+async def test_endorse_menu_no_clusters(
+    mock_endorsed: AsyncMock, mock_count: AsyncMock
+) -> None:
+    """Endorse callback with no endorsable clusters shows message + menu."""
     user = _make_user(locale="en")
     channel = FakeChannel()
     db = AsyncMock()
@@ -675,22 +678,311 @@ async def test_endorse_callback(mock_endorse: AsyncMock) -> None:
     user_result = MagicMock()
     user_result.scalar_one_or_none.return_value = user
 
-    cluster_id = uuid4()
-    cycle = MagicMock()
-    cycle.id = uuid4()
-    cycle.cluster_ids = [cluster_id]
-    cycle.status = "active"
-    cycle_scalars = MagicMock()
-    cycle_scalars.first.return_value = cycle
-    cycle_result = MagicMock()
-    cycle_result.scalars.return_value = cycle_scalars
+    empty_clusters = MagicMock()
+    empty_clusters.scalars.return_value = MagicMock(all=MagicMock(return_value=[]))
 
-    db.execute.side_effect = [user_result, cycle_result]
+    empty_cycles = MagicMock()
+    empty_cycles.all.return_value = []
+
+    db.execute.side_effect = [user_result, empty_clusters, empty_cycles]
+
+    status = await route_message(session=db, message=_callback_msg("endorse"), channel=channel)
+    assert status == "no_endorsable_clusters"
+    assert any(_MESSAGES["en"]["no_endorsable_clusters"] in m.text for m in channel.messages)
+
+
+@pytest.mark.asyncio
+@patch("src.handlers.commands.count_cluster_endorsements", new_callable=AsyncMock)
+@patch("src.handlers.commands.get_user_endorsed_cluster_ids", new_callable=AsyncMock)
+async def test_endorse_menu_shows_first_cluster(
+    mock_endorsed: AsyncMock, mock_count: AsyncMock
+) -> None:
+    """Endorse callback with endorsable clusters shows first cluster."""
+    mock_endorsed.return_value = set()
+    mock_count.return_value = 3
+
+    cluster_id = uuid4()
+    cluster = MagicMock()
+    cluster.id = cluster_id
+    cluster.ballot_question = "Should we address internet censorship?"
+    cluster.ballot_question_fa = "آیا باید سانسور اینترنت را بررسی کنیم؟"
+    cluster.summary = "Internet censorship policy"
+    cluster.member_count = 8
+    cluster.created_at = None
+
+    user = _make_user(locale="en")
+    channel = FakeChannel()
+    db = AsyncMock()
+
+    user_result = MagicMock()
+    user_result.scalar_one_or_none.return_value = user
+
+    cluster_list = MagicMock()
+    cluster_list.scalars.return_value = MagicMock(all=MagicMock(return_value=[cluster]))
+
+    empty_cycles = MagicMock()
+    empty_cycles.all.return_value = []
+
+    cluster_result = MagicMock()
+    cluster_result.scalar_one_or_none.return_value = cluster
+
+    db.execute.side_effect = [user_result, cluster_list, empty_cycles, cluster_result]
+
+    status = await route_message(session=db, message=_callback_msg("endorse"), channel=channel)
+    assert status == "endorse_policy_shown"
+    assert user.bot_state == "endorsing"
+    last_msg = channel.messages[-1]
+    assert "internet censorship" in last_msg.text.lower()
+    assert last_msg.reply_markup is not None
+    cb_data = [
+        btn["callback_data"]
+        for row in last_msg.reply_markup["inline_keyboard"]
+        for btn in row
+    ]
+    assert "e:1" in cb_data
+    assert "esk" in cb_data
+
+
+@pytest.mark.asyncio
+@patch("src.handlers.commands.count_cluster_endorsements", new_callable=AsyncMock)
+@patch("src.handlers.commands.record_endorsement", new_callable=AsyncMock)
+async def test_endorse_callback_from_session(
+    mock_endorse: AsyncMock, mock_count: AsyncMock
+) -> None:
+    """e:{N} from endorsement session records endorsement and advances."""
+    mock_endorse.return_value = (True, "recorded")
+    mock_count.return_value = 5
+
+    cluster1_id = uuid4()
+    cluster2_id = uuid4()
+    session_data = {
+        "endorsing": True,
+        "cluster_ids": [str(cluster1_id), str(cluster2_id)],
+        "current_idx": 0,
+    }
+    user = _make_user(locale="en", bot_state="endorsing", bot_state_data=session_data)
+    channel = FakeChannel()
+    db = AsyncMock()
+
+    user_result = MagicMock()
+    user_result.scalar_one_or_none.return_value = user
+
+    cluster2 = MagicMock()
+    cluster2.id = cluster2_id
+    cluster2.ballot_question = "Education reform?"
+    cluster2.ballot_question_fa = None
+    cluster2.summary = "Education policy"
+    cluster2.member_count = 4
+
+    cluster2_result = MagicMock()
+    cluster2_result.scalar_one_or_none.return_value = cluster2
+
+    db.execute.side_effect = [user_result, cluster2_result]
 
     status = await route_message(session=db, message=_callback_msg("e:1"), channel=channel)
-    assert status == "recorded"
+    assert status == "endorse_policy_shown"
     mock_endorse.assert_called_once()
     assert any(_MESSAGES["en"]["endorsement_recorded"] in m.text for m in channel.messages)
+    assert session_data["current_idx"] == 1
+
+
+@pytest.mark.asyncio
+@patch("src.handlers.commands.count_cluster_endorsements", new_callable=AsyncMock)
+async def test_endorse_skip(mock_count: AsyncMock) -> None:
+    """esk advances to the next cluster without endorsing."""
+    mock_count.return_value = 2
+
+    cluster1_id = uuid4()
+    cluster2_id = uuid4()
+    session_data = {
+        "endorsing": True,
+        "cluster_ids": [str(cluster1_id), str(cluster2_id)],
+        "current_idx": 0,
+    }
+    user = _make_user(locale="en", bot_state="endorsing", bot_state_data=session_data)
+    channel = FakeChannel()
+    db = AsyncMock()
+
+    user_result = MagicMock()
+    user_result.scalar_one_or_none.return_value = user
+
+    cluster2 = MagicMock()
+    cluster2.id = cluster2_id
+    cluster2.ballot_question = "Healthcare?"
+    cluster2.ballot_question_fa = None
+    cluster2.summary = "Healthcare policy"
+    cluster2.member_count = 6
+
+    cluster2_result = MagicMock()
+    cluster2_result.scalar_one_or_none.return_value = cluster2
+
+    db.execute.side_effect = [user_result, cluster2_result]
+
+    status = await route_message(session=db, message=_callback_msg("esk"), channel=channel)
+    assert status == "endorse_policy_shown"
+    assert session_data["current_idx"] == 1
+
+
+@pytest.mark.asyncio
+@patch("src.handlers.commands.count_cluster_endorsements", new_callable=AsyncMock)
+async def test_endorse_back(mock_count: AsyncMock) -> None:
+    """ebk goes back to the previous cluster."""
+    mock_count.return_value = 2
+
+    cluster1_id = uuid4()
+    cluster2_id = uuid4()
+    session_data = {
+        "endorsing": True,
+        "cluster_ids": [str(cluster1_id), str(cluster2_id)],
+        "current_idx": 1,
+    }
+    user = _make_user(locale="en", bot_state="endorsing", bot_state_data=session_data)
+    channel = FakeChannel()
+    db = AsyncMock()
+
+    user_result = MagicMock()
+    user_result.scalar_one_or_none.return_value = user
+
+    cluster1 = MagicMock()
+    cluster1.id = cluster1_id
+    cluster1.ballot_question = "Internet policy?"
+    cluster1.ballot_question_fa = None
+    cluster1.summary = "Internet policy"
+    cluster1.member_count = 5
+
+    cluster1_result = MagicMock()
+    cluster1_result.scalar_one_or_none.return_value = cluster1
+
+    db.execute.side_effect = [user_result, cluster1_result]
+
+    status = await route_message(session=db, message=_callback_msg("ebk"), channel=channel)
+    assert status == "endorse_policy_shown"
+    assert session_data["current_idx"] == 0
+
+
+@pytest.mark.asyncio
+async def test_endorse_without_session_returns_menu() -> None:
+    """e:{N} without an active endorsement session returns to menu."""
+    user = _make_user(locale="en")
+    channel = FakeChannel()
+    db = AsyncMock()
+
+    user_result = MagicMock()
+    user_result.scalar_one_or_none.return_value = user
+    db.execute.return_value = user_result
+
+    status = await route_message(session=db, message=_callback_msg("e:1"), channel=channel)
+    assert status == "no_endorse_session"
+
+
+@pytest.mark.asyncio
+async def test_endorse_last_cluster_returns_to_menu() -> None:
+    """After last cluster, endorsement flow clears state and returns to menu."""
+    cluster1_id = uuid4()
+    session_data = {
+        "endorsing": True,
+        "cluster_ids": [str(cluster1_id)],
+        "current_idx": 1,
+    }
+    user = _make_user(locale="en", bot_state="endorsing", bot_state_data=session_data)
+    channel = FakeChannel()
+    db = AsyncMock()
+
+    user_result = MagicMock()
+    user_result.scalar_one_or_none.return_value = user
+    db.execute.return_value = user_result
+
+    status = await route_message(session=db, message=_callback_msg("esk"), channel=channel)
+    assert status == "endorse_done"
+    assert user.bot_state is None
+    assert user.bot_state_data is None
+
+
+@pytest.mark.asyncio
+@patch("src.handlers.commands.count_cluster_endorsements", new_callable=AsyncMock)
+@patch("src.handlers.commands.get_user_endorsed_cluster_ids", new_callable=AsyncMock)
+async def test_endorse_menu_all_already_endorsed(
+    mock_endorsed: AsyncMock, mock_count: AsyncMock
+) -> None:
+    """When all clusters are already endorsed, show no-endorsable message."""
+    cluster_id = uuid4()
+    mock_endorsed.return_value = {cluster_id}
+    mock_count.return_value = 5
+
+    cluster = MagicMock()
+    cluster.id = cluster_id
+    cluster.ballot_question = "Some policy?"
+    cluster.created_at = None
+
+    user = _make_user(locale="en")
+    channel = FakeChannel()
+    db = AsyncMock()
+
+    user_result = MagicMock()
+    user_result.scalar_one_or_none.return_value = user
+
+    cluster_list = MagicMock()
+    cluster_list.scalars.return_value = MagicMock(all=MagicMock(return_value=[cluster]))
+
+    empty_cycles = MagicMock()
+    empty_cycles.all.return_value = []
+
+    db.execute.side_effect = [user_result, cluster_list, empty_cycles]
+
+    status = await route_message(session=db, message=_callback_msg("endorse"), channel=channel)
+    assert status == "no_endorsable_clusters"
+    assert any(_MESSAGES["en"]["no_endorsable_clusters"] in m.text for m in channel.messages)
+
+
+@pytest.mark.asyncio
+@patch("src.handlers.commands.count_cluster_endorsements", new_callable=AsyncMock)
+@patch("src.handlers.commands.get_user_endorsed_cluster_ids", new_callable=AsyncMock)
+async def test_endorse_menu_excludes_active_cycle_clusters(
+    mock_endorsed: AsyncMock, mock_count: AsyncMock
+) -> None:
+    """Clusters in active voting cycles are excluded from endorsement."""
+    mock_endorsed.return_value = set()
+    mock_count.return_value = 0
+
+    active_cluster_id = uuid4()
+    endorsable_cluster_id = uuid4()
+
+    active_cluster = MagicMock()
+    active_cluster.id = active_cluster_id
+    active_cluster.ballot_question = "Active cycle policy"
+    active_cluster.created_at = None
+
+    endorsable_cluster = MagicMock()
+    endorsable_cluster.id = endorsable_cluster_id
+    endorsable_cluster.ballot_question = "Pre-ballot policy"
+    endorsable_cluster.ballot_question_fa = None
+    endorsable_cluster.summary = "Pre-ballot"
+    endorsable_cluster.member_count = 3
+    endorsable_cluster.created_at = None
+
+    user = _make_user(locale="en")
+    channel = FakeChannel()
+    db = AsyncMock()
+
+    user_result = MagicMock()
+    user_result.scalar_one_or_none.return_value = user
+
+    cluster_list = MagicMock()
+    cluster_list.scalars.return_value = MagicMock(
+        all=MagicMock(return_value=[active_cluster, endorsable_cluster])
+    )
+
+    cycles_result = MagicMock()
+    cycles_result.all.return_value = [([active_cluster_id],)]
+
+    cluster_result = MagicMock()
+    cluster_result.scalar_one_or_none.return_value = endorsable_cluster
+
+    db.execute.side_effect = [user_result, cluster_list, cycles_result, cluster_result]
+
+    status = await route_message(session=db, message=_callback_msg("endorse"), channel=channel)
+    assert status == "endorse_policy_shown"
+    assert user.bot_state_data["cluster_ids"] == [str(endorsable_cluster_id)]
 
 
 # ---------------------------------------------------------------------------

@@ -308,6 +308,30 @@ class TestEvidence:
             app.dependency_overrides.pop(get_db, None)
 
 
+    def test_returns_newest_first_order(self) -> None:
+        """Page 1 should contain the most recent entries (desc by id)."""
+        older = _make_evidence_entry(id=1, event_type="submission_received")
+        newer = _make_evidence_entry(id=2, event_type="candidate_created")
+        session = AsyncMock()
+        count_result = MagicMock()
+        count_result.scalar_one.return_value = 2
+        entries_result = MagicMock()
+        entries_result.scalars.return_value = MagicMock(
+            all=MagicMock(return_value=[newer, older])
+        )
+        session.execute.side_effect = [count_result, entries_result]
+        app.dependency_overrides[get_db] = lambda: session
+        try:
+            client = TestClient(app)
+            response = client.get("/analytics/evidence")
+            data = response.json()
+            assert len(data["entries"]) == 2
+            assert data["entries"][0]["id"] == 2
+            assert data["entries"][1]["id"] == 1
+        finally:
+            app.dependency_overrides.pop(get_db, None)
+
+
 class TestVerifyChain:
     def test_verify_endpoint_returns_result(self) -> None:
         from unittest.mock import patch

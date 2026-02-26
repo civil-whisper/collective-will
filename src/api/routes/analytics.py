@@ -179,7 +179,7 @@ async def evidence(
     page: int = Query(default=1, ge=1),
     per_page: int = Query(default=50, ge=1, le=200),
 ) -> dict[str, object]:
-    query = select(EvidenceLogEntry).order_by(EvidenceLogEntry.id.asc())
+    query = select(EvidenceLogEntry).order_by(EvidenceLogEntry.id.desc())
     count_query = select(func.count(EvidenceLogEntry.id))
 
     if entity_id is not None:

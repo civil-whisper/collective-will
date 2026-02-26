@@ -113,6 +113,7 @@ export default function EvidencePage() {
     const p = entry.payload;
     const pairs: [string, string][] = [];
     if (p.policy_topic) pairs.push(["Topic", String(p.policy_topic)]);
+    if (p.policy_key) pairs.push(["Policy key", String(p.policy_key)]);
     if (p.confidence != null) pairs.push(["Confidence", `${Math.round(Number(p.confidence) * 100)}%`]);
     if (p.status) pairs.push(["Status", String(p.status)]);
     if (p.language) pairs.push(["Language", String(p.language)]);
@@ -120,6 +121,11 @@ export default function EvidencePage() {
     if (p.escalated != null) pairs.push(["Escalated", String(p.escalated)]);
     if (p.total_voters != null) pairs.push(["Total voters", String(p.total_voters)]);
     if (p.member_count != null) pairs.push(["Members", String(p.member_count)]);
+    if (p.old_member_count != null && p.new_member_count != null)
+      pairs.push(["Growth", `${p.old_member_count} → ${p.new_member_count}`]);
+    if (p.survivor_key) pairs.push(["Survivor", String(p.survivor_key)]);
+    if (p.merged_key) pairs.push(["Merged", String(p.merged_key)]);
+    if (p.option_count != null) pairs.push(["Options", String(p.option_count)]);
     if (p.cycle_duration_hours != null) pairs.push(["Duration", `${p.cycle_duration_hours}h`]);
     if (p.resolution_seconds != null)
       pairs.push(["Resolution time", `${Math.round(Number(p.resolution_seconds))}s`]);

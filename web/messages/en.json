@@ -133,6 +133,11 @@
       "disputeResolved": "Dispute resolved: \"{title}\"",
       "disputeResolvedGeneric": "Dispute resolved",
       "userVerified": "User verified via {method}",
+      "submissionRejectedNotPolicy": "Submission rejected: not a policy proposal",
+      "clusterCreated": "New cluster created: \"{summary}\" ({memberCount} members)",
+      "clusterMerged": "Cluster merged: \"{mergedKey}\" into \"{survivorKey}\"",
+      "ballotQuestionGenerated": "Ballot question generated for \"{policyKey}\"",
+      "policyOptionsGenerated": "Policy options generated ({optionCount} options)",
       "anchorComputed": "Daily Merkle root anchored ({entryCount} entries)",
       "disputeMetrics": "Dispute metrics recorded",
       "disputeTuning": "Model tuning recommended"

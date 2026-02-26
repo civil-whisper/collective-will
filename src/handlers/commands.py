@@ -10,6 +10,7 @@ from sqlalchemy.orm import selectinload
 from src.channels.base import BaseChannel
 from src.channels.types import OutboundMessage, UnifiedMessage
 from src.config import get_settings
+from src.db.queries import count_cluster_endorsements, get_user_endorsed_cluster_ids
 from src.handlers.intake import handle_submission
 from src.handlers.voting import cast_vote, record_endorsement
 from src.models.cluster import Cluster
@@ -88,6 +89,8 @@ _MESSAGES: dict[str, dict[str, str]] = {
         "summary_header": "📊 خلاصه انتخاب‌های شما:\n",
         "skipped_label": "⏭️ رد شده",
         "no_options": "گزینه‌ای برای این سیاست موجود نیست.",
+        "no_endorsable_clusters": "در حال حاضر سیاستی برای امضا وجود ندارد.",
+        "endorse_policy_header": "✍️ سیاست {n} از {total}:",
     },
     "en": {
         "submission_prompt": "📝 Please type your concern or policy proposal:",
@@ -114,6 +117,8 @@ _MESSAGES: dict[str, dict[str, str]] = {
         "summary_header": "📊 Your selections:\n",
         "skipped_label": "⏭️ Skipped",
         "no_options": "No options available for this policy.",
+        "no_endorsable_clusters": "No policies available for endorsement right now.",
+        "endorse_policy_header": "✍️ Policy {n} of {total}:",
     },
 }
 
@@ -134,6 +139,7 @@ _MAIN_MENU: dict[str, dict[str, list[list[dict[str, str]]]]] = {
         "inline_keyboard": [
             [{"text": "📝 ارسال نگرانی", "callback_data": "submit"}],
             [{"text": "🗳️ رای دادن", "callback_data": "vote"}],
+            [{"text": "✍️ امضای سیاست", "callback_data": "endorse"}],
             [{"text": "🌐 Change language", "callback_data": "lang"}],
         ]
     },
@@ -141,6 +147,7 @@ _MAIN_MENU: dict[str, dict[str, list[list[dict[str, str]]]]] = {
         "inline_keyboard": [
             [{"text": "📝 Submit a concern", "callback_data": "submit"}],
             [{"text": "🗳️ Vote", "callback_data": "vote"}],
+            [{"text": "✍️ Endorse policies", "callback_data": "endorse"}],
             [{"text": "🌐 تغییر زبان", "callback_data": "lang"}],
         ]
     },
@@ -160,16 +167,21 @@ def _cancel_keyboard(locale: str) -> dict[str, list[list[dict[str, str]]]]:
 # ---------------------------------------------------------------------------
 
 def _build_endorsement_keyboard(
-    locale: str, cluster_count: int
+    locale: str, idx: int, total: int
 ) -> dict[str, list[list[dict[str, str]]]]:
-    endorse_row: list[dict[str, str]] = []
-    for i in range(cluster_count):
-        endorse_row.append({
-            "text": _msg(locale, "endorse_btn", n=i + 1),
-            "callback_data": f"e:{i + 1}",
-        })
-    back_row = [{"text": _msg(locale, "back_btn"), "callback_data": "main"}]
-    return {"inline_keyboard": [endorse_row, back_row]}
+    """Per-cluster endorsement keyboard with Endorse/Skip/Back/Cancel."""
+    rows: list[list[dict[str, str]]] = []
+    rows.append([{
+        "text": _msg(locale, "endorse_btn", n=idx + 1),
+        "callback_data": f"e:{idx + 1}",
+    }])
+    nav: list[dict[str, str]] = []
+    if idx > 0:
+        nav.append({"text": _msg(locale, "prev_btn"), "callback_data": "ebk"})
+    nav.append({"text": _msg(locale, "skip_btn"), "callback_data": "esk"})
+    rows.append(nav)
+    rows.append([{"text": _msg(locale, "cancel_btn"), "callback_data": "main"}])
+    return {"inline_keyboard": rows}
 
 
 # ---------------------------------------------------------------------------
@@ -379,6 +391,116 @@ async def _show_vote_summary(
         reply_markup=_build_summary_keyboard(locale),
     ))
     return "summary_shown"
+
+
+# ---------------------------------------------------------------------------
+# Endorsement session helpers
+# ---------------------------------------------------------------------------
+
+def _init_endorse_session(cluster_ids: list[UUID]) -> dict[str, Any]:
+    return {
+        "endorsing": True,
+        "cluster_ids": [str(c) for c in cluster_ids],
+        "current_idx": 0,
+    }
+
+
+def _get_endorse_session(user: User) -> dict[str, Any] | None:
+    data = user.bot_state_data
+    if data and isinstance(data, dict) and data.get("endorsing"):
+        return data
+    return None
+
+
+async def _show_endorsement_policy(
+    user: User,
+    message: UnifiedMessage,
+    channel: BaseChannel,
+    db: AsyncSession,
+    session_data: dict[str, Any],
+) -> str:
+    """Display one cluster for endorsement."""
+    idx = session_data["current_idx"]
+    cluster_ids = session_data["cluster_ids"]
+    total = len(cluster_ids)
+
+    if idx >= total:
+        user.bot_state = None
+        user.bot_state_data = None
+        await db.commit()
+        await _send_main_menu(user.locale, message.sender_ref, channel)
+        return "endorse_done"
+
+    cluster_id = UUID(cluster_ids[idx])
+    result = await db.execute(select(Cluster).where(Cluster.id == cluster_id))
+    cluster = result.scalar_one_or_none()
+    if cluster is None:
+        await _send_main_menu(user.locale, message.sender_ref, channel)
+        return "cluster_not_found"
+
+    locale = user.locale
+
+    if locale == "fa" and cluster.ballot_question_fa:
+        question = cluster.ballot_question_fa
+    else:
+        question = cluster.ballot_question or cluster.summary
+
+    endorsement_count = await count_cluster_endorsements(db, cluster_id)
+    header = _msg(locale, "endorse_policy_header", n=idx + 1, total=total)
+    lines = [header, "", question, ""]
+    lines.append(f"👥 {cluster.member_count} | ✍️ {endorsement_count}")
+
+    keyboard = _build_endorsement_keyboard(locale, idx, total)
+
+    await channel.send_message(OutboundMessage(
+        recipient_ref=message.sender_ref,
+        text="\n".join(lines),
+        reply_markup=keyboard,
+    ))
+    return "endorse_policy_shown"
+
+
+async def _handle_endorse_menu(
+    user: User, message: UnifiedMessage, channel: BaseChannel, db: AsyncSession
+) -> str:
+    """Show endorsable pre-ballot clusters."""
+    cluster_result = await db.execute(
+        select(Cluster)
+        .where(Cluster.ballot_question.isnot(None))
+        .order_by(Cluster.created_at)
+    )
+    all_clusters = list(cluster_result.scalars().all())
+
+    cycle_result = await db.execute(
+        select(VotingCycle.cluster_ids)
+        .where(VotingCycle.status == "active")
+    )
+    active_ids: set[UUID] = set()
+    for row in cycle_result.all():
+        if row[0]:
+            active_ids.update(row[0])
+
+    endorsable = [c for c in all_clusters if c.id not in active_ids]
+    endorsable_ids = [c.id for c in endorsable]
+    already_endorsed = await get_user_endorsed_cluster_ids(db, user.id, endorsable_ids)
+    not_yet_endorsed = [c for c in endorsable if c.id not in already_endorsed]
+
+    if not not_yet_endorsed:
+        await channel.send_message(OutboundMessage(
+            recipient_ref=message.sender_ref,
+            text=_msg(user.locale, "no_endorsable_clusters"),
+        ))
+        await _send_main_menu(user.locale, message.sender_ref, channel)
+        return "no_endorsable_clusters"
+
+    cluster_ids = [c.id for c in not_yet_endorsed]
+
+    session_data = _init_endorse_session(cluster_ids)
+    user.bot_state = "endorsing"
+    user.bot_state_data = session_data
+    await db.commit()
+
+    return await _show_endorsement_policy(user, message, channel, db, session_data)
 
 
 # ---------------------------------------------------------------------------
@@ -613,7 +735,12 @@ async def _handle_vote_submit(
 async def _handle_endorse(
     user: User, message: UnifiedMessage, channel: BaseChannel, db: AsyncSession
 ) -> str:
-    """Endorse a specific cluster."""
+    """Endorse a specific cluster from the endorsement session."""
+    session_data = _get_endorse_session(user)
+    if session_data is None:
+        await _send_main_menu(user.locale, message.sender_ref, channel)
+        return "no_endorse_session"
+
     parts = (message.callback_data or "").split(":")
     if len(parts) != 2:
         return "invalid_endorse"
@@ -622,29 +749,58 @@ async def _handle_endorse(
     except ValueError:
         return "invalid_endorse"
 
-    cycle_result = await db.execute(
-        select(VotingCycle)
-        .where(VotingCycle.status == "active")
-        .order_by(VotingCycle.started_at.desc())
-    )
-    active_cycle = cycle_result.scalars().first()
-    if active_cycle is None or not active_cycle.cluster_ids:
-        await _send_main_menu(user.locale, message.sender_ref, channel)
-        return "no_active_cycle"
-
-    if index < 1 or index > len(active_cycle.cluster_ids):
+    cluster_ids = session_data["cluster_ids"]
+    if index < 1 or index > len(cluster_ids):
         await _send_main_menu(user.locale, message.sender_ref, channel)
         return "invalid_index"
 
-    cluster_id = active_cycle.cluster_ids[index - 1]
+    cluster_id = UUID(cluster_ids[index - 1])
     ok, status = await record_endorsement(session=db, user=user, cluster_id=cluster_id)
     if ok:
         await channel.send_message(OutboundMessage(
             recipient_ref=message.sender_ref,
             text=_msg(user.locale, "endorsement_recorded"),
         ))
-    await _send_main_menu(user.locale, message.sender_ref, channel)
-    return status
+
+    session_data["current_idx"] = index
+    user.bot_state_data = session_data
+    await db.commit()
+
+    return await _show_endorsement_policy(user, message, channel, db, session_data)
+
+
+async def _handle_endorse_skip(
+    user: User, message: UnifiedMessage, channel: BaseChannel, db: AsyncSession
+) -> str:
+    """Skip the current cluster without endorsing."""
+    session_data = _get_endorse_session(user)
+    if session_data is None:
+        await _send_main_menu(user.locale, message.sender_ref, channel)
+        return "no_endorse_session"
+
+    session_data["current_idx"] = session_data["current_idx"] + 1
+    user.bot_state_data = session_data
+    await db.commit()
+
+    return await _show_endorsement_policy(user, message, channel, db, session_data)
+
+
+async def _handle_endorse_back(
+    user: User, message: UnifiedMessage, channel: BaseChannel, db: AsyncSession
+) -> str:
+    """Go back to the previous cluster in the endorsement flow."""
+    session_data = _get_endorse_session(user)
+    if session_data is None:
+        await _send_main_menu(user.locale, message.sender_ref, channel)
+        return "no_endorse_session"
+
+    idx = session_data["current_idx"]
+    if idx > 0:
+        session_data["current_idx"] = idx - 1
+        user.bot_state_data = session_data
+        await db.commit()
+
+    return await _show_endorsement_policy(user, message, channel, db, session_data)
 
 
 async def _handle_cancel(
@@ -666,6 +822,8 @@ async def _route_callback(
         return await _handle_submit_callback(user, message, channel, db)
     if data == "vote":
         return await _handle_vote_callback(user, message, channel, db)
+    if data == "endorse":
+        return await _handle_endorse_menu(user, message, channel, db)
     if data == "lang":
         return await _handle_lang_callback(user, message, channel, db)
     if data.startswith("vo:"):
@@ -680,6 +838,10 @@ async def _route_callback(
         return await _handle_vote_change(user, message, channel, db)
     if data.startswith("e:"):
         return await _handle_endorse(user, message, channel, db)
+    if data == "esk":
+        return await _handle_endorse_skip(user, message, channel, db)
+    if data == "ebk":
+        return await _handle_endorse_back(user, message, channel, db)
     if data in {"cancel", "main"}:
         return await _handle_cancel(user, message, channel, db)
 

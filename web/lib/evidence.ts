@@ -63,9 +63,13 @@ export async function verifyChain(entries: EvidenceEntry[]): Promise<{valid: boo
 
 const DELIBERATION_EVENT_TYPES = new Set([
   "submission_received",
+  "submission_rejected_not_policy",
   "candidate_created",
   "cluster_created",
   "cluster_updated",
+  "cluster_merged",
+  "ballot_question_generated",
+  "policy_options_generated",
   "vote_cast",
   "policy_endorsed",
   "cycle_opened",
@@ -81,8 +85,8 @@ export function isDeliberationEvent(eventType: string): boolean {
 export type FilterCategory = "submissions" | "policies" | "votes" | "disputes" | "users" | "system";
 
 export const EVENT_CATEGORIES: Record<FilterCategory, string[]> = {
-  submissions: ["submission_received"],
-  policies: ["candidate_created", "cluster_created", "cluster_updated"],
+  submissions: ["submission_received", "submission_rejected_not_policy"],
+  policies: ["candidate_created", "cluster_created", "cluster_updated", "cluster_merged", "ballot_question_generated", "policy_options_generated"],
   votes: ["vote_cast", "policy_endorsed", "cycle_opened", "cycle_closed"],
   disputes: ["dispute_escalated", "dispute_resolved"],
   users: ["user_verified"],
@@ -111,6 +115,8 @@ export function eventDescription(
         ? t("events.submissionReceived", {text: truncate(text, 80)})
         : t("events.submissionReceivedGeneric");
     }
+    case "submission_rejected_not_policy":
+      return t("events.submissionRejectedNotPolicy");
     case "candidate_created":
       return t("events.candidateCreated", {
         title: truncate(str(p.title), 60),
@@ -118,10 +124,27 @@ export function eventDescription(
         confidence: String(Math.round(Number(p.confidence ?? 0) * 100)),
       });
     case "cluster_created":
+      return t("events.clusterCreated", {
+        summary: truncate(str(p.summary ?? p.policy_key ?? ""), 60),
+        memberCount: String(p.member_count ?? "?"),
+      });
     case "cluster_updated":
       return t("events.clusterUpdated", {
-        summary: truncate(str(p.summary), 60),
-        memberCount: String(p.member_count ?? "?"),
+        summary: truncate(str(p.summary ?? p.policy_key ?? ""), 60),
+        memberCount: String(p.new_member_count ?? p.member_count ?? "?"),
+      });
+    case "cluster_merged":
+      return t("events.clusterMerged", {
+        mergedKey: str(p.merged_key),
+        survivorKey: str(p.survivor_key),
+      });
+    case "ballot_question_generated":
+      return t("events.ballotQuestionGenerated", {
+        policyKey: str(p.policy_key),
+      });
+    case "policy_options_generated":
+      return t("events.policyOptionsGenerated", {
+        optionCount: String(p.option_count ?? "?"),
       });
     case "vote_cast":
       return t("events.voteCast", {

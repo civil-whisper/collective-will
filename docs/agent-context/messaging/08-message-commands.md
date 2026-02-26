@@ -24,9 +24,10 @@ All user interaction is driven by Telegram inline keyboards (callback queries). 
 
 | Button Label (en) | Button Label (fa) | Callback Data |
 |---|---|---|
-| Submit a concern | ثبت نگرانی | `submit` |
-| Vote on policies | رای‌گیری | `vote` |
-| Language: EN/FA | زبان: FA/EN | `lang` |
+| Submit a concern | ارسال نگرانی | `submit` |
+| Vote | رای دادن | `vote` |
+| Endorse policies | امضای سیاست | `endorse` |
+| Change language | تغییر زبان | `lang` |
 
 ### State Machine
 
@@ -44,6 +45,8 @@ User interaction state is tracked via two columns on the `User` model:
 | `awaiting_submission` | Any text | Route to `handle_submission()`, clear state, show menu |
 | `None` | Callback `vote` | Initialize voting session (see below) |
 | `voting` | Callbacks `vo:N`, `vsk`, `vbk`, `vchg`, `vsub` | Navigate per-policy voting flow |
+| `None` | Callback `endorse` | Initialize endorsement session (see below) |
+| `endorsing` | Callbacks `e:N`, `esk`, `ebk` | Navigate per-cluster endorsement flow |
 | Any | Callback `cancel` | Clear state + state_data, show menu |
 | Any | Callback `lang` | Toggle locale, show menu in new language |
 
@@ -76,9 +79,30 @@ When the user taps "Vote on policies":
 
 8. **Submit** (`vsub`): Convert `selections` dict to `[{cluster_id, option_id}, ...]`, call `cast_vote()` with `selections` parameter. Clear state, show confirmation + analytics link + menu.
 
-### Endorsement Flow
+### Endorsement Flow (Pre-Ballot)
 
-During pre-ballot stage, endorsement buttons are displayed alongside clusters. Callback data: `e:{1-based-index}`. Calls `record_endorsement()` and shows confirmation.
+When the user taps "Endorse policies":
+
+1. **Session initialization**: Query clusters with `ballot_question IS NOT NULL` that are NOT in any active `VotingCycle`. Query user's existing endorsements for display. Store session in `bot_state_data`:
+   ```json
+   {
+     "endorsing": true,
+     "cluster_ids": ["...", "..."],
+     "current_idx": 0,
+     "endorsed": ["..."]
+   }
+   ```
+   Set `bot_state = "endorsing"`.
+
+2. **Cluster display** (one at a time): Show locale-aware ballot question, member count, endorsement count. If already endorsed, show label and hide Endorse button. Navigation: Endorse, Skip, Back, Cancel.
+
+3. **Endorse** (`e:{1-based-index}`): Call `record_endorsement()`, mark in session, advance to next.
+
+4. **Skip** (`esk`): Advance without endorsing.
+
+5. **Back** (`ebk`): Go back to previous cluster.
+
+6. **Done** (after last cluster): Clear state, return to main menu.
 
 ### Callback Data Encoding
 
@@ -91,9 +115,12 @@ Compact strings to fit Telegram's 64-byte limit:
 | Back to prev | `vbk` | |
 | Change answers | `vchg` | |
 | Submit vote | `vsub` | |
-| Endorse | `e:{index}` | `e:3` |
+| Endorse cluster | `e:{index}` | `e:3` |
+| Skip endorsement | `esk` | |
+| Back (endorsement) | `ebk` | |
 | Submit concern | `submit` | |
 | Vote menu | `vote` | |
+| Endorse menu | `endorse` | |
 | Language toggle | `lang` | |
 | Cancel | `cancel` | |
 
@@ -152,7 +179,14 @@ Tests in `tests/test_handlers/test_commands.py` covering:
 - `vsub` with rejection → shows error message
 - `vo:N` without active session → returns to menu
 - `vchg` → resets to first policy
-- `e:{index}` → calls record_endorsement
+- Callback `endorse` with no endorsable clusters → no_endorsable_clusters message
+- Callback `endorse` with endorsable clusters → shows first cluster with ballot question
+- `e:{N}` from endorsement session → records endorsement, advances to next
+- `e:{N}` without endorsement session → returns to menu
+- `esk` → advances without endorsing
+- `ebk` → goes back to previous cluster
+- Last cluster endorsed/skipped → clears state, returns to menu
+- Active cycle clusters excluded from endorsement list
 - Last policy option select → shows summary page
 - Unrecognized text → re-sends menu
 - Bilingual message content verification

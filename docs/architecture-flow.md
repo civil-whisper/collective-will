@@ -425,7 +425,10 @@ threshold.
 
 ### Pre-Ballot Endorsement
 
-- Users can **endorse** clusters via Telegram inline buttons
+- Users browse endorsable clusters via the **Endorse** button in the Telegram main menu
+- Endorsable clusters: have a `ballot_question` but are NOT in any active voting cycle
+- Paginated one-at-a-time flow shows the ballot question, member count, and endorsement count
+- Already-endorsed clusters are visually marked; the Endorse button is hidden for them
 - Each endorsement is logged as `policy_endorsed` in the evidence chain
 - Endorsements count toward a combined support threshold
 
@@ -567,7 +570,7 @@ SHA-256({timestamp, event_type, entity_type, entity_id, payload, prev_hash})
 
 ### Public Evidence API
 
-- `GET /analytics/evidence` — Paginated, filterable by `entity_id` and `event_type`.
+- `GET /analytics/evidence` — Paginated (newest first), filterable by `entity_id` and `event_type`.
   PII keys (`user_id`, `email`, `account_ref`, `wa_id`) are stripped from payloads.
 - `GET /analytics/evidence/verify` — Server-side chain integrity verification.
 
@@ -665,7 +668,7 @@ flowchart TD
     end
 
     subgraph userActions ["User Actions (Telegram)"]
-        M["Users endorse clusters\n(tap inline buttons)"]
+        M["Users endorse clusters\n(paginated pre-ballot flow)"]
         R["Users vote on stance options\n(per-policy selection flow)"]
     end
 

@@ -133,6 +133,11 @@
       "disputeResolved": "اعتراض حل شد: \"{title}\"",
       "disputeResolvedGeneric": "اعتراض حل شد",
       "userVerified": "کاربر تأیید شد از طریق {method}",
+      "submissionRejectedNotPolicy": "ارسال رد شد: پیشنهاد سیاستی نیست",
+      "clusterCreated": "خوشه جدید ایجاد شد: \"{summary}\" ({memberCount} عضو)",
+      "clusterMerged": "خوشه ادغام شد: \"{mergedKey}\" در \"{survivorKey}\"",
+      "ballotQuestionGenerated": "سوال رای‌گیری برای \"{policyKey}\" ایجاد شد",
+      "policyOptionsGenerated": "گزینه‌های سیاستی ایجاد شد ({optionCount} گزینه)",
       "anchorComputed": "ریشه مرکل روزانه ثبت شد ({entryCount} ورودی)",
       "disputeMetrics": "معیارهای اعتراض ثبت شد",
       "disputeTuning": "تنظیم مدل پیشنهاد شد"
