@@ -192,14 +192,14 @@ async def handle_submission(
         await compute_and_store_embeddings(session=db, candidates=[db_candidate], llm_router=router)
         submission.status = "canonicalized"
         await db.commit()
-        analytics_url = f"{settings.app_public_base_url}/{locale}/analytics"
+        analytics_url = f"{settings.app_public_base_url}/{locale}/collective-concerns#candidate-{db_candidate.id}"
         text = _msg(locale, "confirmation", title=result.title, url=analytics_url)
         await channel.send_message(OutboundMessage(recipient_ref=message.sender_ref, text=text))
     except Exception:
         logger.exception("Inline canonicalization failed for submission %s, deferring to batch", submission.id)
         submission.status = "pending"
         await db.commit()
-        analytics_url = f"{settings.app_public_base_url}/{locale}/analytics"
+        analytics_url = f"{settings.app_public_base_url}/{locale}/collective-concerns"
         await channel.send_message(
             OutboundMessage(
                 recipient_ref=message.sender_ref,

@@ -171,7 +171,8 @@ export default async function AnalyticsPage() {
             {unclustered.items.map((item) => (
               <div
                 key={item.id}
-                className="rounded-lg border border-gray-200 bg-white px-5 py-4 dark:border-slate-700 dark:bg-slate-800"
+                id={`candidate-${item.id}`}
+                className="scroll-mt-24 rounded-lg border border-gray-200 bg-white px-5 py-4 transition-shadow target:ring-2 target:ring-accent target:shadow-lg dark:border-slate-700 dark:bg-slate-800"
               >
                 {item.raw_text && (
                   <div className="mb-3">
