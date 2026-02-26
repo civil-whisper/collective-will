@@ -23,8 +23,9 @@ The scheduler handles clustering, summarization, and agenda building for submiss
 4. **Status**: Set `status="canonicalized"` on success, `status="pending"` on LLM failure (batch fallback)
 
 ### Batch (scheduler, in `src/scheduler/main.py`)
+0. **Auto-close expired voting cycles**: Query `VotingCycle` where `status="active"` and `ends_at <= now()`. For each, call `close_and_tally()` to tally votes, set `status="tallied"`, and log `cycle_closed` evidence. This runs before any submission processing so the command router immediately stops showing expired cycles.
 1. **Load ready submissions**: Query submissions with `status="canonicalized"` or `status="pending"` (fallback)
-2. **Fallback canon+embed**: If any `status="pending"` submissions exist (LLM was down at intake time), canonicalize and embed them now
+2. **Fallback canon+embed**: If any `status="pending"` submissions exist (LLM was down at intake time), canonicalize and embed them now. Increment `user.contribution_count += 1` for each submitter whose submission was successfully canonicalized.
 3. **Cluster**: `run_clustering()` → produces Clusters
 4. **Variance check**: `variance_check()` → flags unstable clusters
 5. **Summarize**: `summarize_clusters()` → generates summaries

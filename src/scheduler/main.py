@@ -18,8 +18,10 @@ from src.db.queries import (
     create_cluster,
     create_policy_candidate,
 )
+from src.handlers.voting import close_and_tally
 from src.models.cluster import Cluster
 from src.models.submission import PolicyCandidate, Submission
+from src.models.vote import VotingCycle
 from src.pipeline.agenda import build_agenda
 from src.pipeline.canonicalize import canonicalize_batch, load_existing_policy_context
 from src.pipeline.cluster import group_by_policy_key
@@ -52,12 +54,23 @@ async def run_pipeline(*, session: AsyncSession, llm_router: LLMRouter | None = 
     result = PipelineResult()
     async with PIPELINE_LOCK:
         try:
-            # Canonicalized submissions have candidates+embeddings ready; just need clustering.
-            # Also pick up any "pending" submissions whose inline canonicalization failed (LLM outage fallback).
+            expired_result = await session.execute(
+                select(VotingCycle)
+                .where(VotingCycle.status == "active")
+                .where(VotingCycle.ends_at <= datetime.now(UTC))
+            )
+            for cycle in expired_result.scalars().all():
+                logger.info(
+                    "Auto-closing expired voting cycle %s",
+                    cycle.id,
+                    extra={"event_type": "scheduler.cycle.auto_closed"},
+                )
+                await close_and_tally(session=session, cycle=cycle)
+
             ready_result = await session.execute(
                 select(Submission)
                 .where(Submission.status.in_(["canonicalized", "pending"]))
-                .options(selectinload(Submission.candidates))
+                .options(selectinload(Submission.candidates), selectinload(Submission.user))
                 .order_by(Submission.created_at.asc())
             )
             submissions = list(ready_result.scalars().all())
@@ -78,12 +91,15 @@ async def run_pipeline(*, session: AsyncSession, llm_router: LLMRouter | None = 
                     session=session, submissions=payloads,
                     llm_router=router, policy_context=policy_context,
                 )
+                canonicalized_sub_ids = {data.submission_id for data in candidate_creates}
                 for data in candidate_creates:
                     db_candidate = await create_policy_candidate(session, data)
                     await session.refresh(db_candidate)
                 await session.flush()
                 for sub in pending_subs:
                     await session.refresh(sub, attribute_names=["candidates"])
+                    if sub.id in canonicalized_sub_ids:
+                        sub.user.contribution_count += 1
 
             db_candidates: list[PolicyCandidate] = []
             for sub in submissions:

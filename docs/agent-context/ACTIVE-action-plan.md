@@ -576,6 +576,21 @@ Both are stance-neutral. Three-stage pipeline: inline assignment → hybrid norm
     - Results: hijab 100%, language 100%, internet 100%, privatization 100%, death-penalty 94%
     - Excluded from CI (`scripts/ci-backend.sh`); run manually to validate grouping quality
 
+### P1 — Scheduler Lifecycle Fixes
+
+82. [done] Auto-close expired voting cycles
+    - Scheduler `run_pipeline()` now queries for `VotingCycle` with `status="active"` and `ends_at <= now()` at the start of each run
+    - Calls `close_and_tally()` for each expired cycle (tallies votes, sets `status="tallied"`, logs `cycle_closed` evidence)
+    - Runs before submission processing so the command router stops showing expired cycles immediately
+    - Test: `test_expired_cycle_auto_closed` verifies `close_and_tally` is called for expired cycles
+
+83. [done] Fix contribution_count increment
+    - Inline path (`intake.py`): `user.contribution_count += 1` after `status="canonicalized"` — users who submit accepted concerns now qualify to vote
+    - Batch path (`scheduler/main.py`): eagerly loads `Submission.user`, increments `contribution_count` for each pending sub that produced a candidate
+    - Endorsement path (`voting.py`): changed `if count == 0: count = 1` to `+= 1` — each endorsement now adds +1
+    - Tests: intake verifies count on success/rejection/LLM-failure; voting verifies 3 sequential endorsements → count==3; scheduler verifies batch increment
+    - Context docs updated: `04-submission-intake.md`, `07-voting-service.md`, `08-batch-scheduler.md`, `architecture-flow.md`
+
 ## Definition of Done (This Cycle)
 
 - No CI/CD job performs paid LLM API calls
