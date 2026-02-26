@@ -165,6 +165,28 @@ async def test_record_endorsement_success(
 
 
 @pytest.mark.asyncio
+@patch("src.handlers.voting.append_evidence", new_callable=AsyncMock)
+@patch("src.handlers.voting.create_policy_endorsement", new_callable=AsyncMock)
+@patch("src.handlers.voting.get_settings")
+async def test_record_endorsement_increments_each_time(
+    mock_settings: MagicMock, mock_create: AsyncMock, mock_evidence: AsyncMock,
+) -> None:
+    mock_settings.return_value.min_account_age_hours = 48
+    mock_settings.return_value.require_contribution_for_vote = True
+    user = _make_user(contribution_count=0)
+    db = AsyncMock()
+
+    await record_endorsement(session=db, user=user, cluster_id=uuid4())
+    assert user.contribution_count == 1
+
+    await record_endorsement(session=db, user=user, cluster_id=uuid4())
+    assert user.contribution_count == 2
+
+    await record_endorsement(session=db, user=user, cluster_id=uuid4())
+    assert user.contribution_count == 3
+
+
+@pytest.mark.asyncio
 @patch("src.handlers.voting.create_policy_endorsement", new_callable=AsyncMock)
 @patch("src.handlers.voting.get_settings")
 async def test_record_endorsement_idempotent(mock_settings: MagicMock, mock_create: AsyncMock) -> None:

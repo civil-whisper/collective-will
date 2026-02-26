@@ -128,8 +128,7 @@ async def record_endorsement(
         await create_policy_endorsement(
             session, PolicyEndorsementCreate(user_id=user.id, cluster_id=cluster_id)
         )
-        if user.contribution_count == 0:
-            user.contribution_count = 1
+        user.contribution_count += 1
         await append_evidence(
             session=session,
             event_type="policy_endorsed",

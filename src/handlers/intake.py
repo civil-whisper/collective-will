@@ -191,6 +191,7 @@ async def handle_submission(
         db_candidate = await create_policy_candidate(db, result)
         await compute_and_store_embeddings(session=db, candidates=[db_candidate], llm_router=router)
         submission.status = "canonicalized"
+        user.contribution_count += 1
         await db.commit()
         analytics_url = f"{settings.app_public_base_url}/{locale}/collective-concerns#candidate-{db_candidate.id}"
         text = _msg(locale, "confirmation", title=result.title, url=analytics_url)

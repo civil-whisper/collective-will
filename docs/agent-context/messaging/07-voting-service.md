@@ -58,7 +58,7 @@ async def record_endorsement(
 1. Check user eligibility baseline: `email_verified`, `messaging_verified`, account age >= `settings.min_account_age_hours`
 2. Ensure one signature per user per cluster (idempotent behavior)
 3. Create `PolicyEndorsement` record
-4. Increment `user.contribution_count` if this is the user's first accepted contribution
+4. Increment `user.contribution_count += 1` (each endorsement adds +1)
 5. Log `policy_endorsed` event to evidence store
 6. Return True if recorded (or already present), False on ineligible/error
 

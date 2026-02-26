@@ -55,7 +55,7 @@ Steps:
 7. **LLM failure fallback**: If canonicalization or embedding raises an exception:
    - Keep `submission.status = "pending"` (batch scheduler will retry)
    - Send a generic locale-aware confirmation (without canonical title)
-8. **Do not increment contribution_count here**: Contribution credit is added only after pipeline acceptance (`status="processed"`) or explicit policy endorsement.
+8. **Increment contribution_count**: After successful inline canonicalization (`status="canonicalized"`), increment `user.contribution_count += 1`. This is NOT incremented on rejection, PII block, or LLM failure fallback.
 
 ### Locale-aware messaging
 
@@ -82,7 +82,7 @@ def hash_submission(text: str) -> str:
 - If any step fails (DB write, evidence append), the submission should not be partially saved. Use a transaction.
 - Keep this handler channel-agnostic: interact through `BaseChannel` only, never provider-specific methods or payload assumptions.
 - Do not hardcode `48` in handler logic; use config (`MIN_ACCOUNT_AGE_HOURS`) so tests can lower the threshold safely.
-- `contribution_count` must not be incremented on intake; only accepted contributions (processed submissions or endorsements) count.
+- `contribution_count` is incremented by +1 on successful inline canonicalization. It is NOT incremented on rejection, PII block, or LLM failure (batch fallback handles the deferred case).
 - High-risk PII submissions must not be stored as `raw_text`; users are asked to redact and resend.
 - PII-detected rejection logs must not include the user's raw content.
 - Rejected garbage submissions still count against `MAX_SUBMISSIONS_PER_DAY` (anti-sybil: prevents abuse of LLM resources).
@@ -102,7 +102,7 @@ Write tests in `tests/test_handlers/test_intake.py` covering:
 - LLM failure fallback: canonicalization raises exception, status stays `"pending"`, generic confirmation sent
 - Submission hash is correct SHA-256 of raw_text
 - Evidence log entry has correct event_type and payload
-- User contribution_count is unchanged by intake (increment happens at acceptance/endorsement stage)
+- User contribution_count increments by 1 on successful canonicalization, stays unchanged on rejection/PII/LLM-failure
 - Database transaction: if evidence append fails, submission is not saved (rollback)
 - Mock the channel's send_message to verify confirmation message content
 - Locale-aware messages: test both Farsi and English user locales

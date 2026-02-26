@@ -490,9 +490,8 @@ sequenceDiagram
 | Prior contribution | `contribution_count` ≥ 1 |
 | Vote changes per cycle | Max 2 total submissions |
 
-`contribution_count` increments by +1 on each successfully canonicalized submission and
-+1 on each policy endorsement. See `docs/tickets/fix-contribution-count-increment.md`
-for a known code bug where this increment is not yet applied consistently.
+`contribution_count` increments by +1 on each successfully canonicalized submission (inline
+or batch) and +1 on each policy endorsement.
 
 ### Cycle Lifecycle
 

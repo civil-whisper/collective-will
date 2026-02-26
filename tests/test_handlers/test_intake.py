@@ -156,6 +156,7 @@ async def test_handle_submission_verified_user(
     mock_create_candidate.assert_called_once()
     mock_embed.assert_called_once()
     assert sub.status == "canonicalized"
+    assert user.contribution_count == 1
     assert len(channel.sent) == 1
     assert "Clean Water Policy" in channel.sent[0].text
 
@@ -194,6 +195,7 @@ async def test_handle_submission_garbage_rejected(
     await handle_submission(_make_msg("سلام!"), user, channel, db)
 
     assert sub.status == "rejected"
+    assert user.contribution_count == 0
     assert len(channel.sent) == 1
     assert "این یک سلام است" in channel.sent[0].text
 
@@ -228,6 +230,7 @@ async def test_handle_submission_llm_failure_falls_back(
     await handle_submission(_make_msg("سیاست مهم"), user, channel, db)
 
     assert sub.status == "pending"
+    assert user.contribution_count == 0
     assert len(channel.sent) == 1
     assert "دریافت شد" in channel.sent[0].text
 
