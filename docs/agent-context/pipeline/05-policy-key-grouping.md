@@ -38,10 +38,10 @@ Periodically (`normalize.py`), a hybrid embedding + LLM approach normalizes keys
    topics**, not just within a single topic. The low threshold creates bigger
    clusters so the LLM sees more context.
 2. **LLM key remapping**: For each embedding cluster containing 2+ distinct
-   `policy_key` values, the LLM receives **all full summaries** (up to 3 per key)
-   and produces a `key_mapping`: `{old_key: canonical_key}`. The LLM may keep
-   existing keys, merge several into one, or create a new key name that better
-   represents the group.
+   `policy_key` values, the LLM receives **all candidate summaries in full** (no
+   truncation, no per-key cap) and produces a `key_mapping`:
+   `{old_key: canonical_key}`. The LLM may keep existing keys, merge several
+   into one, or create a new key name that better represents the group.
 
 ### Stage 3 — Ballot Question Generation (Batch)
 
@@ -81,8 +81,9 @@ The scheduler finds or creates clusters:
 `normalize_policy_keys()` runs periodically:
 1. Loads all non-unassigned candidates with embeddings from the DB
 2. Clusters by cosine similarity (agglomerative, threshold 0.55) across ALL topics
-3. For each cluster with 2+ distinct `policy_key` values, sends ALL full summaries
-   to LLM which produces a `key_mapping` (old→canonical, may create new keys)
+3. For each cluster with 2+ distinct `policy_key` values, sends all candidate
+   summaries in full (no truncation) to LLM which produces a `key_mapping`
+   (old→canonical, may create new keys)
 4. `execute_key_merge()` reassigns candidates and deletes merged clusters
 5. Survivor cluster gets `needs_resummarize=True`
 

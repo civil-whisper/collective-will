@@ -9,9 +9,9 @@
 ## Goal
 Generate human-readable summaries for each cluster using the quality-first `english_reasoning` model (v0 default: Claude Sonnet), then build the voting agenda using a multi-stage gate: size threshold first, endorsement-signature threshold second.
 
-## Files to create
+## Files
 
-- `src/pipeline/summarize.py` — cluster summarization
+- `src/pipeline/endorsement.py` — ballot question generation (replaced legacy `summarize.py`)
 - `src/pipeline/agenda.py` — agenda builder
 
 ## Specification
@@ -115,15 +115,11 @@ The options are used in the per-policy voting flow (see `messaging/08-message-co
 
 ## Tests
 
-Tests in `tests/test_pipeline/test_summarize.py`, `tests/test_pipeline/test_agenda.py`, and `tests/test_pipeline/test_options.py` covering:
+Tests in `tests/test_pipeline/test_endorsement.py`, `tests/test_pipeline/test_agenda.py`, and `tests/test_pipeline/test_options.py` covering:
 
-**Summarization:**
-- Cluster with members gets a summary generated (mock LLM response)
-- Cluster that already has a summary is skipped
-- Aggregated text sent to LLM contains member titles/summaries but no user IDs (mock, inspect prompt)
-- LLM returning invalid JSON: cluster flagged, no crash
-- Summary stored in English (the canonical language)
-- Primary summary model failure triggers configured fallback model path
+**Ballot question generation (tests/test_pipeline/test_endorsement.py):**
+- Ballot response JSON parsing (plain, markdown-wrapped, leading text)
+- Bilingual ballot question fields extracted correctly
 
 **Agenda:**
 - Clusters with member_count >= 5 and endorsements >= threshold included in agenda

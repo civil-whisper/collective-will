@@ -188,13 +188,13 @@ def _fallback_options(cluster: Cluster) -> list[dict[str, str]]:
         {
             "label": "حمایت از این سیاست",
             "label_en": "Support this policy",
-            "description": f"حمایت از اجرای این سیاست: {cluster.summary[:150]}",
-            "description_en": f"Support implementing this policy: {cluster.summary[:150]}",
+            "description": f"حمایت از اجرای این سیاست: {cluster.summary}",
+            "description_en": f"Support implementing this policy: {cluster.summary}",
         },
         {
             "label": "مخالفت با این سیاست",
             "label_en": "Oppose this policy",
-            "description": f"مخالفت با اجرای این سیاست به دلیل هزینه یا عواقب ناخواسته: {cluster.summary[:100]}",
-            "description_en": f"Oppose this policy due to costs or unintended consequences: {cluster.summary[:100]}",
+            "description": f"مخالفت با اجرای این سیاست به دلیل هزینه یا عواقب ناخواسته: {cluster.summary}",
+            "description_en": f"Oppose this policy due to costs or unintended consequences: {cluster.summary}",
         },
     ]

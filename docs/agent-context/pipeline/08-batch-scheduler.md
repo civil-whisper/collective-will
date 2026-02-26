@@ -5,7 +5,7 @@
 - `pipeline/04-embeddings` (compute_and_store_embeddings)
 - `pipeline/05-hdbscan-clustering` (run_clustering)
 - `pipeline/06-variance-check` (variance_check)
-- `pipeline/07-cluster-summarization-agenda` (summarize_clusters, build_agenda)
+- `pipeline/07-cluster-summarization-agenda` (generate_ballot_questions, build_agenda)
 - `database/02-db-connection` (session factory)
 - `database/04-evidence-store` (append_evidence)
 

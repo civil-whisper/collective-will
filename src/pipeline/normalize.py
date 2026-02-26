@@ -204,13 +204,12 @@ def _build_entries_for_cluster(
             }
         else:
             key_data[pk]["count"] += 1
-            if len(key_data[pk]["summaries"]) < 3:
-                key_data[pk]["summaries"].append(c.summary or "")
+            key_data[pk]["summaries"].append(c.summary or "")
 
     entries: list[dict[str, Any]] = []
     for kd in sorted(key_data.values(), key=lambda x: -x["count"]):
         combined = " | ".join(
-            s[:200].replace("\n", " ") for s in kd["summaries"] if s
+            s.replace("\n", " ") for s in kd["summaries"] if s
         )
         entries.append({
             "key": kd["key"],

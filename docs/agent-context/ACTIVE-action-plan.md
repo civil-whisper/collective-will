@@ -597,6 +597,14 @@ Both are stance-neutral. Three-stage pipeline: inline assignment → hybrid norm
     - Falls back to max interval (`PIPELINE_INTERVAL_HOURS`) if threshold never reached
     - Tests: `test_count_unprocessed`, `test_scheduler_loop_threshold_trigger`, `test_scheduler_loop_time_trigger`
 
+85. [done] Remove summary truncation from LLM prompt builders
+    - `normalize.py`: removed 3-summary-per-key cap and 200-char truncation — all candidate summaries included in full
+    - `canonicalize.py`: removed 120-char truncation on existing cluster summaries in policy context block
+    - `options.py`: removed `[:150]` / `[:100]` truncation in fallback option descriptions
+    - `test_grouping_integration.py`: mirrored removals in test helper copies
+    - `summarize.py`: confirmed dead code (not called anywhere in src/); left as-is
+    - No prompt token limit exists in the LLM router; truncation was unjustified defensive boilerplate
+
 ## Definition of Done (This Cycle)
 
 - No CI/CD job performs paid LLM API calls

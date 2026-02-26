@@ -680,12 +680,12 @@ class PolicyContextAccumulator:
     def add(self, policy_topic: str, policy_key: str, summary: str) -> None:
         if policy_topic == "unassigned" or policy_key == "unassigned":
             return
-        short = (summary or "")[:120].replace("\n", " ")
+        clean = (summary or "").replace("\n", " ")
         if policy_key in self._data[policy_topic]:
             count, existing_summary = self._data[policy_topic][policy_key]
             self._data[policy_topic][policy_key] = (count + 1, existing_summary)
         else:
-            self._data[policy_topic][policy_key] = (1, short)
+            self._data[policy_topic][policy_key] = (1, clean)
 
     def format_context(self) -> str:
         if not self._data:
@@ -791,13 +791,12 @@ def _build_entries_for_test_cluster(
             }
         else:
             key_data[pk]["count"] += 1
-            if len(key_data[pk]["summaries"]) < 3:
-                key_data[pk]["summaries"].append(c.get("summary", "") or "")
+            key_data[pk]["summaries"].append(c.get("summary", "") or "")
 
     entries: list[dict[str, Any]] = []
     for kd in sorted(key_data.values(), key=lambda x: -x["count"]):
         combined = " | ".join(
-            s[:200].replace("\n", " ") for s in kd["summaries"] if s
+            s.replace("\n", " ") for s in kd["summaries"] if s
         )
         entries.append({
             "key": kd["key"],
@@ -873,7 +872,7 @@ def _snapshot_groups(candidates: list[dict[str, str]]) -> dict[str, Any]:
                 "expected_breakdown": dict(Counter(m["expected_group"] for m in members)),
                 "policy_topic": members[0]["policy_topic"] if members else "",
                 "summaries": [
-                    m.get("summary", "")[:200] for m in members[:3]
+                    m.get("summary", "") for m in members
                 ],
             }
             for k, members in sorted(groups.items(), key=lambda x: -len(x[1]))

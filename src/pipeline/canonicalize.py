@@ -46,8 +46,8 @@ async def load_existing_policy_context(session: AsyncSession) -> str:
     for topic, key, count, summary in rows:
         if topic == "unassigned" or key == "unassigned":
             continue
-        short_summary = (summary or "")[:120].replace("\n", " ")
-        topics[topic].append((key, count, short_summary))
+        clean_summary = (summary or "").replace("\n", " ")
+        topics[topic].append((key, count, clean_summary))
 
     if not topics:
         return ""
