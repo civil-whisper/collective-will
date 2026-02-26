@@ -1,8 +1,14 @@
 # Collective Will
 
+## Architecture
+
+For the full system architecture, submission lifecycle, AI pipeline stages, and data
+flow diagrams, see **[docs/architecture-flow.md](docs/architecture-flow.md)**.
+
 ## Repository Structure
 
 - `docs/` — all project documentation
+  - `docs/architecture-flow.md` — **end-to-end architecture & submission flow** (start here)
   - `docs/agent-context/` — implementation contracts (30 tasks across database, pipeline, messaging, website)
   - `docs/decision-rationale/` — decision rationale and guardrails
   - `docs/mvp-specification.md`
@@ -10,6 +16,7 @@
   - `docs/infrastructure-guide.md`
   - `docs/roadmap.md`
   - `docs/v0-precoding-checklist.md`
+  - `docs/tickets/` — implementation tickets for planned changes and known bugs
   - `docs/CONTRIBUTING.md`
   - `docs/DECISION_LOCKS.md`
 - `src/` — Python backend (FastAPI, SQLAlchemy, pipeline)
