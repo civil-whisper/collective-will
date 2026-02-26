@@ -19,7 +19,7 @@ from src.handlers.intake import (
     handle_submission,
     hash_submission,
 )
-from src.models.submission import PolicyCandidateCreate, PolicyDomain
+from src.models.submission import PolicyCandidateCreate
 from src.pipeline.canonicalize import CanonicalizationRejection
 
 
@@ -103,7 +103,6 @@ def _make_candidate_create(submission_id: Any = None) -> PolicyCandidateCreate:
     return PolicyCandidateCreate(
         submission_id=submission_id or uuid4(),
         title="Clean Water Policy",
-        domain=PolicyDomain.RIGHTS,
         summary="A proposal about clean drinking water",
         stance="support",
         policy_topic="water-access",

@@ -114,7 +114,7 @@ export function eventDescription(
     case "candidate_created":
       return t("events.candidateCreated", {
         title: truncate(str(p.title), 60),
-        domain: str(p.domain),
+        topic: str(p.policy_topic),
         confidence: String(Math.round(Number(p.confidence ?? 0) * 100)),
       });
     case "cluster_created":

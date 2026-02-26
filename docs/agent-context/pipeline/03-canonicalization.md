@@ -109,12 +109,12 @@ completely off-topic content.
 Required JSON fields:
   is_valid_policy (bool): true if valid civic/policy proposal, false otherwise,
   rejection_reason (str or null): if invalid, explain in the INPUT language,
-  title (str, ENGLISH), domain (one of: ...domains...),
+  title (str, ENGLISH),
   summary (str, ENGLISH), stance (one of: ...stances...),
   entities (list of strings, ENGLISH), confidence (float 0-1),
   ambiguity_flags (list of strings).
 
-If is_valid_policy is false, still fill title/summary/domain with best-effort
+If is_valid_policy is false, still fill title/summary with best-effort
 English values but set confidence to 0.
 Return ONLY the raw JSON object, no markdown wrapping.
 ```
@@ -161,7 +161,7 @@ Write tests in `tests/test_pipeline/test_canonicalize.py` covering:
 - `prompt_version` changes when prompt template changes
 - Evidence logged for each candidate_created event
 - Privacy: verify that the text sent to LLM (mock) contains no UUIDs or user references
-- PolicyDomain enum: valid domain strings accepted, invalid rejected
+- `policy_topic` and `policy_key` are assigned from LLM output
 - `canonicalize_single` with valid submission returns `PolicyCandidateCreate`
 - `canonicalize_single` with garbage submission returns `CanonicalizationRejection` with input-language reason
 - `canonicalize_batch` filters out invalid submissions (marks them `"rejected"`)

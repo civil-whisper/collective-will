@@ -120,14 +120,6 @@ def test_min_preballot_endorsements_default_and_override(monkeypatch: pytest.Mon
     assert overridden.min_preballot_endorsements == 2
 
 
-def test_min_cluster_size_default_and_override(monkeypatch: pytest.MonkeyPatch) -> None:
-    settings = _make_settings(monkeypatch)
-    assert settings.min_cluster_size == 5
-
-    overridden = _make_settings(monkeypatch, MIN_CLUSTER_SIZE="3")
-    assert overridden.min_cluster_size == 3
-
-
 # --- 10. max_signups_per_domain_per_day config ---
 def test_max_signups_per_domain_per_day_config(monkeypatch: pytest.MonkeyPatch) -> None:
     settings = _make_settings(monkeypatch)

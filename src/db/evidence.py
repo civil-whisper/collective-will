@@ -23,6 +23,8 @@ VALID_EVENT_TYPES = {
     "candidate_created",
     "cluster_created",
     "cluster_updated",
+    "cluster_merged",
+    "ballot_question_generated",
     "policy_endorsed",
     "vote_cast",
     "cycle_opened",

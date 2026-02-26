@@ -112,7 +112,7 @@ export default function EvidencePage() {
   const payloadDisplayKeys = (entry: EvidenceEntry): [string, string][] => {
     const p = entry.payload;
     const pairs: [string, string][] = [];
-    if (p.domain) pairs.push(["Domain", String(p.domain)]);
+    if (p.policy_topic) pairs.push(["Topic", String(p.policy_topic)]);
     if (p.confidence != null) pairs.push(["Confidence", `${Math.round(Number(p.confidence) * 100)}%`]);
     if (p.status) pairs.push(["Status", String(p.status)]);
     if (p.language) pairs.push(["Language", String(p.language)]);

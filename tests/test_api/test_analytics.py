@@ -11,7 +11,7 @@ from src.api.main import app
 from src.db.connection import get_db
 from src.db.evidence import EvidenceLogEntry
 from src.models.cluster import Cluster
-from src.models.submission import PolicyCandidate, PolicyDomain
+from src.models.submission import PolicyCandidate
 from src.models.vote import VotingCycle
 
 
@@ -27,10 +27,10 @@ def _make_cluster(**overrides: Any) -> MagicMock:
     cluster = MagicMock(spec=Cluster)
     cluster.id = overrides.get("id", uuid4())
     cluster.summary = overrides.get("summary", "Test cluster")
-    cluster.domain = overrides.get("domain", PolicyDomain.ECONOMY)
+    cluster.policy_topic = overrides.get("policy_topic", "economy")
+    cluster.policy_key = overrides.get("policy_key", "test-policy")
     cluster.member_count = overrides.get("member_count", 5)
     cluster.approval_count = overrides.get("approval_count", 0)
-    cluster.variance_flag = overrides.get("variance_flag", False)
     cluster.created_at = overrides.get("created_at", datetime.now(UTC))
     return cluster
 
@@ -39,10 +39,9 @@ def _make_candidate(**overrides: Any) -> MagicMock:
     candidate = MagicMock(spec=PolicyCandidate)
     candidate.id = overrides.get("id", uuid4())
     candidate.title = overrides.get("title", "Candidate")
-    candidate.title_en = overrides.get("title_en", "Candidate")
     candidate.summary = overrides.get("summary", "Summary")
-    candidate.summary_en = overrides.get("summary_en", "Summary")
-    candidate.domain = overrides.get("domain", PolicyDomain.ECONOMY)
+    candidate.policy_topic = overrides.get("policy_topic", "economy")
+    candidate.policy_key = overrides.get("policy_key", "test-policy")
     candidate.confidence = overrides.get("confidence", 0.8)
     candidate.created_at = overrides.get("created_at", datetime.now(UTC))
     return candidate
@@ -77,8 +76,8 @@ class TestClusters:
         cid = uuid4()
         clusters = [
             _make_cluster(
-                id=cid, summary="Reform A", domain=PolicyDomain.GOVERNANCE,
-                member_count=10, variance_flag=True,
+                id=cid, summary="Reform A", policy_topic="governance",
+                policy_key="governance-reform", member_count=10,
             )
         ]
         session = _mock_session(clusters)
@@ -91,10 +90,10 @@ class TestClusters:
             assert len(data) == 1
             assert data[0]["id"] == str(cid)
             assert data[0]["summary"] == "Reform A"
-            assert data[0]["domain"] == "governance"
+            assert data[0]["policy_topic"] == "governance"
+            assert data[0]["policy_key"] == "governance-reform"
             assert data[0]["member_count"] == 10
             assert data[0]["approval_count"] == 0
-            assert data[0]["variance_flag"] is True
         finally:
             app.dependency_overrides.pop(get_db, None)
 

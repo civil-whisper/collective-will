@@ -116,7 +116,7 @@ Inspiration: [Plausible Analytics](https://plausible.io/plausible.io) — clean,
    - `Card` — surface container with border, rounded corners, padding, dark mode
    - `MetricCard` — big number + label + optional trend arrow (props: `label`, `value`, `trend?`, `trendDirection?`)
    - `PageShell` — consistent max-width container, page title, subtitle
-   - `DomainBadge` — colored pill for policy domain enum
+   - `TopicBadge` — colored pill for policy_topic (hash-based color)
    - `ChainStatusBadge` — green valid / red broken indicator
    - `BreakdownRow` — single row with name, value, percentage bar background
    - `BreakdownTable` — ranked list of `BreakdownRow`s inside a Card, with header
@@ -159,20 +159,19 @@ Inspiration: [Plausible Analytics](https://plausible.io/plausible.io) — clean,
     - Center: `TimeSeriesChart` showing participation over recent cycles or days
     - Below chart, two-column layout:
       - Left: `BreakdownTable` for top clusters by approval (clickable, links to cluster detail)
-      - Right: `BreakdownTable` for policy domain distribution
+      - Right: `BreakdownTable` for policy topic distribution
     - Bottom: recent evidence activity feed (last 5 entries, link to full evidence page)
     - Time range selector (current cycle / last 7 days / last 30 days / all time)
 
 15. [done] Redesign Top Policies Page (`app/[locale]/analytics/top-policies/page.tsx`)
     - Ranked list using `BreakdownTable` component
-    - Each row: rank badge, cluster summary (link), approval rate bar, approval count, domain badge
+    - Each row: rank badge, cluster summary (link), approval rate bar, approval count, topic badge
     - Clean header with page title and cycle selector
 
 16. [done] Redesign Cluster Detail Page (`app/[locale]/analytics/clusters/[id]/page.tsx`)
-    - Top: cluster summary as page title, domain badge, summary_en subtitle
-    - Metric row: member count, approval count, variance flag indicator
-    - Grouping rationale in a subtle callout box
-    - Candidates list as styled cards (title, summary, domain badge, confidence bar)
+    - Top: cluster summary as page title, topic badge
+    - Metric row: member count, approval count, policy topic
+    - Candidates list as styled cards (title, summary, topic badge, confidence bar)
 
 17. [done] Redesign Evidence Page (`app/[locale]/analytics/evidence/page.tsx`)
     - `ChainStatusBadge` prominently at the top with verify button
@@ -323,7 +322,7 @@ compatibility with old sparse payloads).
     - `identity.py`: `user_verified` → user_id, method (removed account_ref PII)
     - `voting.py`: `vote_cast` → user_id, cycle_id; `cycle_opened` → cycle_duration_hours
     - `canonicalize.py`: `candidate_created` → submission_id, summary, stance
-    - `summarize.py`: `cluster_updated` → summary_en, domain, member_count, candidate_ids
+    - `summarize.py`: `cluster_updated` → summary, member_count, candidate_ids
     - `disputes.py`: `dispute_resolved` → resolved_title, resolved_summary
 
 46. [done] Remove `dispute_opened` emission + clean up VALID_EVENT_TYPES
@@ -509,7 +508,7 @@ feedback to users.
 
 ### P0 — Policy-Level Clustering Redesign
 
-Design rationale: LLM-driven policy-key grouping replaces HDBSCAN as primary mechanism.
+Design rationale: LLM-driven policy-key grouping is the sole clustering mechanism (HDBSCAN removed).
 Two-level structure: `policy_topic` (browsing umbrella) + `policy_key` (ballot-level discussion).
 Both are stance-neutral. Three-stage pipeline: inline assignment → hybrid normalization (embedding + LLM) → ballot question generation.
 
@@ -526,7 +525,7 @@ Both are stance-neutral. Three-stage pipeline: inline assignment → hybrid norm
     - Both `canonicalize_single()` and `canonicalize_batch()` auto-load context if not provided
 
 74. [done] Implement group_by_policy_key() and persistent cluster creation
-    - `group_by_policy_key()` in `cluster.py` replaces HDBSCAN as primary grouping
+    - `group_by_policy_key()` in `cluster.py` is the sole grouping mechanism
     - `compute_centroid()` helper for embedding centroids
     - Scheduler `_find_or_create_cluster()` creates or updates persistent clusters
     - Growth detection triggers `needs_resummarize` when membership grows 50%+
@@ -560,7 +559,7 @@ Both are stance-neutral. Three-stage pipeline: inline assignment → hybrid norm
     - `test_endorsement.py`: ballot response parsing
     - `test_agenda.py`: combined support gate
     - Updated `test_cluster_agenda.py`, `test_db/test_models.py`, `test_handlers/test_intake.py`
-    - All legacy HDBSCAN tests still pass
+    - HDBSCAN code and tests have been removed
 
 80. [done] Update pipeline documentation and context files
     - Updated CONTEXT-shared.md: Clustering decision, model definitions, directory structure

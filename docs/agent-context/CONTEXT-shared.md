@@ -29,7 +29,7 @@ These are locked. Do not deviate.
 | **Cluster summaries** | `english_reasoning` tier defaults to Claude Sonnet 4.6. Mandatory fallback (Gemini 3.1 Pro) is required for risk management via abstraction config. |
 | **Policy option generation** | Web-grounded via `option_generation` tier: defaults to Claude Sonnet 4.6 (no grounding). Google Search grounding activates automatically on Gemini fallback. Full (untruncated) citizen submissions are passed to the LLM alongside web search for real-world policy context. |
 | **User-facing messages** | Locale-aware (Farsi + English, keyed by `user.locale`). LLM-generated content (rejection reasons) matches the input language. Template-based messages (confirmation, errors) use the `_MESSAGES` dict with locale selection. LLM tier `farsi_messages` defaults to Claude Sonnet 4.6 with mandatory fallback (Gemini 3.1 Pro) via abstraction config. |
-| **Clustering** | LLM-driven policy-key grouping (primary). Each submission is assigned a stance-neutral `policy_topic` (browsing umbrella, e.g., "internet-censorship") and `policy_key` (ballot-level discussion, e.g., "political-internet-censorship") at canonicalization time. Clusters are persistent entities keyed by `policy_key`. Periodic hybrid normalization (embedding cosine similarity at 0.55 threshold + LLM key remapping with full summaries) merges near-duplicate keys across all topics; LLM may create new canonical key names. HDBSCAN is retained as a legacy secondary path but is not the primary grouping mechanism. |
+| **Clustering** | LLM-driven policy-key grouping. Each submission is assigned a stance-neutral `policy_topic` (browsing umbrella, e.g., "internet-censorship") and `policy_key` (ballot-level discussion, e.g., "political-internet-censorship") at canonicalization time. Clusters are persistent entities keyed by `policy_key`. Periodic hybrid normalization (embedding cosine similarity at 0.55 threshold + LLM key remapping with full summaries) merges near-duplicate keys across all topics; LLM may create new canonical key names. |
 | **Identity** | Email magic-link + WhatsApp account linking. No phone verification, no OAuth, no vouching. Signup controls: exempt major email providers from per-domain cap; enforce `MAX_SIGNUPS_PER_DOMAIN_PER_DAY=3` for non-major domains; enforce per-IP signup cap (`MAX_SIGNUPS_PER_IP_PER_DAY`) and keep telemetry signals (domain diversity, disposable-domain scoring, velocity logs). |
 | **Sealed account mapping** | Store messaging linkage as random opaque account refs (UUIDv4). Raw platform IDs (Telegram chat_id, WhatsApp wa_id) live only in the `sealed_account_mappings` DB table and are stripped from logs/exports. The sealed mapping is persisted to database (not in-memory) so it survives restarts. |
 | **Auth token persistence** | Magic link tokens and linking codes are stored in the `verification_tokens` DB table with expiry timestamps. No in-memory token storage — tokens must survive process restarts and be shared across background workers. |
@@ -249,10 +249,7 @@ evidence_log_id: int
 id: UUID
 submission_id: UUID
 title: str                          # 5-15 words, always English
-title_en: str | None                # Legacy; title is already English
-domain: PolicyDomain
 summary: str                        # 1-3 sentences, always English
-summary_en: str | None              # Legacy; summary is already English
 stance: "support" | "oppose" | "neutral" | "unclear"  # "unclear" = model uncertainty; "neutral" = descriptive/no explicit side
 policy_topic: str                   # Stance-neutral umbrella topic (e.g., "internet-censorship"), lowercase-with-hyphens
 policy_key: str                     # Stance-neutral ballot-level discussion (e.g., "political-internet-censorship"), lowercase-with-hyphens
@@ -266,35 +263,20 @@ created_at: datetime
 evidence_log_id: int
 ```
 
-### PolicyDomain (enum)
-
-```
-governance, economy, rights, foreign_policy, religion, ethnic, justice, other
-```
-
 ### Cluster
 
 ```
 id: UUID
-cycle_id: UUID | None               # Nullable — persistent clusters may not belong to a cycle
 policy_topic: str                   # Stance-neutral umbrella topic (e.g., "internet-censorship")
 policy_key: str                     # Unique stance-neutral ballot-level key (e.g., "political-internet-censorship")
-summary: str                        # Farsi
-summary_en: str | None
+summary: str                        # English (canonical language; base fields are always English)
 ballot_question: str | None         # Stance-neutral English ballot question for endorsement step
 ballot_question_fa: str | None      # Farsi ballot question
-domain: PolicyDomain
 candidate_ids: list[UUID]
 member_count: int
-centroid_embedding: list[float]
-cohesion_score: float
-variance_flag: bool
+approval_count: int
 needs_resummarize: bool             # True when cluster needs ballot question (re)generation
 last_summarized_count: int          # member_count at last summarization (for growth detection)
-run_id: str | None                  # Nullable — only set for HDBSCAN legacy path
-random_seed: int | None             # Nullable — only set for HDBSCAN legacy path
-clustering_params: dict
-approval_count: int
 created_at: datetime
 evidence_log_id: int
 ```
@@ -367,7 +349,8 @@ prev_hash: str                      # previous entry's hash (chain)
 Valid event types (enforced by `VALID_EVENT_TYPES` in `src/db/evidence.py`):
 ```
 submission_received, submission_rejected_not_policy, candidate_created,
-cluster_created, cluster_updated, policy_endorsed, policy_options_generated,
+cluster_created, cluster_updated, cluster_merged, ballot_question_generated,
+policy_endorsed, policy_options_generated,
 vote_cast, cycle_opened, cycle_closed, user_verified, dispute_escalated,
 dispute_resolved, dispute_metrics_recorded, dispute_tuning_recommended,
 anchor_computed
@@ -385,8 +368,10 @@ All `append_evidence` payloads include human-readable context so the evidence ch
 |---|---|
 | `submission_received` | `submission_id`, `user_id`, `raw_text`, `language`, `status`, `hash` (or `status`+`reason_code` for PII rejections) |
 | `submission_rejected_not_policy` | `submission_id`, `rejection_reason`, `model_version`, `prompt_version` |
-| `candidate_created` | `submission_id`, `title`, `summary`, `domain`, `stance`, `confidence`, `model_version`, `prompt_version` |
-| `cluster_updated` | `summary`, `summary_en`, `domain`, `member_count`, `candidate_ids`, `model_version` |
+| `candidate_created` | `submission_id`, `title`, `summary`, `stance`, `policy_topic`, `policy_key`, `confidence`, `model_version`, `prompt_version` |
+| `cluster_updated` | `summary`, `member_count`, `candidate_ids`, `model_version` |
+| `cluster_merged` | `survivor_key`, `merged_key`, `merged_cluster_id`, `new_member_count` |
+| `ballot_question_generated` | `policy_key`, `ballot_question`, `member_count`, `model_version` |
 | `vote_cast` | `user_id`, `cycle_id`, `approved_cluster_ids`, `selections` (when per-policy voting) |
 | `policy_endorsed` | `user_id`, `cluster_id` |
 | `policy_options_generated` | `cluster_id`, `option_count`, `model_version`, `option_labels` |
@@ -456,7 +441,7 @@ collective-will/
 │   │   ├── privacy.py           # Strip metadata for LLM
 │   │   ├── canonicalize.py      # LLM canonicalization + policy_topic/policy_key assignment
 │   │   ├── embeddings.py        # Embedding computation
-│   │   ├── cluster.py           # Policy-key grouping (primary) + HDBSCAN (legacy)
+│   │   ├── cluster.py           # Policy-key grouping + centroid computation
 │   │   ├── normalize.py         # Hybrid embedding + LLM key normalization (cross-topic)
 │   │   ├── endorsement.py       # Ballot question generation per policy_key
 │   │   ├── summarize.py         # Cluster summaries (legacy)
@@ -524,7 +509,7 @@ collective-will/
 - Canonicalization (Claude Sonnet, cloud, inline at submission time with batch fallback; always outputs English)
 - Garbage rejection (LLM detects invalid submissions, rejects with user-language feedback; garbage counts against daily quota)
 - Embeddings (quality-first cloud model in v0; computed inline after canonicalization)
-- Clustering (HDBSCAN, local, batch on a config-backed interval via `PIPELINE_INTERVAL_HOURS`)
+- Clustering (LLM-driven policy-key grouping, batch on a config-backed interval via `PIPELINE_INTERVAL_HOURS`)
 - LLM-generated per-policy stance options (2–4 options per cluster via `pipeline/options.py`)
 - Pre-ballot endorsement/signature stage for cluster qualification
 - Per-policy stance voting via Telegram (paginated one-policy-at-a-time flow with summary review)

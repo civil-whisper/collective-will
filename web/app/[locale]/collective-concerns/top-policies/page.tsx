@@ -2,12 +2,12 @@ import Link from "next/link";
 import {getLocale, getTranslations} from "next-intl/server";
 
 import {apiGet} from "@/lib/api";
-import {PageShell, DomainBadge, Card} from "@/components/ui";
+import {PageShell, TopicBadge, Card} from "@/components/ui";
 
 type RankedPolicy = {
   cluster_id: string;
   summary?: string;
-  domain?: string;
+  policy_topic?: string;
   approval_count: number;
   approval_rate: number;
 };
@@ -58,9 +58,9 @@ export default async function TopPoliciesPage() {
                   >
                     {item.summary ?? item.cluster_id}
                   </Link>
-                  {item.domain && (
+                  {item.policy_topic && (
                     <div className="mt-1">
-                      <DomainBadge domain={item.domain} />
+                      <TopicBadge topic={item.policy_topic} />
                     </div>
                   )}
                 </div>

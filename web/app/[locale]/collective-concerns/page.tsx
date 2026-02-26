@@ -2,16 +2,16 @@ import Link from "next/link";
 import {getLocale, getTranslations} from "next-intl/server";
 
 import {apiGet} from "@/lib/api";
-import {MetricCard, BreakdownTable, PageShell, DomainBadge} from "@/components/ui";
+import {MetricCard, BreakdownTable, PageShell, TopicBadge} from "@/components/ui";
 import type {BreakdownItem} from "@/components/ui";
 
 type Cluster = {
   id: string;
+  policy_topic: string;
+  policy_key: string;
   summary: string;
-  domain: string;
   member_count: number;
   approval_count: number;
-  variance_flag: boolean;
 };
 
 type CycleStats = {
@@ -25,7 +25,8 @@ type UnclusteredItem = {
   id: string;
   title: string;
   summary: string;
-  domain: string;
+  policy_topic: string;
+  policy_key: string;
   confidence: number;
   raw_text: string | null;
   language: string | null;
@@ -58,15 +59,15 @@ export default async function AnalyticsPage() {
     (a, b) => b.approval_count - a.approval_count,
   );
 
-  const domainCounts: Record<string, number> = {};
+  const topicCounts: Record<string, number> = {};
   for (const c of clusters) {
-    domainCounts[c.domain] = (domainCounts[c.domain] ?? 0) + c.member_count;
+    topicCounts[c.policy_topic] = (topicCounts[c.policy_topic] ?? 0) + c.member_count;
   }
-  const domainItems: BreakdownItem[] = Object.entries(domainCounts)
+  const topicItems: BreakdownItem[] = Object.entries(topicCounts)
     .sort((a, b) => b[1] - a[1])
-    .map(([domain, count]) => ({
-      key: domain,
-      label: <DomainBadge domain={domain} />,
+    .map(([topic, count]) => ({
+      key: topic,
+      label: <TopicBadge topic={topic} />,
       value: count,
     }));
 
@@ -125,8 +126,8 @@ export default async function AnalyticsPage() {
               items={clusterItems}
             />
             <BreakdownTable
-              title={t("domain")}
-              items={domainItems}
+              title={t("policyTopic")}
+              items={topicItems}
             />
           </div>
 
@@ -141,15 +142,10 @@ export default async function AnalyticsPage() {
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-medium">{cluster.summary}</p>
                   <div className="mt-1 flex items-center gap-2">
-                    <DomainBadge domain={cluster.domain} />
+                    <TopicBadge topic={cluster.policy_topic} />
                     <span className="text-xs text-gray-500 dark:text-slate-400">
                       {t("memberCount")}: {cluster.member_count}
                     </span>
-                    {cluster.variance_flag && (
-                      <span className="text-xs font-medium text-amber-600 dark:text-amber-400">
-                        {t("varianceFlag")}
-                      </span>
-                    )}
                   </div>
                 </div>
                 <div className="ms-4 text-end">
@@ -198,7 +194,7 @@ export default async function AnalyticsPage() {
                     <p className="font-medium">{item.title}</p>
                     <p className="mt-1 text-sm text-gray-600 dark:text-slate-400">{item.summary}</p>
                     <div className="mt-2">
-                      <DomainBadge domain={item.domain} />
+                      <TopicBadge topic={item.policy_topic} />
                     </div>
                   </div>
                   <div className="text-end">

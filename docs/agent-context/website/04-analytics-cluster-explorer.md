@@ -26,12 +26,11 @@ Displays all clusters from the most recent clustering cycle.
   - Cluster summary (Farsi primary, with English toggle)
   - Member count (number of submissions in this cluster)
   - Approval count (votes, if voting has happened)
-  - Domain tag (e.g., "economy", "rights")
-  - Variance flag indicator (if flagged as unstable)
+  - Policy topic tag (e.g., "economy", "rights")
   - Click to navigate to cluster detail page
 
-- **Sorting options**: By member count (default), by approval count, by domain
-- **Domain filter**: Filter clusters by PolicyDomain
+- **Sorting options**: By member count (default), by approval count, by policy topic
+- **Topic filter**: Filter clusters by policy topic
 
 - **Stats bar at top**: Total submissions, total clusters, unclustered submissions count, active voting cycle (yes/no)
 
@@ -46,12 +45,10 @@ Displays all clusters from the most recent clustering cycle.
 ### Cluster detail page (`/analytics/clusters/[id]`)
 
 - **Cluster summary**: Full text in Farsi + English
-- **Grouping rationale**: Why these submissions were grouped (from the LLM summarization)
 - **Member submissions**: Anonymized list of canonical policy candidates in this cluster
-  - Show: title, summary, domain, confidence score
+  - Show: title, summary, policy_topic, policy_key, confidence score
   - Do NOT show: user information, submission timestamps, raw text
 - **Vote count**: If voting has happened, show approval count and rate
-- **Variance flag**: If flagged, show notice: "This cluster showed instability across multiple clustering runs."
 
 ### API calls
 
@@ -72,17 +69,15 @@ export async function getCluster(id: string): Promise<ClusterDetail> { ... }
 ```typescript
 interface ClusterSummary {
   id: string;
+  policy_topic: string;
+  policy_key: string;
   summary: string;
-  summary_en?: string;
-  domain: PolicyDomain;
   member_count: number;
   approval_count: number;
-  variance_flag: boolean;
 }
 
 interface ClusterDetail extends ClusterSummary {
   candidates: PolicyCandidatePublic[];
-  grouping_rationale?: string;
 }
 
 interface UnclusteredResponse {
@@ -93,10 +88,9 @@ interface UnclusteredResponse {
 interface UnclusteredItem {
   id: string;
   title: string;
-  title_en?: string;
   summary: string;
-  summary_en?: string;
-  domain: PolicyDomain;
+  policy_topic: string;
+  policy_key: string;
   confidence: number;
   raw_text: string;        // Original user submission text
   language: string;        // Detected input language (e.g. "fa", "en")
@@ -105,10 +99,9 @@ interface UnclusteredItem {
 interface PolicyCandidatePublic {
   id: string;
   title: string;
-  title_en?: string;
   summary: string;
-  summary_en?: string;
-  domain: PolicyDomain;
+  policy_topic: string;
+  policy_key: string;
   confidence: number;
 }
 ```
@@ -131,13 +124,12 @@ interface PolicyCandidatePublic {
 
 Write tests covering:
 - Analytics page renders cluster cards with correct data (mock API response)
-- Cluster card displays summary, member count, approval count, domain
+- Cluster card displays summary, member count, approval count, policy_topic
 - Clicking a cluster card navigates to detail page
 - Cluster detail page shows member candidates
 - Cluster detail page does NOT show user IDs or raw text
 - Unclustered section renders count and anonymized candidate list
 - Empty state renders when no clusters exist
-- Variance flag indicator shows for flagged clusters
 - Sorting by member count works
-- Domain filter works
+- Topic filter works
 - Page renders correctly in Farsi (RTL) and English (LTR)

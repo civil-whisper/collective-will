@@ -11,11 +11,10 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.db.evidence import append_evidence
-from src.models.submission import PolicyCandidateCreate, PolicyDomain
+from src.models.submission import PolicyCandidateCreate
 from src.pipeline.llm import LLMRouter
 from src.pipeline.privacy import prepare_batch_for_llm, re_link_results, validate_no_metadata
 
-_DOMAINS = "governance, economy, rights, foreign_policy, religion, ethnic, justice, other"
 _STANCES = "support, oppose, neutral, unclear"
 
 def _sanitize_policy_slug(value: str) -> str:
@@ -106,8 +105,8 @@ def _prompt_for_item(item: dict[str, Any], policy_context: str = "") -> str:
         + "Required JSON fields:\n"
         "  is_valid_policy (bool): true if valid civic/policy proposal, false otherwise,\n"
         "  rejection_reason (str or null): if invalid, explain in the INPUT language,\n"
-        f"  title (str, ENGLISH), domain (one of: {_DOMAINS}),\n"
-        f"  summary (str, ENGLISH — concise but accurate description of the submission),\n"
+        "  title (str, ENGLISH),\n"
+        "  summary (str, ENGLISH — concise but accurate description of the submission),\n"
         f"  stance (one of: {_STANCES}),\n"
         "  policy_topic (str, ENGLISH): umbrella topic for browsing, lowercase-with-hyphens, "
         "1-4 words. Groups related policy discussions.\n"
@@ -178,10 +177,6 @@ def _build_candidate_create(
     if confidence < 0.7 and "low_confidence" not in flags:
         flags.append("low_confidence")
 
-    domain_value = output.get("domain", "other")
-    if domain_value not in {member.value for member in PolicyDomain}:
-        domain_value = "other"
-
     stance_raw = str(output.get("stance", "unclear")).lower().strip()
     stance_map = {"supportive": "support", "opposing": "oppose", "opposed": "oppose"}
     stance = stance_map.get(stance_raw, stance_raw)
@@ -202,7 +197,6 @@ def _build_candidate_create(
     return PolicyCandidateCreate(
         submission_id=submission_id,
         title=str(output.get("title", "Untitled policy candidate")),
-        domain=PolicyDomain(domain_value),
         summary=str(output.get("summary", "")),
         stance=stance,
         policy_topic=policy_topic,
@@ -212,8 +206,6 @@ def _build_candidate_create(
         ambiguity_flags=flags,
         model_version=str(output["model_version"]),
         prompt_version=str(output["prompt_version"]),
-        title_en=output.get("title_en"),
-        summary_en=output.get("summary_en"),
         embedding=None,
     )
 
@@ -274,7 +266,6 @@ async def canonicalize_single(
             "submission_id": str(submission_id),
             "title": candidate.title,
             "summary": candidate.summary,
-            "domain": candidate.domain.value,
             "stance": candidate.stance,
             "policy_topic": candidate.policy_topic,
             "policy_key": candidate.policy_key,
@@ -328,7 +319,6 @@ async def canonicalize_batch(
                 "submission_id": str(submissions[idx]["id"]),
                 "title": candidate.title,
                 "summary": candidate.summary,
-                "domain": candidate.domain.value,
                 "stance": candidate.stance,
                 "policy_topic": candidate.policy_topic,
                 "policy_key": candidate.policy_key,

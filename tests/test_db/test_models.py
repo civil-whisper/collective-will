@@ -25,7 +25,6 @@ from src.db.queries import (
 from src.models import (
     ClusterCreate,
     PolicyCandidateCreate,
-    PolicyDomain,
     PolicyEndorsementCreate,
     SubmissionCreate,
     UserCreate,
@@ -56,12 +55,6 @@ async def test_user_create_and_lookup(db_session: AsyncSession) -> None:
     assert await get_user_by_email(db_session, "missing@example.com") is None
 
 
-def test_policy_domain_validation() -> None:
-    assert PolicyDomain("economy") == PolicyDomain.ECONOMY
-    with pytest.raises(ValueError):
-        PolicyDomain("not_a_domain")
-
-
 def test_schema_validation_errors() -> None:
     with pytest.raises(ValidationError):
         UserCreate(email="bad", locale="fa", messaging_account_ref="x")
@@ -70,7 +63,6 @@ def test_schema_validation_errors() -> None:
         PolicyCandidateCreate(
             submission_id=uuid4(),
             title="bad",
-            domain=PolicyDomain.OTHER,
             summary="s",
             stance="invalid",
             policy_topic="test-topic",
@@ -104,7 +96,6 @@ async def test_submission_candidate_cluster_vote_endorsement_flow(db_session: As
         PolicyCandidateCreate(
             submission_id=submission.id,
             title="Affordable Housing Expansion",
-            domain=PolicyDomain.ECONOMY,
             summary="Build affordable housing in major cities.",
             stance="neutral",
             policy_topic="housing-policy",
@@ -131,18 +122,11 @@ async def test_submission_candidate_cluster_vote_endorsement_flow(db_session: As
     cluster = await create_cluster(
         db_session,
         ClusterCreate(
-            cycle_id=cycle.id,
             policy_topic="housing-policy",
             policy_key="affordable-housing",
             summary="مسکن ارزان",
-            domain=PolicyDomain.ECONOMY,
             candidate_ids=[candidate.id],
             member_count=1,
-            centroid_embedding=[0.1] * 1024,
-            cohesion_score=0.95,
-            run_id="run-1",
-            random_seed=7,
-            clustering_params={"min_cluster_size": 5},
             approval_count=0,
         ),
     )
@@ -164,7 +148,6 @@ async def test_submission_candidate_cluster_vote_endorsement_flow(db_session: As
         PolicyCandidateCreate(
             submission_id=submission.id,
             title="Unclear Policy Intent",
-            domain=PolicyDomain.OTHER,
             summary="This text is ambiguous.",
             stance="unclear",
             policy_topic="unassigned",
@@ -182,7 +165,7 @@ async def test_submission_candidate_cluster_vote_endorsement_flow(db_session: As
     assert await count_votes_for_cluster(db_session, cycle.id, cluster.id) == 1
 
     assert submission.to_schema().raw_text == "متن تست"
-    assert candidate.to_schema().domain == PolicyDomain.ECONOMY
+    assert candidate.to_schema().policy_topic == "housing-policy"
     assert cluster.to_schema().member_count == 1
     assert vote.to_schema().approved_cluster_ids == [cluster.id]
     assert cycle.to_schema().status == "active"
@@ -205,7 +188,7 @@ async def test_foreign_keys_and_unique_constraints(db_session: AsyncSession) -> 
     user = await get_user_by_email(db_session, email)
     assert user is not None
 
-    cycle = await create_voting_cycle(
+    await create_voting_cycle(
         db_session,
         VotingCycleCreate(
             started_at=datetime.now(UTC),
@@ -219,18 +202,11 @@ async def test_foreign_keys_and_unique_constraints(db_session: AsyncSession) -> 
     cluster = await create_cluster(
         db_session,
         ClusterCreate(
-            cycle_id=cycle.id,
             policy_topic="test-topic",
             policy_key="test-policy",
             summary="Cluster",
-            domain=PolicyDomain.OTHER,
             candidate_ids=[],
             member_count=1,
-            centroid_embedding=[0.0] * 1024,
-            cohesion_score=1.0,
-            run_id="run-2",
-            random_seed=1,
-            clustering_params={},
             approval_count=0,
         ),
     )

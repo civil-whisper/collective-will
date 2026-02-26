@@ -77,7 +77,7 @@ interface UserSubmission {
   candidate?: {
     title: string;
     summary: string;
-    domain: PolicyDomain;
+    policy_topic: string;
     confidence: number;
   };
   cluster?: {

@@ -48,7 +48,7 @@ class PipelineResult(BaseModel):
     candidates_created: int
     embeddings_computed: int
     clusters_created: int
-    clusters_flagged: int      # variance_flag = True
+    clusters_needing_resummarize: int
     agenda_size: int
     errors: list[str]
 ```

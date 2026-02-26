@@ -13,7 +13,6 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from src.db.connection import Base
 
 if TYPE_CHECKING:
-    from src.models.cluster import Cluster
     from src.models.user import User
 
 
@@ -34,7 +33,6 @@ class VotingCycle(Base):
     evidence_log_id: Mapped[int | None] = mapped_column(nullable=True)
 
     votes: Mapped[list[Vote]] = relationship(back_populates="cycle")
-    clusters: Mapped[list[Cluster]] = relationship(back_populates="cycle")
 
     def to_schema(self) -> VotingCycleRead:
         return VotingCycleRead.from_orm_model(self)

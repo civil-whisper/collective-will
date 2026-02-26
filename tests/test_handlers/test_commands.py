@@ -74,12 +74,10 @@ def _make_user(
 def _make_cluster(
     cluster_id: Any = None,
     summary: str = "Test policy",
-    summary_en: str = "Test policy EN",
 ) -> MagicMock:
     cluster = MagicMock()
     cluster.id = cluster_id or uuid4()
     cluster.summary = summary
-    cluster.summary_en = summary_en
     cluster.options = []
     return cluster
 
@@ -311,7 +309,7 @@ async def test_callback_vote_with_cycle_shows_first_policy() -> None:
 
     opt1 = _make_option(cluster1_id, 1, "Support")
     opt2 = _make_option(cluster1_id, 2, "Oppose")
-    cluster1 = _make_cluster(cluster1_id, "Healthcare policy", "Healthcare policy EN")
+    cluster1 = _make_cluster(cluster1_id, "Healthcare policy")
     cluster1.options = [opt1, opt2]
 
     cluster_scalars = MagicMock()

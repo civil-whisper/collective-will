@@ -2,26 +2,25 @@ import Link from "next/link";
 import {getLocale, getTranslations} from "next-intl/server";
 
 import {apiGet} from "@/lib/api";
-import {PageShell, MetricCard, DomainBadge, Card, StatusBadge} from "@/components/ui";
+import {PageShell, MetricCard, TopicBadge, Card} from "@/components/ui";
 
 type PolicyCandidatePublic = {
   id: string;
   title: string;
   summary: string;
-  domain: string;
+  policy_topic: string;
+  policy_key: string;
   confidence: number;
 };
 
 type ClusterDetail = {
   id: string;
+  policy_topic: string;
+  policy_key: string;
   summary: string;
-  summary_en?: string;
-  domain: string;
   member_count: number;
   approval_count: number;
-  variance_flag: boolean;
   candidates: PolicyCandidatePublic[];
-  grouping_rationale?: string;
 };
 
 type Props = {
@@ -49,13 +48,9 @@ export default async function ClusterDetailPage({params}: Props) {
   return (
     <PageShell
       title={cluster.summary}
-      subtitle={cluster.summary_en ?? undefined}
       actions={
         <div className="flex items-center gap-2">
-          <DomainBadge domain={cluster.domain} />
-          {cluster.variance_flag && (
-            <StatusBadge label={t("varianceFlag")} variant="warning" />
-          )}
+          <TopicBadge topic={cluster.policy_topic} />
         </div>
       }
     >
@@ -63,7 +58,7 @@ export default async function ClusterDetailPage({params}: Props) {
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <MetricCard label={t("memberCount")} value={cluster.member_count.toLocaleString()} />
         <MetricCard label={t("approvalCount")} value={cluster.approval_count.toLocaleString()} />
-        <MetricCard label={t("domain")} value={cluster.domain.replace(/_/g, " ")} />
+        <MetricCard label={t("policyTopic")} value={cluster.policy_topic.replace(/-/g, " ")} />
         <Link
           href={`/${locale}/collective-concerns/evidence?entity=${id}`}
           className="flex items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-medium text-accent transition-colors hover:bg-accent/5 dark:border-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700"
@@ -74,15 +69,6 @@ export default async function ClusterDetailPage({params}: Props) {
           {t("viewAuditTrail")}
         </Link>
       </div>
-
-      {/* Grouping rationale */}
-      {cluster.grouping_rationale && (
-        <Card className="border-accent/20 bg-accent/5 dark:bg-accent/10">
-          <p className="text-sm italic text-gray-700 dark:text-slate-300">
-            {cluster.grouping_rationale}
-          </p>
-        </Card>
-      )}
 
       {/* Candidates / member submissions */}
       <div>
@@ -97,7 +83,7 @@ export default async function ClusterDetailPage({params}: Props) {
                     {candidate.summary}
                   </p>
                   <div className="mt-2">
-                    <DomainBadge domain={candidate.domain} />
+                    <TopicBadge topic={candidate.policy_topic} />
                   </div>
                 </div>
                 <div className="text-end">

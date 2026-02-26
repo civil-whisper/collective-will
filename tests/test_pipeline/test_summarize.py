@@ -8,9 +8,7 @@ from uuid import UUID, uuid4
 
 import pytest
 
-from src.models.submission import PolicyDomain
 from src.pipeline.llm import LLMResponse
-from src.pipeline.summarize import determine_cluster_domain
 
 
 @dataclass
@@ -18,7 +16,6 @@ class FakePolicyCandidate:
     id: UUID
     title: str
     summary: str
-    domain: PolicyDomain
 
 
 @dataclass
@@ -26,12 +23,10 @@ class FakeCluster:
     id: UUID
     candidate_ids: list[UUID]
     summary: str = ""
-    summary_en: str | None = None
-    domain: PolicyDomain = PolicyDomain.OTHER
 
 
 class FakeRouter:
-    def __init__(self, text: str = '{"summary":"خلاصه","summary_en":"Summary","grouping_rationale":"reason"}') -> None:
+    def __init__(self, text: str = "Summary of the policy discussion") -> None:
         self.calls: list[str] = []
         self._text = text
 
@@ -42,25 +37,12 @@ class FakeRouter:
         )
 
 
-def test_determine_cluster_domain_majority() -> None:
-    candidates = [
-        FakePolicyCandidate(id=uuid4(), title="A", summary="A", domain=PolicyDomain.ECONOMY),
-        FakePolicyCandidate(id=uuid4(), title="B", summary="B", domain=PolicyDomain.ECONOMY),
-        FakePolicyCandidate(id=uuid4(), title="C", summary="C", domain=PolicyDomain.RIGHTS),
-    ]
-    assert determine_cluster_domain(candidates) == PolicyDomain.ECONOMY  # type: ignore[arg-type]
-
-
-def test_determine_cluster_domain_empty() -> None:
-    assert determine_cluster_domain([]) == PolicyDomain.OTHER
-
-
 @pytest.mark.asyncio
 async def test_summarize_generates_summary() -> None:
     from src.pipeline.summarize import summarize_clusters
 
     c_id = uuid4()
-    candidate = FakePolicyCandidate(id=c_id, title="Policy A", summary="Summary A", domain=PolicyDomain.ECONOMY)
+    candidate = FakePolicyCandidate(id=c_id, title="Policy A", summary="Summary A")
     cluster = FakeCluster(id=uuid4(), candidate_ids=[c_id])
     candidates_by_id = {c_id: candidate}
     router = FakeRouter()
@@ -72,7 +54,6 @@ async def test_summarize_generates_summary() -> None:
 
     session.begin_nested = _begin_nested
     session.execute = AsyncMock(return_value=MagicMock(scalar_one_or_none=MagicMock(return_value=None)))
-    # SQLAlchemy Session.add is synchronous; keep it non-async in mocks.
     session.add = MagicMock()
 
     result = await summarize_clusters(

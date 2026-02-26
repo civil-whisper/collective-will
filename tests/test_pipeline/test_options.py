@@ -20,9 +20,7 @@ from src.pipeline.options import (
 def _make_cluster(n_candidates: int = 3) -> MagicMock:
     cluster = MagicMock()
     cluster.id = uuid4()
-    cluster.summary = "بهداشت عمومی"
-    cluster.summary_en = "Public healthcare"
-    cluster.domain = "rights"
+    cluster.summary = "Public healthcare"
     cluster.candidate_ids = [uuid4() for _ in range(n_candidates)]
     return cluster
 

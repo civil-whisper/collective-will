@@ -3,10 +3,12 @@
     {
       "raw_text": "کمبود آب آشامیدنی در منطقه ما جدی است.",
       "canonical": {
+        "is_valid_policy": true,
         "title": "Water Access Priority",
-        "domain": "rights",
         "summary": "Expand clean water access in underserved areas.",
         "stance": "support",
+        "policy_topic": "water-infrastructure",
+        "policy_key": "clean-water-access",
         "entities": ["water", "infrastructure"],
         "confidence": 0.94,
         "ambiguity_flags": []
@@ -15,10 +17,12 @@
     {
       "raw_text": "لوله کشی آب فرسوده است و باید نوسازی شود.",
       "canonical": {
+        "is_valid_policy": true,
         "title": "Water Network Renewal",
-        "domain": "rights",
         "summary": "Renovate old water distribution networks.",
         "stance": "support",
+        "policy_topic": "water-infrastructure",
+        "policy_key": "clean-water-access",
         "entities": ["water", "pipes"],
         "confidence": 0.92,
         "ambiguity_flags": []
@@ -27,10 +31,12 @@
     {
       "raw_text": "مالیات کسب و کارهای کوچک باید کاهش یابد.",
       "canonical": {
+        "is_valid_policy": true,
         "title": "Tax Relief for Small Businesses",
-        "domain": "economy",
         "summary": "Lower tax burden for small enterprises.",
         "stance": "support",
+        "policy_topic": "fiscal-policy",
+        "policy_key": "small-business-taxation",
         "entities": ["tax", "small_business"],
         "confidence": 0.93,
         "ambiguity_flags": []
@@ -39,10 +45,12 @@
     {
       "raw_text": "شفافیت مالیاتی باید افزایش پیدا کند.",
       "canonical": {
+        "is_valid_policy": true,
         "title": "Tax Transparency Reform",
-        "domain": "economy",
         "summary": "Increase transparency in tax collection and spending.",
         "stance": "support",
+        "policy_topic": "fiscal-policy",
+        "policy_key": "small-business-taxation",
         "entities": ["tax", "transparency"],
         "confidence": 0.91,
         "ambiguity_flags": []

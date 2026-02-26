@@ -9,8 +9,7 @@ class TestParseBallotResponse:
         raw = (
             '{"ballot_question": "Should political internet censorship be reformed?",'
             '"ballot_question_fa": "آیا سانسور اینترنت سیاسی باید اصلاح شود؟",'
-            '"summary_en": "Citizens debate internet filtering",'
-            '"summary_fa": "شهروندان درباره فیلترینگ بحث می‌کنند"}'
+            '"summary": "Citizens debate internet filtering"}'
         )
         result = _parse_ballot_response(raw)
         assert "ballot_question" in result
@@ -20,7 +19,7 @@ class TestParseBallotResponse:
         raw = (
             '```json\n'
             '{"ballot_question": "test", "ballot_question_fa": "تست",'
-            '"summary_en": "s", "summary_fa": "خ"}\n'
+            '"summary": "s"}\n'
             '```'
         )
         result = _parse_ballot_response(raw)
@@ -30,7 +29,7 @@ class TestParseBallotResponse:
         raw = (
             'Here is the ballot question:\n'
             '{"ballot_question": "test", "ballot_question_fa": "تست",'
-            '"summary_en": "s", "summary_fa": "خ"}'
+            '"summary": "s"}'
         )
         result = _parse_ballot_response(raw)
         assert result["ballot_question"] == "test"

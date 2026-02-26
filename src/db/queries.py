@@ -66,11 +66,10 @@ async def create_policy_candidate(
     candidate = PolicyCandidate(
         submission_id=data.submission_id,
         title=data.title,
-        title_en=data.title_en,
-        domain=data.domain,
         summary=data.summary,
-        summary_en=data.summary_en,
         stance=data.stance,
+        policy_topic=data.policy_topic,
+        policy_key=data.policy_key,
         entities=data.entities,
         embedding=data.embedding,
         confidence=data.confidence,
@@ -86,19 +85,16 @@ async def create_policy_candidate(
 
 async def create_cluster(session: AsyncSession, data: ClusterCreate) -> Cluster:
     cluster = Cluster(
-        cycle_id=data.cycle_id,
+        policy_topic=data.policy_topic,
+        policy_key=data.policy_key,
         summary=data.summary,
-        summary_en=data.summary_en,
-        domain=data.domain,
+        ballot_question=data.ballot_question,
+        ballot_question_fa=data.ballot_question_fa,
         candidate_ids=data.candidate_ids,
         member_count=data.member_count,
-        centroid_embedding=data.centroid_embedding,
-        cohesion_score=data.cohesion_score,
-        variance_flag=data.variance_flag,
-        run_id=data.run_id,
-        random_seed=data.random_seed,
-        clustering_params=data.clustering_params,
         approval_count=data.approval_count,
+        needs_resummarize=data.needs_resummarize,
+        last_summarized_count=data.last_summarized_count,
     )
     session.add(cluster)
     await session.flush()

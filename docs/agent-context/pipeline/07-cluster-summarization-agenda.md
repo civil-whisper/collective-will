@@ -32,7 +32,7 @@ Steps:
    - Prepare aggregated content: combine all member titles and summaries into one text block
    - Do NOT include individual submission IDs, user references, or metadata
    - Call `complete()` with `tier="english_reasoning"` and summarization prompt
-   - Parse response into `summary` (Farsi) and `summary_en` (English)
+   - Parse response into `summary` (English)
    - If primary `english_reasoning` model fails after retries, use mandatory fallback (`english_reasoning_fallback_model`) and mark output with fallback metadata for audit/review
 2. Update cluster records with summaries
 3. Return updated clusters
@@ -53,8 +53,7 @@ Write:
 
 Output JSON:
 {
-  "summary_fa": "...",
-  "summary_en": "...",
+  "summary": "...",
   "grouping_rationale": "..."
 }
 ```
@@ -79,16 +78,6 @@ Steps:
 5. Include ALL qualifying clusters — no editorial selection, no ranking, no filtering by topic
 6. Log agenda-preparation evidence with qualifying/disqualified counts (the actual cycle_opened event is logged by the voting service)
 7. Return the list of qualifying cluster IDs
-
-### Cluster domain assignment
-
-When summarizing, also verify/update the cluster's `domain` field based on the majority domain of its member candidates:
-
-```python
-def determine_cluster_domain(candidates: list[PolicyCandidate]) -> PolicyDomain:
-    domain_counts = Counter(c.domain for c in candidates)
-    return domain_counts.most_common(1)[0][0]
-```
 
 ### Policy Option Generation (post-summarization)
 
@@ -133,7 +122,7 @@ Tests in `tests/test_pipeline/test_summarize.py`, `tests/test_pipeline/test_agen
 - Cluster that already has a summary is skipped
 - Aggregated text sent to LLM contains member titles/summaries but no user IDs (mock, inspect prompt)
 - LLM returning invalid JSON: cluster flagged, no crash
-- Summary stored in both Farsi and English fields
+- Summary stored in English (the canonical language)
 - Primary summary model failure triggers configured fallback model path
 
 **Agenda:**
@@ -142,8 +131,7 @@ Tests in `tests/test_pipeline/test_summarize.py`, `tests/test_pipeline/test_agen
 - Clusters meeting size but missing endorsement threshold are excluded from ballot
 - Empty cluster set returns empty agenda
 - All qualifying clusters included (no filtering beyond size + endorsements)
-- `determine_cluster_domain()` returns most common domain
-- Domain tie-breaking is deterministic
+- Cluster inherits `policy_topic` from its candidates
 
 **Options (tests/test_pipeline/test_options.py):**
 - `_parse_options_json()` handles valid JSON, markdown fences, truncation to 4, rejects < 2 options

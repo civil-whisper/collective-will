@@ -47,9 +47,8 @@ frameworks where relevant.
 """
 
 _USER_PROMPT_TEMPLATE = """\
-Policy topic summary (Farsi): {summary_fa}
-Policy topic summary (English): {summary_en}
-Domain: {domain}
+Policy topic: {policy_topic}
+Summary: {summary}
 
 Citizen submissions on this topic (sample):
 {submissions_block}
@@ -120,12 +119,10 @@ async def generate_policy_options(
     all_options: list[PolicyOption] = []
 
     for cluster in clusters:
-        summary_en = cluster.summary_en or cluster.summary
         submissions_block = _build_submissions_block(cluster, candidates_by_id)
         prompt = _USER_PROMPT_TEMPLATE.format(
-            summary_fa=cluster.summary,
-            summary_en=summary_en,
-            domain=cluster.domain if isinstance(cluster.domain, str) else cluster.domain.value,
+            policy_topic=cluster.policy_topic,
+            summary=cluster.summary,
             submissions_block=submissions_block,
         )
 
@@ -187,18 +184,17 @@ async def generate_policy_options(
 
 def _fallback_options(cluster: Cluster) -> list[dict[str, str]]:
     """Minimal two-option fallback when LLM generation fails."""
-    summary_en = cluster.summary_en or cluster.summary
     return [
         {
             "label": "حمایت از این سیاست",
             "label_en": "Support this policy",
             "description": f"حمایت از اجرای این سیاست: {cluster.summary[:150]}",
-            "description_en": f"Support implementing this policy: {summary_en[:150]}",
+            "description_en": f"Support implementing this policy: {cluster.summary[:150]}",
         },
         {
             "label": "مخالفت با این سیاست",
             "label_en": "Oppose this policy",
             "description": f"مخالفت با اجرای این سیاست به دلیل هزینه یا عواقب ناخواسته: {cluster.summary[:100]}",
-            "description_en": f"Oppose this policy due to costs or unintended consequences: {summary_en[:100]}",
+            "description_en": f"Oppose this policy due to costs or unintended consequences: {cluster.summary[:100]}",
         },
     ]

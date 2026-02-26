@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from typing import cast
 from uuid import UUID, uuid4
 
-from src.models.submission import PolicyCandidate, PolicyDomain
+from src.models.submission import PolicyCandidate
 from src.pipeline.canonicalize import _sanitize_policy_slug
 from src.pipeline.cluster import compute_centroid, group_by_policy_key
 
@@ -13,7 +13,6 @@ from src.pipeline.cluster import compute_centroid, group_by_policy_key
 @dataclass
 class FakeCandidate:
     id: UUID
-    domain: PolicyDomain
     embedding: list[float] | None
     policy_key: str
     policy_topic: str
@@ -51,15 +50,15 @@ class TestSanitizePolicySlug:
 class TestGroupByPolicyKey:
     def test_groups_by_key(self) -> None:
         c1 = FakeCandidate(
-            id=uuid4(), domain=PolicyDomain.RIGHTS, embedding=[0.0],
+            id=uuid4(), embedding=[0.0],
             policy_key="mandatory-hijab-policy", policy_topic="dress-code-policy",
         )
         c2 = FakeCandidate(
-            id=uuid4(), domain=PolicyDomain.RIGHTS, embedding=[0.0],
+            id=uuid4(), embedding=[0.0],
             policy_key="mandatory-hijab-policy", policy_topic="dress-code-policy",
         )
         c3 = FakeCandidate(
-            id=uuid4(), domain=PolicyDomain.RIGHTS, embedding=[0.0],
+            id=uuid4(), embedding=[0.0],
             policy_key="political-internet-censorship", policy_topic="internet-censorship",
         )
         candidates = cast(list[PolicyCandidate], [c1, c2, c3])
@@ -71,11 +70,11 @@ class TestGroupByPolicyKey:
 
     def test_skips_unassigned(self) -> None:
         c1 = FakeCandidate(
-            id=uuid4(), domain=PolicyDomain.OTHER, embedding=None,
+            id=uuid4(), embedding=None,
             policy_key="unassigned", policy_topic="unassigned",
         )
         c2 = FakeCandidate(
-            id=uuid4(), domain=PolicyDomain.ECONOMY, embedding=[0.0],
+            id=uuid4(), embedding=[0.0],
             policy_key="youth-employment", policy_topic="economic-reform",
         )
         candidates = cast(list[PolicyCandidate], [c1, c2])
@@ -93,7 +92,7 @@ class TestGroupByPolicyKey:
             list[PolicyCandidate],
             [
                 FakeCandidate(
-                    id=uuid4(), domain=PolicyDomain.ECONOMY, embedding=[0.0],
+                    id=uuid4(), embedding=[0.0],
                     policy_key="death-penalty", policy_topic="judicial-reform",
                 )
                 for _ in range(5)
@@ -109,7 +108,7 @@ class TestGroupByPolicyKey:
             list[PolicyCandidate],
             [
                 FakeCandidate(
-                    id=uuid4(), domain=PolicyDomain.RIGHTS, embedding=[0.0],
+                    id=uuid4(), embedding=[0.0],
                     policy_key="mandatory-hijab-policy", policy_topic="dress-code-policy",
                     stance=stance,
                 )
@@ -127,11 +126,11 @@ class TestComputeCentroid:
             list[PolicyCandidate],
             [
                 FakeCandidate(
-                    id=uuid4(), domain=PolicyDomain.ECONOMY,
+                    id=uuid4(),
                     embedding=[0.0, 0.0], policy_key="test", policy_topic="test",
                 ),
                 FakeCandidate(
-                    id=uuid4(), domain=PolicyDomain.ECONOMY,
+                    id=uuid4(),
                     embedding=[4.0, 4.0], policy_key="test", policy_topic="test",
                 ),
             ],
@@ -146,11 +145,11 @@ class TestComputeCentroid:
             list[PolicyCandidate],
             [
                 FakeCandidate(
-                    id=uuid4(), domain=PolicyDomain.ECONOMY,
+                    id=uuid4(),
                     embedding=[2.0, 2.0], policy_key="test", policy_topic="test",
                 ),
                 FakeCandidate(
-                    id=uuid4(), domain=PolicyDomain.ECONOMY,
+                    id=uuid4(),
                     embedding=None, policy_key="test", policy_topic="test",
                 ),
             ],
@@ -164,7 +163,7 @@ class TestComputeCentroid:
             list[PolicyCandidate],
             [
                 FakeCandidate(
-                    id=uuid4(), domain=PolicyDomain.ECONOMY,
+                    id=uuid4(),
                     embedding=None, policy_key="test", policy_topic="test",
                 ),
             ],

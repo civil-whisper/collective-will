@@ -22,7 +22,7 @@ from src.models.cluster import Cluster
 from src.models.submission import PolicyCandidate, Submission
 from src.pipeline.agenda import build_agenda
 from src.pipeline.canonicalize import canonicalize_batch, load_existing_policy_context
-from src.pipeline.cluster import compute_centroid, group_by_policy_key
+from src.pipeline.cluster import group_by_policy_key
 from src.pipeline.embeddings import compute_and_store_embeddings
 from src.pipeline.endorsement import generate_ballot_questions
 from src.pipeline.llm import LLMRouter
@@ -208,7 +208,6 @@ async def _find_or_create_cluster(
 ) -> Cluster:
     """Find an existing cluster by policy_key, or create a new one."""
     from src.models.cluster import ClusterCreate
-    from src.models.submission import PolicyDomain
 
     result = await session.execute(
         select(Cluster).where(Cluster.policy_key == policy_key)
@@ -220,7 +219,6 @@ async def _find_or_create_cluster(
         old_count = existing.member_count
         existing.candidate_ids = list(new_ids)
         existing.member_count = len(new_ids)
-        existing.centroid_embedding = compute_centroid(members)
         growth = (existing.member_count - old_count) / max(old_count, 1)
         settings = get_settings()
         if growth >= settings.resummarize_growth_threshold:
@@ -229,17 +227,13 @@ async def _find_or_create_cluster(
         return existing
 
     topic = members[0].policy_topic if members else "unassigned"
-    domains = [m.domain for m in members]
-    majority = max(set(domains), key=domains.count) if domains else PolicyDomain.OTHER
 
     data = ClusterCreate(
         policy_topic=topic,
         policy_key=policy_key,
         summary=f"New policy discussion: {policy_key}",
-        domain=majority,
         candidate_ids=[m.id for m in members],
         member_count=len(members),
-        centroid_embedding=compute_centroid(members),
         needs_resummarize=True,
     )
     db_cluster = await create_cluster(session, data)

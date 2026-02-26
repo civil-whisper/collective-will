@@ -12,12 +12,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.config import get_settings
 from src.db.evidence import EvidenceLogEntry, append_evidence
 from src.db.queries import create_policy_candidate
-from src.models.submission import PolicyCandidate, PolicyCandidateCreate, PolicyDomain, Submission
+from src.models.submission import PolicyCandidate, PolicyCandidateCreate, Submission
 from src.pipeline.llm import LLMResponse, LLMRouter
 
 logger = logging.getLogger(__name__)
 
-_DOMAINS = "governance, economy, rights, foreign_policy, religion, ethnic, justice, other"
 _STANCES = "support, oppose, neutral, unclear"
 
 
@@ -31,7 +30,6 @@ def _build_dispute_prompt(*, submission: Submission, current_candidate: PolicyCa
         current_block = (
             "Current canonicalization (possibly disputed):\n"
             f"- title: {current_candidate.title}\n"
-            f"- domain: {current_candidate.domain.value}\n"
             f"- summary: {current_candidate.summary}\n"
             f"- stance: {current_candidate.stance}\n"
             f"- confidence: {current_candidate.confidence}\n"
@@ -39,8 +37,8 @@ def _build_dispute_prompt(*, submission: Submission, current_candidate: PolicyCa
     return (
         "You are resolving a user dispute about canonicalization.\n"
         "Re-canonicalize ONLY this disputed submission into strict JSON.\n"
-        "Required keys: title, domain, summary, stance, entities, confidence, ambiguity_flags.\n"
-        f"Allowed domain values: {_DOMAINS}.\n"
+        "Required keys: title, summary, stance, entities, confidence, ambiguity_flags, "
+        "policy_topic, policy_key.\n"
         f"Allowed stance values: {_STANCES}.\n"
         "Return ONLY raw JSON object.\n"
         f"{current_block}\n"
@@ -78,10 +76,6 @@ def _parse_candidate_payload(payload: str) -> dict[str, Any]:
 
 
 def _normalize_decision(raw: dict[str, Any], completion: LLMResponse, prompt: str) -> dict[str, Any]:
-    domain_value = str(raw.get("domain", "other")).strip()
-    if domain_value not in {member.value for member in PolicyDomain}:
-        domain_value = "other"
-
     stance_raw = str(raw.get("stance", "unclear")).lower().strip()
     stance_map = {"supportive": "support", "opposing": "oppose", "opposed": "oppose"}
     stance_value = stance_map.get(stance_raw, stance_raw)
@@ -104,7 +98,6 @@ def _normalize_decision(raw: dict[str, Any], completion: LLMResponse, prompt: st
 
     return {
         "title": str(raw.get("title", "Untitled policy candidate")),
-        "domain": domain_value,
         "summary": str(raw.get("summary", "")),
         "stance": stance_value,
         "entities": entities,
@@ -267,10 +260,7 @@ async def resolve_submission_dispute(
             PolicyCandidateCreate(
                 submission_id=submission.id,
                 title=final_decision["title"],
-                title_en=None,
-                domain=PolicyDomain(final_decision["domain"]),
                 summary=final_decision["summary"],
-                summary_en=None,
                 stance=final_decision["stance"],
                 policy_topic=final_decision.get("policy_topic", "unassigned"),
                 policy_key=final_decision.get("policy_key", "unassigned"),
@@ -284,7 +274,6 @@ async def resolve_submission_dispute(
         )
     else:
         current_candidate.title = final_decision["title"]
-        current_candidate.domain = PolicyDomain(final_decision["domain"])
         current_candidate.summary = final_decision["summary"]
         current_candidate.stance = final_decision["stance"]
         current_candidate.entities = final_decision["entities"]

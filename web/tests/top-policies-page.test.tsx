@@ -35,7 +35,7 @@ describe("TopPoliciesPage", () => {
 
   it("displays ranked policies with rank numbers", async () => {
     mockFetchWith([
-      {cluster_id: "c1", summary: "Policy Alpha", approval_count: 20, approval_rate: 0.85, domain: "economy"},
+      {cluster_id: "c1", summary: "Policy Alpha", approval_count: 20, approval_rate: 0.85, policy_topic: "fiscal-policy"},
       {cluster_id: "c2", summary: "Policy Beta", approval_count: 15, approval_rate: 0.72},
     ]);
     const jsx = await TopPoliciesPage();
@@ -74,13 +74,13 @@ describe("TopPoliciesPage", () => {
     expect(screen.getByText(/42/)).toBeTruthy();
   });
 
-  it("shows domain when present", async () => {
+  it("shows policy_topic when present", async () => {
     mockFetchWith([
-      {cluster_id: "c1", summary: "Test", approval_count: 10, approval_rate: 0.5, domain: "governance"},
+      {cluster_id: "c1", summary: "Test", approval_count: 10, approval_rate: 0.5, policy_topic: "governance-reform"},
     ]);
     const jsx = await TopPoliciesPage();
     render(jsx);
-    expect(screen.getByText(/governance/)).toBeTruthy();
+    expect(screen.getByText(/governance reform/)).toBeTruthy();
   });
 
   it("falls back to cluster_id when no summary", async () => {

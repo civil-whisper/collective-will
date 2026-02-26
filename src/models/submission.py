@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from enum import StrEnum
 from typing import TYPE_CHECKING, Any
 from uuid import UUID, uuid4
 
@@ -16,17 +15,6 @@ from src.db.connection import Base
 
 if TYPE_CHECKING:
     from src.models.user import User
-
-
-class PolicyDomain(StrEnum):
-    GOVERNANCE = "governance"
-    ECONOMY = "economy"
-    RIGHTS = "rights"
-    FOREIGN_POLICY = "foreign_policy"
-    RELIGION = "religion"
-    ETHNIC = "ethnic"
-    JUSTICE = "justice"
-    OTHER = "other"
 
 
 class Submission(Base):
@@ -61,10 +49,7 @@ class PolicyCandidate(Base):
         PGUUID(as_uuid=True), ForeignKey("submissions.id"), nullable=False, index=True
     )
     title: Mapped[str] = mapped_column(String(255), nullable=False)
-    title_en: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    domain: Mapped[PolicyDomain] = mapped_column(String(32), nullable=False, default=PolicyDomain.OTHER)
     summary: Mapped[str] = mapped_column(String, nullable=False)
-    summary_en: Mapped[str | None] = mapped_column(String, nullable=True)
     stance: Mapped[str] = mapped_column(String(16), nullable=False)
     policy_topic: Mapped[str] = mapped_column(String(255), nullable=False, index=True, server_default="unassigned")
     policy_key: Mapped[str] = mapped_column(String(255), nullable=False, index=True, server_default="unassigned")
@@ -121,10 +106,7 @@ class SubmissionRead(BaseModel):
 class PolicyCandidateCreate(BaseModel):
     submission_id: UUID
     title: str = Field(min_length=5)
-    title_en: str | None = None
-    domain: PolicyDomain
     summary: str
-    summary_en: str | None = None
     stance: str = Field(pattern="^(support|oppose|neutral|unclear)$")
     policy_topic: str = Field(min_length=2, max_length=255)
     policy_key: str = Field(min_length=2, max_length=255)
@@ -140,10 +122,7 @@ class PolicyCandidateRead(BaseModel):
     id: UUID
     submission_id: UUID
     title: str
-    title_en: str | None
-    domain: PolicyDomain
     summary: str
-    summary_en: str | None
     stance: str
     policy_topic: str
     policy_key: str
@@ -165,10 +144,7 @@ class PolicyCandidateRead(BaseModel):
             id=db_candidate.id,
             submission_id=db_candidate.submission_id,
             title=db_candidate.title,
-            title_en=db_candidate.title_en,
-            domain=db_candidate.domain,
             summary=db_candidate.summary,
-            summary_en=db_candidate.summary_en,
             stance=db_candidate.stance,
             policy_topic=db_candidate.policy_topic,
             policy_key=db_candidate.policy_key,

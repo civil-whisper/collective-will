@@ -221,7 +221,7 @@ def _format_policy_message(
     total: int,
 ) -> str:
     """Format message text showing a single policy with its options."""
-    summary = cluster.summary_en if locale == "en" and cluster.summary_en else cluster.summary
+    summary = cluster.summary
     header = _msg(locale, "ballot_header", n=current_idx + 1, total=total)
     lines = [f"{header}\n\n{summary}\n"]
 
@@ -352,10 +352,7 @@ async def _show_vote_summary(
         cluster = cluster_result.scalar_one_or_none()
         if cluster is None:
             continue
-        summary = (
-            cluster.summary_en if locale == "en" and cluster.summary_en
-            else cluster.summary
-        )
+        summary = cluster.summary
         short_summary = summary[:60] + "..." if len(summary) > 60 else summary
 
         selected_option_id = selections.get(cid_str)

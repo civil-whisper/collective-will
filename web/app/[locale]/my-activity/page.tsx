@@ -6,7 +6,7 @@ import {DisputeButton} from "@/components/DisputeButton";
 import {DisputeStatus} from "@/components/DisputeStatus";
 import {apiGet} from "@/lib/api";
 import {buildBearerHeaders, getBackendAccessToken} from "@/lib/backend-auth";
-import {PageShell, MetricCard, Card, DomainBadge, StatusBadge} from "@/components/ui";
+import {PageShell, MetricCard, Card, TopicBadge, StatusBadge} from "@/components/ui";
 
 type Submission = {
   id: string;
@@ -16,7 +16,7 @@ type Submission = {
   candidate?: {
     title: string;
     summary: string;
-    domain: string;
+    policy_topic: string;
     confidence: number;
   };
   cluster?: {
@@ -104,7 +104,7 @@ export default async function DashboardPage() {
                       {sub.candidate.summary}
                     </p>
                     <div className="mt-2 flex items-center gap-2">
-                      <DomainBadge domain={sub.candidate.domain} />
+                      <TopicBadge topic={sub.candidate.policy_topic} />
                       <span className="text-xs text-gray-500 dark:text-slate-400">
                         {Math.round(sub.candidate.confidence * 100)}% confidence
                       </span>

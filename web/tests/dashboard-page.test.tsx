@@ -82,7 +82,7 @@ describe("DashboardPage", () => {
           candidate: {
             title: "Economic Reform",
             summary: "Restructure fiscal policy",
-            domain: "economy",
+            policy_topic: "fiscal-policy",
             confidence: 0.85,
           },
         },
@@ -93,7 +93,7 @@ describe("DashboardPage", () => {
     render(jsx);
     expect(screen.getByText(/Economic Reform/)).toBeTruthy();
     expect(screen.getByText(/Restructure fiscal policy/)).toBeTruthy();
-    expect(screen.getByText(/economy/)).toBeTruthy();
+    expect(screen.getAllByText(/fiscal policy/).length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText(/85%/)).toBeTruthy();
   });
 

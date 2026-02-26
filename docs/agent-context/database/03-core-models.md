@@ -5,12 +5,12 @@
 - `database/02-db-connection` (Base declarative class, session factory)
 
 ## Goal
-Create SQLAlchemy ORM models and Pydantic schemas for all 7 core tables, plus basic CRUD query functions.
+Create SQLAlchemy ORM models and Pydantic schemas for all core tables, plus basic CRUD query functions.
 
 ## Files to create/modify
 
 - `src/models/user.py` — User ORM + Pydantic schemas (includes `bot_state` and `bot_state_data`)
-- `src/models/submission.py` — Submission + PolicyCandidate ORM + Pydantic schemas, PolicyDomain enum
+- `src/models/submission.py` — Submission + PolicyCandidate ORM + Pydantic schemas
 - `src/models/cluster.py` — Cluster ORM + Pydantic schemas (includes `options` relationship)
 - `src/models/vote.py` — Vote + VotingCycle ORM + Pydantic schemas (includes `selections` JSONB)
 - `src/models/endorsement.py` — PolicyEndorsement ORM + Pydantic schemas
@@ -32,8 +32,8 @@ Map exactly to the data models in CONTEXT-shared.md. Key details:
 - `trust_score`: default `0.0` (reserved in v0 unless an explicit policy consumes it)
 - `contribution_count`: default `0` (processed submissions + recorded policy endorsements)
 - `is_anonymous`: default `False`
-- `bot_state`: nullable string — tracks current interaction state (e.g., `"awaiting_submission"`, `"voting"`)
-- `bot_state_data`: nullable JSONB — session data for multi-step flows (e.g., voting progress tracker with `cycle_id`, `cluster_ids`, `current_idx`, `selections`)
+- `bot_state`: nullable string — tracks current interaction state
+- `bot_state_data`: nullable JSONB — session data for multi-step flows
 
 **Submission table**
 - `id`: UUID primary key
@@ -44,28 +44,37 @@ Map exactly to the data models in CONTEXT-shared.md. Key details:
 **PolicyCandidate table**
 - `id`: UUID primary key
 - `submission_id`: foreign key to submissions
-- `domain`: use Python `enum.Enum` for PolicyDomain
-- `embedding`: use pgvector `Vector` column type
-- `stance`: keep `"neutral"` for descriptive/no-side content and `"unclear"` for model uncertainty cases
+- `title`: string (English)
+- `summary`: string (English)
+- `stance`: one of support/oppose/neutral/unclear
+- `policy_topic`: string, indexed — umbrella topic (e.g., "internet-censorship")
+- `policy_key`: string, indexed — specific ballot-level key (e.g., "political-internet-censorship")
+- `entities`: JSONB array of strings
+- `embedding`: pgvector `Vector(1024)` column, nullable
 - `confidence`: float, 0-1
+- `ambiguity_flags`: JSONB array of strings
 - `model_version`, `prompt_version`: string, not null
 
 **Cluster table**
 - `id`: UUID primary key
-- `cycle_id`: foreign key to voting_cycles
-- `candidate_ids`: ARRAY of UUIDs (or use association table)
-- `centroid_embedding`: pgvector Vector column
-- `variance_flag`: boolean, default False
-- `clustering_params`: JSONB
+- `policy_topic`: string, indexed
+- `policy_key`: string, unique, indexed — one cluster per policy_key
+- `summary`: string (English)
+- `ballot_question`: nullable string
+- `ballot_question_fa`: nullable string (Farsi translation)
+- `candidate_ids`: ARRAY of UUIDs
+- `member_count`: int
+- `approval_count`: int, default 0
+- `needs_resummarize`: bool, default True
+- `last_summarized_count`: int, default 0
 - `options`: relationship to `PolicyOption` (ordered by position)
 
 **Vote table**
 - `id`: UUID primary key
 - `user_id`: foreign key to users
 - `cycle_id`: foreign key to voting_cycles
-- `approved_cluster_ids`: ARRAY of UUIDs (derived from selections when present)
-- `selections`: nullable JSONB — per-policy stance selections `[{cluster_id, option_id}, ...]`
-- Add query helper(s) that answer per-cluster vote counts so callers don't depend on storage shape
+- `approved_cluster_ids`: ARRAY of UUIDs
+- `selections`: nullable JSONB — per-policy stance selections
 
 **PolicyOption table**
 - `id`: UUID primary key
@@ -75,16 +84,15 @@ Map exactly to the data models in CONTEXT-shared.md. Key details:
 - `label_en`: string (English), nullable
 - `description`: text (Farsi), not null
 - `description_en`: text (English), nullable
-- `model_version`: string, not null — LLM model that generated the option
+- `model_version`: string, not null
 - `created_at`: datetime with timezone
 - `evidence_log_id`: nullable int
-- Relationship: `cluster` back-populates `Cluster.options`
 
 **PolicyEndorsement table**
 - `id`: UUID primary key
 - `user_id`: foreign key to users
 - `cluster_id`: foreign key to clusters
-- Add unique constraint on `(user_id, cluster_id)` to prevent duplicate signatures by the same user
+- Unique constraint on `(user_id, cluster_id)`
 
 **VotingCycle table**
 - `id`: UUID primary key
@@ -93,50 +101,13 @@ Map exactly to the data models in CONTEXT-shared.md. Key details:
 
 ### Pydantic schemas
 
-For each model, create at minimum:
+For each model, create:
 - `Create` schema (input for creating a new record)
 - `Read` schema (output for API responses, includes id and timestamps)
 
-Example: `UserCreate(email, locale)`, `UserRead(id, email, email_verified, ...)`
-
 ### ORM <-> schema conversion pattern
 
-Define explicit conversion methods instead of implicit dict unpacking:
-
-```python
-class UserRead(BaseModel):
-    # fields...
-
-    @classmethod
-    def from_orm_model(cls, db_user: User) -> "UserRead":
-        return cls(
-            id=db_user.id,
-            email=db_user.email,
-            email_verified=db_user.email_verified,
-            # ...explicit field mapping
-        )
-
-class User(Base):
-    # ORM fields...
-    def to_schema(self) -> UserRead:
-        return UserRead.from_orm_model(self)
-```
-
-Use this same pattern for Submission, PolicyCandidate, Cluster, Vote, VotingCycle, PolicyEndorsement, and PolicyOption.
-
-### PolicyDomain enum
-
-```python
-class PolicyDomain(str, Enum):
-    GOVERNANCE = "governance"
-    ECONOMY = "economy"
-    RIGHTS = "rights"
-    FOREIGN_POLICY = "foreign_policy"
-    RELIGION = "religion"
-    ETHNIC = "ethnic"
-    JUSTICE = "justice"
-    OTHER = "other"
-```
+Define explicit conversion methods instead of implicit dict unpacking.
 
 ### CRUD queries (src/db/queries.py)
 
@@ -150,7 +121,7 @@ Basic async functions:
 - `create_cluster(session, data) -> Cluster`
 - `create_policy_endorsement(session, data) -> PolicyEndorsement`
 - `count_cluster_endorsements(session, cluster_id) -> int`
-- `create_vote(session, data) -> Vote` — accepts `VoteCreate` with optional `selections`
+- `create_vote(session, data) -> Vote`
 - `count_votes_for_cluster(session, cycle_id, cluster_id) -> int`
 - `create_voting_cycle(session, data) -> VotingCycle`
 - `create_policy_option(session, data) -> PolicyOption`
@@ -158,29 +129,21 @@ Basic async functions:
 
 ## Constraints
 
-- Use `pgvector` for embedding columns. The pgvector SQLAlchemy integration requires the `pgvector` Python package.
+- Use `pgvector` for embedding columns.
 - UUID columns must use `uuid.uuid4` as default.
-- All timestamps use timezone-aware datetimes (`DateTime(timezone=True)`).
+- All timestamps use timezone-aware datetimes.
 - Do NOT store raw WhatsApp IDs in any model. `messaging_account_ref` is always an opaque random ref.
-- Keep SQLAlchemy and Pydantic as separate layers with explicit conversion methods; do not rely on implicit/untyped mapping.
-- Round-trip conversion tests (ORM -> schema -> create/update schema where applicable) must preserve expected fields.
-- Keep an evaluation note for `SQLModel` as a potential boilerplate reduction, but do not switch architecture in v0 without an explicit decision update.
-- `trust_score` is not an implicit v0 eligibility gate; behavior changes require explicit policy decision.
-- Encapsulate vote-approval counting behind query helpers in `db/queries.py`; avoid spreading storage-specific SQL across modules.
+- Keep SQLAlchemy and Pydantic as separate layers with explicit conversion methods.
+- Naming convention: base fields (`title`, `summary`) are English. Farsi translations use `_fa` suffix (e.g., `ballot_question_fa`). No `_en` suffix for English fields.
 
 ## Tests
 
 Write tests in `tests/test_db/test_models.py` covering:
 - Each ORM model can be created and saved to the test database
-- Pydantic schemas validate correct input and reject invalid input (wrong types, missing required fields)
-- PolicyDomain enum accepts valid values and rejects invalid ones
+- Pydantic schemas validate correct input and reject invalid input
 - `get_user_by_email` returns None for nonexistent user
 - `get_user_by_messaging_ref` finds user by opaque account ref
-- Embedding column stores and retrieves a vector correctly (e.g., 1024-dim float list)
-- Foreign key constraints work (e.g., Submission with invalid user_id fails)
+- Embedding column stores and retrieves a vector correctly
+- Foreign key constraints work
 - Duplicate endorsement by same user for the same cluster is rejected by unique constraint
-- `User` conversion round-trip preserves expected fields (`db_user.to_schema()` and schema constructor path)
-- Conversion methods exist for each core model and are used by API-layer serialization paths
-- `trust_score` defaults to `0.0` and model creation does not require any custom scoring pipeline
-- `PolicyCandidate.stance` accepts both `neutral` and `unclear` values (for descriptive vs uncertainty paths)
-- `count_votes_for_cluster()` returns correct counts from stored vote approvals
+- Conversion methods exist for each core model

@@ -30,11 +30,11 @@ async def clusters(session: AsyncSession = Depends(get_db)) -> list[dict[str, ob
     return [
         {
             "id": str(row.id),
+            "policy_topic": row.policy_topic,
+            "policy_key": row.policy_key,
             "summary": row.summary,
-            "domain": row.domain.value if hasattr(row.domain, "value") else row.domain,
             "member_count": row.member_count,
             "approval_count": row.approval_count,
-            "variance_flag": row.variance_flag,
         }
         for row in rows
     ]
@@ -66,23 +66,18 @@ async def cluster_detail(
 
     return {
         "id": str(cluster.id),
+        "policy_topic": cluster.policy_topic,
+        "policy_key": cluster.policy_key,
         "summary": cluster.summary,
-        "summary_en": cluster.summary_en,
-        "domain": cluster.domain.value if hasattr(cluster.domain, "value") else cluster.domain,
         "member_count": cluster.member_count,
         "approval_count": cluster.approval_count,
-        "variance_flag": cluster.variance_flag,
-        "grouping_rationale": None,
         "candidates": [
             {
                 "id": str(candidate.id),
                 "title": candidate.title,
-                "title_en": candidate.title_en,
                 "summary": candidate.summary,
-                "summary_en": candidate.summary_en,
-                "domain": (
-                    candidate.domain.value if hasattr(candidate.domain, "value") else candidate.domain
-                ),
+                "policy_topic": candidate.policy_topic,
+                "policy_key": candidate.policy_key,
                 "confidence": candidate.confidence,
             }
             for candidate in ordered_candidates
@@ -147,10 +142,9 @@ async def unclustered(session: AsyncSession = Depends(get_db)) -> dict[str, obje
             {
                 "id": str(item.id),
                 "title": item.title,
-                "title_en": item.title_en,
                 "summary": item.summary,
-                "summary_en": item.summary_en,
-                "domain": item.domain.value if hasattr(item.domain, "value") else item.domain,
+                "policy_topic": item.policy_topic,
+                "policy_key": item.policy_key,
                 "confidence": item.confidence,
                 "raw_text": item.submission.raw_text if item.submission else None,
                 "language": item.submission.language if item.submission else None,

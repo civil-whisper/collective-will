@@ -17,15 +17,13 @@ function mockFetchWith(data: unknown) {
 const FULL_CLUSTER = {
   id: "c1",
   summary: "Economic reform proposals",
-  summary_en: "Economic reform proposals (EN)",
-  domain: "economy",
+  policy_topic: "fiscal-policy",
+  policy_key: "fiscal-policy-001",
   member_count: 12,
   approval_count: 8,
-  variance_flag: false,
-  grouping_rationale: "Grouped by fiscal policy similarity",
   candidates: [
-    {id: "p1", title: "Tax Reform", summary: "Simplify tax code", domain: "economy", confidence: 0.92},
-    {id: "p2", title: "Budget Cuts", summary: "Reduce spending", domain: "economy", confidence: 0.78},
+    {id: "p1", title: "Tax Reform", summary: "Simplify tax code", policy_topic: "fiscal-policy", policy_key: "fiscal-policy-001", confidence: 0.92},
+    {id: "p2", title: "Budget Cuts", summary: "Reduce spending", policy_topic: "fiscal-policy", policy_key: "fiscal-policy-002", confidence: 0.78},
   ],
 };
 
@@ -55,55 +53,13 @@ describe("ClusterDetailPage", () => {
     expect(screen.getByRole("heading", {level: 1})).toHaveTextContent("Economic reform proposals");
   });
 
-  it("displays English summary when present", async () => {
+  it("displays policy_topic, member count, and approval count", async () => {
     mockFetchWith(FULL_CLUSTER);
     const jsx = await ClusterDetailPage({params: makeParams("c1")});
     render(jsx);
-    expect(screen.getByText("Economic reform proposals (EN)")).toBeTruthy();
-  });
-
-  it("does not display English summary when absent", async () => {
-    mockFetchWith({...FULL_CLUSTER, summary_en: undefined});
-    const jsx = await ClusterDetailPage({params: makeParams("c1")});
-    render(jsx);
-    expect(screen.queryByText(/\(EN\)/)).toBeNull();
-  });
-
-  it("displays grouping rationale when present", async () => {
-    mockFetchWith(FULL_CLUSTER);
-    const jsx = await ClusterDetailPage({params: makeParams("c1")});
-    render(jsx);
-    expect(screen.getByText("Grouped by fiscal policy similarity")).toBeTruthy();
-  });
-
-  it("does not display grouping rationale when absent", async () => {
-    mockFetchWith({...FULL_CLUSTER, grouping_rationale: undefined});
-    const jsx = await ClusterDetailPage({params: makeParams("c1")});
-    render(jsx);
-    expect(screen.queryByText(/Grouped by/)).toBeNull();
-  });
-
-  it("displays domain, member count, and approval count", async () => {
-    mockFetchWith(FULL_CLUSTER);
-    const jsx = await ClusterDetailPage({params: makeParams("c1")});
-    render(jsx);
-    expect(screen.getAllByText(/economy/).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText(/fiscal policy/).length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText(/12/).length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText(/8/).length).toBeGreaterThanOrEqual(1);
-  });
-
-  it("shows variance flag when set", async () => {
-    mockFetchWith({...FULL_CLUSTER, variance_flag: true});
-    const jsx = await ClusterDetailPage({params: makeParams("c1")});
-    render(jsx);
-    expect(screen.getByText(/Unstable/)).toBeTruthy();
-  });
-
-  it("does not show variance flag when not set", async () => {
-    mockFetchWith(FULL_CLUSTER);
-    const jsx = await ClusterDetailPage({params: makeParams("c1")});
-    render(jsx);
-    expect(screen.queryByText(/Unstable/)).toBeNull();
   });
 
   it("lists all policy candidates", async () => {

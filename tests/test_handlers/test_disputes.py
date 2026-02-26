@@ -6,7 +6,6 @@ from uuid import uuid4
 import pytest
 
 from src.handlers.disputes import _record_dispute_metrics, resolve_submission_dispute
-from src.models.submission import PolicyDomain
 from src.pipeline.llm import LLMResponse
 
 
@@ -52,7 +51,6 @@ async def test_resolve_submission_dispute_updates_existing_candidate() -> None:
     candidate = MagicMock()
     candidate.id = uuid4()
     candidate.title = "Old title"
-    candidate.domain = PolicyDomain.OTHER
     candidate.summary = "Old summary"
     candidate.stance = "unclear"
     candidate.entities = []
@@ -77,7 +75,6 @@ async def test_resolve_submission_dispute_updates_existing_candidate() -> None:
     assert result["status"] == "resolved"
     assert result["escalated"] is False
     assert candidate.title == "Water Access Policy"
-    assert candidate.domain == PolicyDomain.RIGHTS
     assert candidate.summary == "Ensure water access"
     assert candidate.stance == "support"
     assert candidate.confidence == 0.9

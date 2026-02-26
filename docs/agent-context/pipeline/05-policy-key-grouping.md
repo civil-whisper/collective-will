@@ -1,4 +1,4 @@
-# Task: Policy-Key Grouping (replaces HDBSCAN as primary)
+# Task: Policy-Key Grouping
 
 ## Depends on
 - `pipeline/03-canonicalization` (candidates have `policy_topic` and `policy_key`)
@@ -8,8 +8,7 @@
 ## Goal
 
 Group policy candidates by their LLM-assigned `policy_key`. Each unique
-`policy_key` maps to one persistent `Cluster` record. This replaces HDBSCAN
-as the primary grouping mechanism.
+`policy_key` maps to one persistent `Cluster` record.
 
 ## Two-Level Policy Structure
 
@@ -99,7 +98,7 @@ The agenda gate uses a single combined metric:
 - `policy_key` on the `clusters` table has a UNIQUE constraint
 - Merged clusters are deleted; candidates are reassigned
 - All merges are evidence-logged (`cluster_merged` event)
-- HDBSCAN is retained in `cluster.py` for legacy/backup but not called by the scheduler
+- HDBSCAN has been removed; policy-key grouping is the sole clustering mechanism
 
 ## Tests
 

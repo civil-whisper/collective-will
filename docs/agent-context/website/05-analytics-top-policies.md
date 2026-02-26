@@ -27,7 +27,7 @@ Displays voting results ranked by approval count.
     - Cluster summary (Farsi primary)
     - Approval count (absolute number)
     - Approval rate (percentage of total voters)
-    - Domain tag
+    - Policy topic tag
     - Link to cluster detail (`/analytics/clusters/[id]`)
   - Visual indicator for top 3 (highlight or icon)
 
@@ -64,11 +64,9 @@ interface CycleResults {
 }
 
 interface RankedPolicy {
-  rank: number;
   cluster_id: string;
   summary: string;
-  summary_en?: string;
-  domain: PolicyDomain;
+  policy_topic: string;
   approval_count: number;
   approval_rate: number;       // 0-1
 }

@@ -24,12 +24,6 @@ class Settings(BaseSettings):
     witness_http_timeout_seconds: float = 20.0
 
     min_account_age_hours: int = 48
-    min_cluster_size: int = 5
-    cluster_min_samples: int = 1
-    cluster_random_seed: int = 7
-    cluster_variance_min_candidates: int = 20
-    cluster_variance_stability_threshold: float = 0.6
-    cluster_variance_random_seeds: str = "7,11,13"
     min_preballot_endorsements: int = 5
     resummarize_growth_threshold: float = 0.5
     max_signups_per_domain_per_day: int = 3
@@ -124,9 +118,6 @@ class Settings(BaseSettings):
 
     def cors_allow_origin_list(self) -> list[str]:
         return [item.strip() for item in self.cors_allow_origins.split(",") if item.strip()]
-
-    def cluster_variance_seed_list(self) -> list[int]:
-        return [int(item.strip()) for item in self.cluster_variance_random_seeds.split(",") if item.strip()]
 
     def llm_transient_status_code_set(self) -> set[int]:
         return {int(item.strip()) for item in self.llm_transient_status_codes.split(",") if item.strip()}

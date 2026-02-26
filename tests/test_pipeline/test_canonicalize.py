@@ -67,7 +67,6 @@ async def test_single_issue_produces_one_candidate() -> None:
     candidates = await canonicalize_batch(session=session, submissions=items, llm_router=router)  # type: ignore[arg-type]
     assert len(candidates) == 1
     assert candidates[0].title == "Housing Reform"
-    assert candidates[0].domain.value == "economy"
 
 
 @pytest.mark.asyncio
@@ -117,13 +116,6 @@ async def test_privacy_no_uuids_in_prompt() -> None:
     items = [{"id": str(uuid4()), "raw_text": "safe text", "language": "fa", "user_id": user_id}]
     await canonicalize_batch(session=session, submissions=items, llm_router=router)  # type: ignore[arg-type]
     assert user_id not in router.calls[0]["prompt"]
-
-
-def test_policy_domain_validation() -> None:
-    from src.models.submission import PolicyDomain
-    assert PolicyDomain("economy") == PolicyDomain.ECONOMY
-    with pytest.raises(ValueError):
-        PolicyDomain("invalid")
 
 
 def test_parse_candidate_payload_handles_array() -> None:

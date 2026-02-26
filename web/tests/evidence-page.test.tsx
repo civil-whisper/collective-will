@@ -21,7 +21,7 @@ const SAMPLE_ENTRIES = [
     event_type: "candidate_created",
     entity_type: "submission",
     entity_id: "entity-bbb",
-    payload: {title: "Policy X", domain: "governance", confidence: 0.85, model_version: "gpt-4"},
+    payload: {title: "Policy X", policy_topic: "governance-reform", confidence: 0.85, model_version: "gpt-4"},
     hash: "bbbb2222cccc3333dddd4444eeee5555ffff6666aaaa1111",
     prev_hash: "aaaa1111bbbb2222cccc3333dddd4444eeee5555ffff6666",
   },

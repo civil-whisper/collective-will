@@ -47,8 +47,7 @@ Return ONLY raw JSON (no markdown):
 {{
   "ballot_question": "English ballot question text",
   "ballot_question_fa": "Farsi ballot question text",
-  "summary_en": "Short neutral English summary of the policy discussion",
-  "summary_fa": "Short neutral Farsi summary of the policy discussion"
+  "summary": "Short neutral English summary of the policy discussion"
 }}
 """
 
@@ -107,8 +106,7 @@ async def generate_ballot_questions(
 
         cluster.ballot_question = parsed.get("ballot_question", "")
         cluster.ballot_question_fa = parsed.get("ballot_question_fa", "")
-        cluster.summary = parsed.get("summary_fa", cluster.summary)
-        cluster.summary_en = parsed.get("summary_en", cluster.summary_en)
+        cluster.summary = parsed.get("summary", cluster.summary)
         cluster.last_summarized_count = cluster.member_count
         cluster.needs_resummarize = False
 
