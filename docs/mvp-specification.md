@@ -535,7 +535,7 @@ CREATE INDEX idx_evidence_entity ON evidence_log(entity_type, entity_id);
 1. **Cluster Explorer** — list of clusters with size, click to drill into summary + member submissions (anonymized)
 2. **Submission Verification** — authenticated users can confirm their submission exists and trace its journey
 3. **Audit Evidence Viewer** — hash chain explorer for technical users
-4. **Top Policies** — ranked list with vote counts
+4. **Community Votes** — active voting cycles and ranked results from past votes
 
 *Post-launch enhancements:*
 5. **Policy Landscape** — treemap or bubble chart of clusters by size

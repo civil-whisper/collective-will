@@ -186,9 +186,9 @@ export function entityLink(entry: EvidenceEntry, locale: string): string | null 
     case "cluster":
       return `/${locale}/collective-concerns/clusters/${entry.entity_id}`;
     case "voting_cycle":
-      return `/${locale}/collective-concerns/top-policies`;
+      return `/${locale}/collective-concerns/community-votes`;
     case "vote":
-      return `/${locale}/collective-concerns/top-policies`;
+      return `/${locale}/collective-concerns/community-votes`;
     default:
       return null;
   }

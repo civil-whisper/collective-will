@@ -1,4 +1,4 @@
-# Decision Rationale — website/05-analytics-top-policies.md
+# Decision Rationale — website/05-analytics-community-votes.md
 
 > **Corresponds to**: [`docs/agent-context/website/05-analytics-top-policies.md`](../../agent-context/website/05-analytics-top-policies.md)
 >

@@ -49,7 +49,7 @@ System font stack: `Inter, system-ui, -apple-system, sans-serif` (with Vazirmatn
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│  NavBar  [Logo]  [Analytics] [Top Policies] [Audit] [🌐] │
+│  NavBar  [Logo]  [Analytics] [Community Votes] [Audit] [🌐] │
 ├─────────────────────────────────────────────────────────┤
 │                                                         │
 │  [Active Voters]  [Total Clusters]  [Submissions]  [Cycle] │
@@ -118,7 +118,7 @@ All pages displaying cluster/policy metrics must use the same three metrics cons
 **Pages that display cluster metrics** (grep for these keys when changing the vocabulary):
 - `web/app/[locale]/collective-concerns/page.tsx` (cluster list)
 - `web/app/[locale]/collective-concerns/clusters/[id]/page.tsx` (cluster detail)
-- `web/app/[locale]/collective-concerns/top-policies/page.tsx` (top policies)
+- `web/app/[locale]/collective-concerns/community-votes/page.tsx` (community votes)
 
 Legacy field `approval_count` is still returned by the API but should not be displayed on new pages. The canonical public metrics are Submissions + Endorsements = Total Support.
 

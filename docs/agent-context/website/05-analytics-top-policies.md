@@ -1,4 +1,4 @@
-# Task: Analytics — Top Policies
+# Task: Analytics — Community Votes
 
 ## Depends on
 - `website/04-analytics-cluster-explorer` (analytics page structure, API client, types)

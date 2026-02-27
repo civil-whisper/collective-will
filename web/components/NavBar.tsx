@@ -23,7 +23,7 @@ export function NavBar({showOpsLink, userEmail}: NavBarProps) {
     {href: `/${locale}`, label: t("home")},
     {href: `/${locale}/my-activity`, label: t("dashboard")},
     {href: `/${locale}/collective-concerns`, label: t("analytics")},
-    {href: `/${locale}/collective-concerns/top-policies`, label: t("topPolicies")},
+    {href: `/${locale}/collective-concerns/community-votes`, label: t("communityVotes")},
     {href: `/${locale}/collective-concerns/evidence`, label: t("audit")},
     ...(showOpsLink ? [{href: `/${locale}/ops`, label: t("ops")}] : []),
   ];

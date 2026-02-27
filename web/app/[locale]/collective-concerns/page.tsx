@@ -206,10 +206,10 @@ export default async function AnalyticsPage() {
       {/* Footer links */}
       <div className="flex items-center gap-4 text-sm">
         <Link
-          href={`/${locale}/collective-concerns/top-policies`}
+          href={`/${locale}/collective-concerns/community-votes`}
           className="font-medium text-accent hover:underline"
         >
-          {t("topPolicies")} →
+          {t("communityVotes")} →
         </Link>
         <Link
           href={`/${locale}/collective-concerns/evidence`}

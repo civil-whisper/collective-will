@@ -5,7 +5,7 @@
     "dashboard": "My Activity",
     "about": "About",
     "audit": "Audit",
-    "topPolicies": "Top Policies",
+    "communityVotes": "Community Votes",
     "ops": "Ops"
   },
   "common": {
@@ -96,7 +96,10 @@
     "pageTitle": "Community Priorities",
     "pageDescription": "Citizen submissions are organized by AI into concern groups around shared policy topics. Groups that gain enough community support enter the voting ballot.",
     "clusters": "Grouped Concerns",
-    "topPolicies": "Top Policies",
+    "communityVotes": "Community Votes",
+    "communityVotesDescription": "When grouped concerns gain enough community support, they enter the voting ballot. View active voting cycles and results from past votes.",
+    "noVotesYet": "No voting cycles have started yet. Concerns that gain enough support will appear here for voting.",
+    "votingResults": "Voting Results",
     "evidence": "Evidence Chain",
     "noClusters": "No grouped concerns yet.",
     "noCycles": "No voting cycles completed yet.",

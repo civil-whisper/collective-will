@@ -621,7 +621,7 @@ Users can flag bad canonicalization or cluster assignment from their web dashboa
 | Page | Route | Data Source |
 |------|-------|-------------|
 | Landing / Subscribe | `/{locale}/` | — |
-| Top Policies | `/{locale}/analytics/top-policies` | `GET /analytics/top-policies` |
+| Community Votes | `/{locale}/collective-concerns/community-votes` | `GET /analytics/top-policies` |
 | Cluster Explorer | `/{locale}/analytics/clusters` | `GET /analytics/clusters`, `/clusters/{id}` |
 | Evidence Explorer | `/{locale}/analytics/evidence` | `GET /analytics/evidence`, `/evidence/verify` |
 | Stats | — | `GET /analytics/stats` |

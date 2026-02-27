@@ -775,7 +775,7 @@ async def _handle_vote_submit(
         return status
 
     base_url = settings.app_public_base_url
-    analytics_url = f"{base_url}/{user.locale}/collective-concerns/top-policies"
+    analytics_url = f"{base_url}/{user.locale}/collective-concerns/community-votes"
     await channel.send_message(OutboundMessage(
         recipient_ref=message.sender_ref,
         text=(

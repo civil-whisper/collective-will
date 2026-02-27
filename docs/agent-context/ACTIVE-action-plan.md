@@ -163,7 +163,7 @@ Inspiration: [Plausible Analytics](https://plausible.io/plausible.io) — clean,
     - Bottom: recent evidence activity feed (last 5 entries, link to full evidence page)
     - Time range selector (current cycle / last 7 days / last 30 days / all time)
 
-15. [done] Redesign Top Policies Page (`app/[locale]/analytics/top-policies/page.tsx`)
+15. [done] Redesign Community Votes Page (`app/[locale]/collective-concerns/community-votes/page.tsx`)
     - Ranked list using `BreakdownTable` component
     - Each row: rank badge, cluster summary (link), approval rate bar, approval count, topic badge
     - Clean header with page title and cycle selector
@@ -680,6 +680,13 @@ Both are stance-neutral. Three-stage pipeline: inline assignment → hybrid norm
     - `execute_key_merge()` in `normalize.py` now filters by `status='open'` — archived clusters excluded from merges
     - Endorsement menu in `commands.py` now filters by `status='open'` — archived clusters excluded from endorsement flow
     - Full i18n parity (en + fa)
+
+96. [done] Rename Top Policies to Community Votes
+    - Route renamed from `/collective-concerns/top-policies` to `/collective-concerns/community-votes`
+    - Nav tab label: "Community Votes" / "آرای جامعه"
+    - Page now shows active voting cycle banner + archived voting results
+    - Added page description and new empty state messaging
+    - All references updated: NavBar, evidence links, Telegram handler, tests, context docs
 
 93. [done] Prompt cycle close/open in scheduler polling loop
     - Extracted `_close_expired_cycles()` from `run_pipeline` into standalone function

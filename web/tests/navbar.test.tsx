@@ -14,7 +14,7 @@ describe("NavBar", () => {
     const hrefs = links.map((link) => link.getAttribute("href"));
     expect(hrefs).toContain("/en");
     expect(hrefs).toContain("/en/collective-concerns");
-    expect(hrefs).toContain("/en/collective-concerns/top-policies");
+    expect(hrefs).toContain("/en/collective-concerns/community-votes");
     expect(hrefs).toContain("/en/my-activity");
     expect(hrefs).toContain("/en/collective-concerns/evidence");
     expect(hrefs).toContain("/en/sign-in");

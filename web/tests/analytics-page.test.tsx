@@ -91,12 +91,12 @@ describe("AnalyticsPage", () => {
     expect(screen.getAllByText("Cluster B").length).toBeGreaterThanOrEqual(1);
   });
 
-  it("has navigation links to top-policies and evidence", async () => {
+  it("has navigation links to community-votes and evidence", async () => {
     mockFetchSequence([], noStats, {total: 0, items: []});
     const jsx = await AnalyticsPage();
     render(jsx);
-    const topLink = screen.getByRole("link", {name: /Top Policies/});
-    expect(topLink.getAttribute("href")).toBe("/en/collective-concerns/top-policies");
+    const topLink = screen.getByRole("link", {name: /Community Votes/});
+    expect(topLink.getAttribute("href")).toBe("/en/collective-concerns/community-votes");
     const evidenceLink = screen.getByRole("link", {name: /Evidence Chain/});
     expect(evidenceLink.getAttribute("href")).toBe("/en/collective-concerns/evidence");
   });

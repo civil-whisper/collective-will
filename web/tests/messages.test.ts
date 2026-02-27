@@ -98,7 +98,7 @@ describe("translation keys parity", () => {
 
   it("contains analytics keys", () => {
     expect(fa.analytics.clusters).toBeTruthy();
-    expect(fa.analytics.topPolicies).toBeTruthy();
+    expect(fa.analytics.communityVotes).toBeTruthy();
     expect(fa.analytics.evidence).toBeTruthy();
     expect(fa.analytics.noClusters).toBeTruthy();
     expect(fa.analytics.noCycles).toBeTruthy();
