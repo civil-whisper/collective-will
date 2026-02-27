@@ -133,8 +133,8 @@ describe("AnalyticsPage", () => {
     );
     const jsx = await AnalyticsPage();
     render(jsx);
-    expect(screen.getByText("Archived Concerns")).toBeTruthy();
-    expect(screen.getByText("Archived")).toBeTruthy();
+    expect(screen.getAllByText("Archived Concerns").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText("Archived").length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText("Old Policy")).toBeTruthy();
   });
 

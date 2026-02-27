@@ -2,7 +2,7 @@ import Link from "next/link";
 import {getLocale, getTranslations} from "next-intl/server";
 
 import {apiGet} from "@/lib/api";
-import {PageShell, TopicBadge, Card} from "@/components/ui";
+import {PageShell, MetricCard, TopicBadge, Card} from "@/components/ui";
 
 function formatCycleEnd(endsAt: string, locale: string): string {
   const end = new Date(endsAt);
@@ -67,6 +67,21 @@ export default async function CommunityVotesPage() {
       <p className="text-sm text-gray-600 dark:text-slate-400">
         {t("communityVotesDescription")}
       </p>
+
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-3">
+        <MetricCard
+          label={t("totalVoters")}
+          value={stats.total_voters.toLocaleString()}
+        />
+        <MetricCard
+          label={t("activeVotes")}
+          value={hasActiveCycle && stats.active_cycle ? stats.active_cycle.cluster_count.toLocaleString() : "0"}
+        />
+        <MetricCard
+          label={t("archivedVotes")}
+          value={ranked.length.toLocaleString()}
+        />
+      </div>
 
       {hasActiveCycle && stats.active_cycle && (
         <div className="rounded-lg border border-emerald-300 bg-emerald-50 p-5 dark:border-emerald-700 dark:bg-emerald-950/40">

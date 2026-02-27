@@ -97,12 +97,8 @@ export default async function AnalyticsPage() {
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <MetricCard
-          label={t("totalVoters")}
-          value={stats.total_voters.toLocaleString()}
-        />
-        <MetricCard
           label={t("clusters")}
-          value={clusters.length.toLocaleString()}
+          value={openConcerns.length.toLocaleString()}
         />
         <MetricCard
           label={t("totalSubmissions")}
@@ -111,6 +107,10 @@ export default async function AnalyticsPage() {
         <MetricCard
           label={t("unclustered")}
           value={unclustered.total.toLocaleString()}
+        />
+        <MetricCard
+          label={t("archivedConcerns")}
+          value={archivedConcerns.length.toLocaleString()}
         />
       </div>
 

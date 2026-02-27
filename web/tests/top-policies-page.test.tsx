@@ -52,8 +52,8 @@ describe("CommunityVotesPage", () => {
     );
     const jsx = await CommunityVotesPage();
     render(jsx);
-    expect(screen.getByText("1")).toBeTruthy();
-    expect(screen.getByText("2")).toBeTruthy();
+    expect(screen.getAllByText("1").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText("2").length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText("Policy Alpha")).toBeTruthy();
     expect(screen.getByText("Policy Beta")).toBeTruthy();
   });

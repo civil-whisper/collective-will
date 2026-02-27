@@ -301,15 +301,25 @@ async def test_close_and_tally(mock_count: AsyncMock, mock_evidence: AsyncMock) 
     vote2.selections = None
     vote3 = MagicMock()
     vote3.selections = None
-    scalars_mock = MagicMock()
-    scalars_mock.all.return_value = [vote1, vote2, vote3]
-    result_mock = MagicMock()
-    result_mock.scalars.return_value = scalars_mock
 
-    db = AsyncMock()
-    db.execute.return_value = result_mock
+    votes_scalars = MagicMock()
+    votes_scalars.all.return_value = [vote1, vote2, vote3]
+    votes_result = MagicMock()
+    votes_result.scalars.return_value = votes_scalars
 
     cluster_id = uuid4()
+    fake_cluster = MagicMock()
+    fake_cluster.id = cluster_id
+    fake_cluster.summary = "Test policy summary"
+    fake_cluster.policy_topic = "governance-reform"
+    clusters_scalars = MagicMock()
+    clusters_scalars.all.return_value = [fake_cluster]
+    clusters_result = MagicMock()
+    clusters_result.scalars.return_value = clusters_scalars
+
+    db = AsyncMock()
+    db.execute.side_effect = [votes_result, clusters_result]
+
     cycle = MagicMock()
     cycle.id = uuid4()
     cycle.cluster_ids = [cluster_id]
@@ -323,6 +333,8 @@ async def test_close_and_tally(mock_count: AsyncMock, mock_evidence: AsyncMock) 
     assert len(updated.results) == 1
     assert updated.results[0]["approval_count"] == 3.0
     assert updated.results[0]["approval_rate"] == 1.0
+    assert updated.results[0]["summary"] == "Test policy summary"
+    assert updated.results[0]["policy_topic"] == "governance-reform"
     mock_evidence.assert_called_once()
     assert mock_evidence.call_args.kwargs["event_type"] == "cycle_closed"
 
@@ -342,13 +354,22 @@ async def test_close_and_tally_with_option_counts(mock_count: AsyncMock, mock_ev
     vote3 = MagicMock()
     vote3.selections = [{"cluster_id": str(cluster_id), "option_id": option_a_id}]
 
-    scalars_mock = MagicMock()
-    scalars_mock.all.return_value = [vote1, vote2, vote3]
-    result_mock = MagicMock()
-    result_mock.scalars.return_value = scalars_mock
+    votes_scalars = MagicMock()
+    votes_scalars.all.return_value = [vote1, vote2, vote3]
+    votes_result = MagicMock()
+    votes_result.scalars.return_value = votes_scalars
+
+    fake_cluster = MagicMock()
+    fake_cluster.id = cluster_id
+    fake_cluster.summary = "Option test policy"
+    fake_cluster.policy_topic = "fiscal-policy"
+    clusters_scalars = MagicMock()
+    clusters_scalars.all.return_value = [fake_cluster]
+    clusters_result = MagicMock()
+    clusters_result.scalars.return_value = clusters_scalars
 
     db = AsyncMock()
-    db.execute.return_value = result_mock
+    db.execute.side_effect = [votes_result, clusters_result]
 
     cycle = MagicMock()
     cycle.id = uuid4()

@@ -205,16 +205,28 @@ async def cast_vote(
 
 
 async def close_and_tally(*, session: AsyncSession, cycle: VotingCycle) -> VotingCycle:
+    from src.models.cluster import Cluster
+
     total_voters_result = await session.execute(select(Vote).where(Vote.cycle_id == cycle.id))
     votes = list(total_voters_result.scalars().all())
     cycle.total_voters = len(votes)
+
+    cluster_lookup: dict[UUID, Cluster] = {}
+    if cycle.cluster_ids:
+        clusters_result = await session.execute(
+            select(Cluster).where(Cluster.id.in_(cycle.cluster_ids))
+        )
+        cluster_lookup = {c.id: c for c in clusters_result.scalars().all()}
 
     results: list[dict[str, Any]] = []
     for cluster_id in cycle.cluster_ids:
         approvals = await count_votes_for_cluster(session, cycle.id, cluster_id)
         rate = approvals / cycle.total_voters if cycle.total_voters else 0.0
+        cluster = cluster_lookup.get(cluster_id)
         cluster_result: dict[str, Any] = {
             "cluster_id": str(cluster_id),
+            "summary": cluster.summary if cluster else None,
+            "policy_topic": cluster.policy_topic if cluster else None,
             "approval_count": float(approvals),
             "approval_rate": float(rate),
         }

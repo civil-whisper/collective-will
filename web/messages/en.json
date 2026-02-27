@@ -100,6 +100,8 @@
     "communityVotesDescription": "When grouped concerns gain enough community support, they enter the voting ballot. View active voting cycles and results from past votes.",
     "noVotesYet": "No voting cycles have started yet. Concerns that gain enough support will appear here for voting.",
     "votingResults": "Voting Results",
+    "activeVotes": "Active Votes",
+    "archivedVotes": "Archived Votes",
     "evidence": "Evidence Chain",
     "noClusters": "No grouped concerns yet.",
     "noCycles": "No voting cycles completed yet.",
