@@ -120,11 +120,6 @@ export default async function CommunityVotesPage() {
       {hasActiveBallot && ballot && (
         <div>
           <h2 className="mb-3 text-lg font-semibold">{t("activeVotingSection")}</h2>
-          <div className="mb-2 flex items-center gap-3 text-sm text-gray-600 dark:text-slate-400">
-            <span>{t("votersSoFar", {count: ballot.total_voters})}</span>
-            <span>·</span>
-            <span>{t("activeCycleEnds", {endsAt: formatCycleEnd(ballot.ends_at, locale)})}</span>
-          </div>
           <div className="space-y-3">
             {ballot.clusters.map((cluster, idx) => {
               const question =
@@ -136,6 +131,12 @@ export default async function CommunityVotesPage() {
                   key={cluster.cluster_id}
                   className="rounded-lg border border-emerald-200 bg-white p-5 dark:border-emerald-800 dark:bg-slate-800"
                 >
+                  <div className="mb-1 flex items-center gap-3 text-xs text-gray-500 dark:text-slate-400">
+                    <span>{t("votersSoFar", {count: ballot.total_voters})}</span>
+                    <span>·</span>
+                    <span>{t("activeCycleEnds", {endsAt: formatCycleEnd(ballot.ends_at, locale)})}</span>
+                  </div>
+
                   <div className="mb-3 flex items-start justify-between gap-3">
                     <div className="min-w-0 flex-1">
                       <p className="font-semibold text-gray-900 dark:text-slate-100">
@@ -162,7 +163,7 @@ export default async function CommunityVotesPage() {
                         return (
                           <div
                             key={opt.id}
-                            className="rounded-md border border-gray-100 bg-gray-50 px-4 py-2.5 dark:border-slate-700 dark:bg-slate-750"
+                            className="rounded-md border border-gray-200 bg-white px-4 py-2.5 dark:border-slate-600 dark:bg-slate-900"
                           >
                             <p className="text-sm font-medium text-gray-800 dark:text-slate-200">
                               {letter}. {label}
