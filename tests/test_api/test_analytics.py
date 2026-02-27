@@ -266,6 +266,77 @@ class TestTopPolicies:
             app.dependency_overrides.pop(get_db, None)
 
 
+class TestActiveBallot:
+    def test_returns_null_when_no_active_cycle(self) -> None:
+        session = AsyncMock()
+        cycle_result = MagicMock()
+        cycle_result.scalars.return_value = MagicMock(first=MagicMock(return_value=None))
+        session.execute.return_value = cycle_result
+        app.dependency_overrides[get_db] = lambda: session
+        try:
+            client = TestClient(app)
+            response = client.get("/analytics/active-ballot")
+            assert response.status_code == 200
+            assert response.json() is None
+        finally:
+            app.dependency_overrides.pop(get_db, None)
+
+    def test_returns_active_ballot_with_clusters_and_options(self) -> None:
+        from datetime import timedelta
+
+        cluster_id = uuid4()
+        opt_id = uuid4()
+        cycle = MagicMock(spec=VotingCycle)
+        cycle.id = uuid4()
+        cycle.status = "active"
+        cycle.started_at = datetime.now(UTC)
+        cycle.ends_at = datetime.now(UTC) + timedelta(hours=48)
+        cycle.cluster_ids = [cluster_id]
+
+        cycle_result = MagicMock()
+        cycle_result.scalars.return_value = MagicMock(first=MagicMock(return_value=cycle))
+
+        vote_count_result = MagicMock()
+        vote_count_result.scalar_one.return_value = 7
+
+        cluster = _make_cluster(id=cluster_id, summary="Reform governance")
+        cluster.ballot_question = "Should we reform governance?"
+        cluster.ballot_question_fa = "آیا باید حاکمیت را اصلاح کنیم؟"
+        clusters_result = MagicMock()
+        clusters_result.scalars.return_value = MagicMock(all=MagicMock(return_value=[cluster]))
+
+        opt = MagicMock()
+        opt.id = opt_id
+        opt.cluster_id = cluster_id
+        opt.position = 1
+        opt.label = "Option A"
+        opt.label_en = "Option A EN"
+        opt.description = "Desc A"
+        opt.description_en = "Desc A EN"
+        options_result = MagicMock()
+        options_result.scalars.return_value = MagicMock(all=MagicMock(return_value=[opt]))
+
+        session = AsyncMock()
+        session.execute.side_effect = [cycle_result, vote_count_result, clusters_result, options_result]
+        app.dependency_overrides[get_db] = lambda: session
+        try:
+            client = TestClient(app)
+            response = client.get("/analytics/active-ballot")
+            assert response.status_code == 200
+            data = response.json()
+            assert data is not None
+            assert data["total_voters"] == 7
+            assert len(data["clusters"]) == 1
+            c = data["clusters"][0]
+            assert c["summary"] == "Reform governance"
+            assert c["ballot_question"] == "Should we reform governance?"
+            assert len(c["options"]) == 1
+            assert c["options"][0]["label"] == "Option A"
+            assert c["options"][0]["description"] == "Desc A"
+        finally:
+            app.dependency_overrides.pop(get_db, None)
+
+
 class TestEvidence:
     def test_returns_empty_list(self) -> None:
         session = AsyncMock()

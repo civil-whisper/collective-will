@@ -688,6 +688,15 @@ Both are stance-neutral. Three-stage pipeline: inline assignment → hybrid norm
     - Added page description and new empty state messaging
     - All references updated: NavBar, evidence links, Telegram handler, tests, context docs
 
+97. [done] Community Votes: active ballot + archived results with option breakdowns
+    - New `GET /analytics/active-ballot` endpoint returns active cycle clusters with ballot questions and options (no per-option counts)
+    - `close_and_tally` now snapshots `ballot_question`, `ballot_question_fa`, and `options` (with labels + vote_count) into `cycle.results`, replacing raw `option_counts`
+    - Community Votes page redesigned with two sections:
+      - Active Ballot: ballot questions, options with descriptions, total voters, time remaining, "results revealed after close"
+      - Past Voting Results: ranked list with per-option horizontal vote breakdown bars (vote_count / total, percentage)
+    - Full i18n parity (en + fa) for new keys
+    - Tests: 416 backend + all web tests pass
+
 93. [done] Prompt cycle close/open in scheduler polling loop
     - Extracted `_close_expired_cycles()` from `run_pipeline` into standalone function
     - Both `_close_expired_cycles()` and `_maybe_open_cycle()` now run every 60s in `scheduler_loop` polling, not just inside `run_pipeline`

@@ -787,7 +787,7 @@ async def test_endorse_callback_from_session(
     assert status == "endorse_policy_shown"
     mock_endorse.assert_called_once()
     assert any(_MESSAGES["en"]["endorsement_recorded"] in m.text for m in channel.messages)
-    assert session_data["current_idx"] == 1
+    assert user.bot_state_data["current_idx"] == 1
 
 
 @pytest.mark.asyncio
@@ -824,7 +824,7 @@ async def test_endorse_skip(mock_count: AsyncMock) -> None:
 
     status = await route_message(session=db, message=_callback_msg("esk"), channel=channel)
     assert status == "endorse_policy_shown"
-    assert session_data["current_idx"] == 1
+    assert user.bot_state_data["current_idx"] == 1
 
 
 @pytest.mark.asyncio
@@ -861,7 +861,7 @@ async def test_endorse_back(mock_count: AsyncMock) -> None:
 
     status = await route_message(session=db, message=_callback_msg("ebk"), channel=channel)
     assert status == "endorse_policy_shown"
-    assert session_data["current_idx"] == 0
+    assert user.bot_state_data["current_idx"] == 0
 
 
 @pytest.mark.asyncio

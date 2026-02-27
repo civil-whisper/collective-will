@@ -312,13 +312,27 @@ async def test_close_and_tally(mock_count: AsyncMock, mock_evidence: AsyncMock) 
     fake_cluster.id = cluster_id
     fake_cluster.summary = "Test policy summary"
     fake_cluster.policy_topic = "governance-reform"
+    fake_cluster.ballot_question = "Should governance be reformed?"
+    fake_cluster.ballot_question_fa = "آیا حاکمیت باید اصلاح شود؟"
     clusters_scalars = MagicMock()
     clusters_scalars.all.return_value = [fake_cluster]
     clusters_result = MagicMock()
     clusters_result.scalars.return_value = clusters_scalars
 
+    opt_id = uuid4()
+    fake_option = MagicMock()
+    fake_option.id = opt_id
+    fake_option.cluster_id = cluster_id
+    fake_option.position = 1
+    fake_option.label = "گزینه الف"
+    fake_option.label_en = "Option A"
+    options_scalars = MagicMock()
+    options_scalars.all.return_value = [fake_option]
+    options_result = MagicMock()
+    options_result.scalars.return_value = options_scalars
+
     db = AsyncMock()
-    db.execute.side_effect = [votes_result, clusters_result]
+    db.execute.side_effect = [votes_result, clusters_result, options_result]
 
     cycle = MagicMock()
     cycle.id = uuid4()
@@ -335,6 +349,12 @@ async def test_close_and_tally(mock_count: AsyncMock, mock_evidence: AsyncMock) 
     assert updated.results[0]["approval_rate"] == 1.0
     assert updated.results[0]["summary"] == "Test policy summary"
     assert updated.results[0]["policy_topic"] == "governance-reform"
+    assert updated.results[0]["ballot_question"] == "Should governance be reformed?"
+    assert updated.results[0]["ballot_question_fa"] == "آیا حاکمیت باید اصلاح شود؟"
+    assert len(updated.results[0]["options"]) == 1
+    assert updated.results[0]["options"][0]["label"] == "گزینه الف"
+    assert updated.results[0]["options"][0]["label_en"] == "Option A"
+    assert updated.results[0]["options"][0]["vote_count"] == 0
     mock_evidence.assert_called_once()
     assert mock_evidence.call_args.kwargs["event_type"] == "cycle_closed"
 
@@ -344,15 +364,15 @@ async def test_close_and_tally(mock_count: AsyncMock, mock_evidence: AsyncMock) 
 @patch("src.handlers.voting.count_votes_for_cluster", new_callable=AsyncMock, return_value=2)
 async def test_close_and_tally_with_option_counts(mock_count: AsyncMock, mock_evidence: AsyncMock) -> None:
     cluster_id = uuid4()
-    option_a_id = str(uuid4())
-    option_b_id = str(uuid4())
+    option_a_id = uuid4()
+    option_b_id = uuid4()
 
     vote1 = MagicMock()
-    vote1.selections = [{"cluster_id": str(cluster_id), "option_id": option_a_id}]
+    vote1.selections = [{"cluster_id": str(cluster_id), "option_id": str(option_a_id)}]
     vote2 = MagicMock()
-    vote2.selections = [{"cluster_id": str(cluster_id), "option_id": option_b_id}]
+    vote2.selections = [{"cluster_id": str(cluster_id), "option_id": str(option_b_id)}]
     vote3 = MagicMock()
-    vote3.selections = [{"cluster_id": str(cluster_id), "option_id": option_a_id}]
+    vote3.selections = [{"cluster_id": str(cluster_id), "option_id": str(option_a_id)}]
 
     votes_scalars = MagicMock()
     votes_scalars.all.return_value = [vote1, vote2, vote3]
@@ -363,13 +383,32 @@ async def test_close_and_tally_with_option_counts(mock_count: AsyncMock, mock_ev
     fake_cluster.id = cluster_id
     fake_cluster.summary = "Option test policy"
     fake_cluster.policy_topic = "fiscal-policy"
+    fake_cluster.ballot_question = "What fiscal reform?"
+    fake_cluster.ballot_question_fa = None
     clusters_scalars = MagicMock()
     clusters_scalars.all.return_value = [fake_cluster]
     clusters_result = MagicMock()
     clusters_result.scalars.return_value = clusters_scalars
 
+    fake_opt_a = MagicMock()
+    fake_opt_a.id = option_a_id
+    fake_opt_a.cluster_id = cluster_id
+    fake_opt_a.position = 1
+    fake_opt_a.label = "Increase taxes"
+    fake_opt_a.label_en = "Increase taxes"
+    fake_opt_b = MagicMock()
+    fake_opt_b.id = option_b_id
+    fake_opt_b.cluster_id = cluster_id
+    fake_opt_b.position = 2
+    fake_opt_b.label = "Cut spending"
+    fake_opt_b.label_en = "Cut spending"
+    options_scalars = MagicMock()
+    options_scalars.all.return_value = [fake_opt_a, fake_opt_b]
+    options_result = MagicMock()
+    options_result.scalars.return_value = options_scalars
+
     db = AsyncMock()
-    db.execute.side_effect = [votes_result, clusters_result]
+    db.execute.side_effect = [votes_result, clusters_result, options_result]
 
     cycle = MagicMock()
     cycle.id = uuid4()
@@ -381,9 +420,13 @@ async def test_close_and_tally_with_option_counts(mock_count: AsyncMock, mock_ev
     assert updated.total_voters == 3
     assert updated.results is not None
     result = updated.results[0]
-    assert "option_counts" in result
-    assert result["option_counts"][option_a_id] == 2
-    assert result["option_counts"][option_b_id] == 1
+    assert len(result["options"]) == 2
+    opt_a = next(o for o in result["options"] if o["id"] == str(option_a_id))
+    opt_b = next(o for o in result["options"] if o["id"] == str(option_b_id))
+    assert opt_a["vote_count"] == 2
+    assert opt_a["label"] == "Increase taxes"
+    assert opt_b["vote_count"] == 1
+    assert opt_b["label"] == "Cut spending"
 
 
 # --- send_reminder tests ---

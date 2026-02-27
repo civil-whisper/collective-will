@@ -12,6 +12,7 @@ from src.db.evidence import EvidenceLogEntry, isoformat_z
 from src.db.evidence import verify_chain as db_verify_chain
 from src.models.cluster import Cluster
 from src.models.endorsement import PolicyEndorsement
+from src.models.policy_option import PolicyOption
 from src.models.submission import PolicyCandidate, Submission
 from src.models.vote import Vote, VotingCycle
 
@@ -209,6 +210,67 @@ async def unclustered(session: AsyncSession = Depends(get_db)) -> dict[str, obje
             }
             for item in items
         ],
+    }
+
+
+@router.get("/active-ballot")
+async def active_ballot(session: AsyncSession = Depends(get_db)) -> dict[str, object] | None:
+    cycle_result = await session.execute(
+        select(VotingCycle).where(VotingCycle.status == "active").order_by(VotingCycle.started_at.desc())
+    )
+    cycle = cycle_result.scalars().first()
+    if cycle is None:
+        return None
+
+    voter_count_result = await session.execute(
+        select(func.count(Vote.id)).where(Vote.cycle_id == cycle.id)
+    )
+    total_voters = int(voter_count_result.scalar_one() or 0)
+
+    clusters_result = await session.execute(
+        select(Cluster).where(Cluster.id.in_(cycle.cluster_ids))
+    )
+    cluster_lookup = {c.id: c for c in clusters_result.scalars().all()}
+
+    options_result = await session.execute(
+        select(PolicyOption)
+        .where(PolicyOption.cluster_id.in_(cycle.cluster_ids))
+        .order_by(PolicyOption.position)
+    )
+    options_by_cluster: dict[UUID, list[PolicyOption]] = {}
+    for opt in options_result.scalars().all():
+        options_by_cluster.setdefault(opt.cluster_id, []).append(opt)
+
+    clusters_data = []
+    for cid in cycle.cluster_ids:
+        cluster = cluster_lookup.get(cid)
+        if cluster is None:
+            continue
+        clusters_data.append({
+            "cluster_id": str(cid),
+            "summary": cluster.summary,
+            "policy_topic": cluster.policy_topic,
+            "ballot_question": cluster.ballot_question,
+            "ballot_question_fa": cluster.ballot_question_fa,
+            "options": [
+                {
+                    "id": str(opt.id),
+                    "position": opt.position,
+                    "label": opt.label,
+                    "label_en": opt.label_en,
+                    "description": opt.description,
+                    "description_en": opt.description_en,
+                }
+                for opt in options_by_cluster.get(cid, [])
+            ],
+        })
+
+    return {
+        "id": str(cycle.id),
+        "started_at": cycle.started_at.isoformat(),
+        "ends_at": cycle.ends_at.isoformat(),
+        "total_voters": total_voters,
+        "clusters": clusters_data,
     }
 
 

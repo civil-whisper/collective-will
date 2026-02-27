@@ -29,14 +29,14 @@ describe("CommunityVotesPage", () => {
   });
 
   it("renders heading", async () => {
-    mockFetchWith([], noStats);
+    mockFetchWith([], noStats, null);
     const jsx = await CommunityVotesPage();
     render(jsx);
     expect(screen.getByRole("heading", {level: 1})).toHaveTextContent("Community Votes");
   });
 
   it("shows empty state when no votes and no active cycle", async () => {
-    mockFetchWith([], noStats);
+    mockFetchWith([], noStats, null);
     const jsx = await CommunityVotesPage();
     render(jsx);
     expect(screen.getByText(/No voting cycles have started yet/)).toBeTruthy();
@@ -49,6 +49,7 @@ describe("CommunityVotesPage", () => {
         {cluster_id: "c2", summary: "Policy Beta", approval_count: 15, approval_rate: 0.72},
       ],
       noStats,
+      null,
     );
     const jsx = await CommunityVotesPage();
     render(jsx);
@@ -62,6 +63,7 @@ describe("CommunityVotesPage", () => {
     mockFetchWith(
       [{cluster_id: "c1", summary: "Policy Alpha", approval_count: 20, approval_rate: 0.85}],
       noStats,
+      null,
     );
     const jsx = await CommunityVotesPage();
     render(jsx);
@@ -73,6 +75,7 @@ describe("CommunityVotesPage", () => {
     mockFetchWith(
       [{cluster_id: "c1", summary: "Test", approval_count: 10, approval_rate: 0.934}],
       noStats,
+      null,
     );
     const jsx = await CommunityVotesPage();
     render(jsx);
@@ -83,6 +86,7 @@ describe("CommunityVotesPage", () => {
     mockFetchWith(
       [{cluster_id: "c1", summary: "Test", approval_count: 42, approval_rate: 0.5}],
       noStats,
+      null,
     );
     const jsx = await CommunityVotesPage();
     render(jsx);
@@ -93,6 +97,7 @@ describe("CommunityVotesPage", () => {
     mockFetchWith(
       [{cluster_id: "c1", summary: "Test", approval_count: 10, approval_rate: 0.5, policy_topic: "governance-reform"}],
       noStats,
+      null,
     );
     const jsx = await CommunityVotesPage();
     render(jsx);
@@ -103,6 +108,7 @@ describe("CommunityVotesPage", () => {
     mockFetchWith(
       [{cluster_id: "c-uuid-123", approval_count: 10, approval_rate: 0.5}],
       noStats,
+      null,
     );
     const jsx = await CommunityVotesPage();
     render(jsx);
@@ -119,28 +125,101 @@ describe("CommunityVotesPage", () => {
     expect(screen.getByText(/No voting cycles have started yet/)).toBeTruthy();
   });
 
-  it("shows active cycle banner when a cycle is active", async () => {
-    mockFetchWith([], {
-      ...noStats,
-      active_cycle: {
-        id: "cycle-1",
-        started_at: "2026-02-25T10:00:00Z",
-        ends_at: "2026-02-27T10:00:00Z",
-        cluster_count: 3,
-      },
-    });
-    const jsx = await CommunityVotesPage();
-    render(jsx);
-    expect(screen.getByText(/3 policies on the ballot/)).toBeTruthy();
-  });
-
-  it("shows Voting Results heading when results exist", async () => {
+  it("shows Past Voting Results heading when results exist", async () => {
     mockFetchWith(
       [{cluster_id: "c1", summary: "Test", approval_count: 10, approval_rate: 0.5}],
       noStats,
+      null,
     );
     const jsx = await CommunityVotesPage();
     render(jsx);
-    expect(screen.getByText("Voting Results")).toBeTruthy();
+    expect(screen.getByText("Past Voting Results")).toBeTruthy();
+  });
+
+  it("shows per-option breakdown bars for archived results", async () => {
+    mockFetchWith(
+      [{
+        cluster_id: "c1",
+        summary: "Reform policy",
+        approval_count: 8,
+        approval_rate: 0.8,
+        options: [
+          {id: "o1", position: 1, label: "Option Alpha", label_en: "Option Alpha", vote_count: 5},
+          {id: "o2", position: 2, label: "Option Beta", label_en: "Option Beta", vote_count: 3},
+        ],
+      }],
+      noStats,
+      null,
+    );
+    const jsx = await CommunityVotesPage();
+    render(jsx);
+    expect(screen.getByText(/Option Alpha/)).toBeTruthy();
+    expect(screen.getByText(/Option Beta/)).toBeTruthy();
+    expect(screen.getByText(/5\/10/)).toBeTruthy();
+    expect(screen.getByText(/3\/10/)).toBeTruthy();
+  });
+
+  // --- Active ballot tests ---
+
+  it("shows active ballot section with ballot questions", async () => {
+    mockFetchWith(
+      [],
+      noStats,
+      {
+        id: "cycle-1",
+        started_at: "2026-02-25T10:00:00Z",
+        ends_at: "2026-02-27T10:00:00Z",
+        total_voters: 5,
+        clusters: [
+          {
+            cluster_id: "c1",
+            summary: "Reform governance",
+            policy_topic: "governance-reform",
+            ballot_question: "Should governance be reformed?",
+            ballot_question_fa: null,
+            options: [
+              {id: "o1", position: 1, label: "Yes", label_en: "Yes", description: "Full reform", description_en: "Full reform"},
+              {id: "o2", position: 2, label: "No", label_en: "No", description: "Keep current", description_en: "Keep current"},
+            ],
+          },
+        ],
+      },
+    );
+    const jsx = await CommunityVotesPage();
+    render(jsx);
+    expect(screen.getByText("Active Ballot")).toBeTruthy();
+    expect(screen.getByText("Should governance be reformed?")).toBeTruthy();
+    expect(screen.getByText(/A\. Yes/)).toBeTruthy();
+    expect(screen.getByText(/B\. No/)).toBeTruthy();
+    expect(screen.getByText(/5 voters so far/)).toBeTruthy();
+    expect(screen.getByText(/Results revealed when voting ends/)).toBeTruthy();
+  });
+
+  it("shows option descriptions in active ballot", async () => {
+    mockFetchWith(
+      [],
+      noStats,
+      {
+        id: "cycle-1",
+        started_at: "2026-02-25T10:00:00Z",
+        ends_at: "2026-02-27T10:00:00Z",
+        total_voters: 0,
+        clusters: [
+          {
+            cluster_id: "c1",
+            summary: "Test",
+            policy_topic: "test",
+            ballot_question: "Test question?",
+            ballot_question_fa: null,
+            options: [
+              {id: "o1", position: 1, label: "Opt1", label_en: "Opt1", description: "Desc for opt1", description_en: "Desc for opt1"},
+            ],
+          },
+        ],
+      },
+    );
+    const jsx = await CommunityVotesPage();
+    render(jsx);
+    expect(screen.getByText("Desc for opt1")).toBeTruthy();
   });
 });

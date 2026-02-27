@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
@@ -322,7 +323,7 @@ def _init_vote_session(
 def _get_vote_session(user: User) -> dict[str, Any] | None:
     data = user.bot_state_data
     if data and isinstance(data, dict) and data.get("cycle_id"):
-        return data
+        return copy.deepcopy(data)
     return None
 
 
@@ -446,7 +447,7 @@ def _init_endorse_session(cluster_ids: list[UUID]) -> dict[str, Any]:
 def _get_endorse_session(user: User) -> dict[str, Any] | None:
     data = user.bot_state_data
     if data and isinstance(data, dict) and data.get("endorsing"):
-        return data
+        return copy.deepcopy(data)
     return None
 
 

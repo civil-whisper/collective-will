@@ -4,99 +4,99 @@
 - `website/04-analytics-cluster-explorer` (analytics page structure, API client, types)
 
 ## Goal
-Build a ranked list of top policy priorities by approval votes, showing the results of completed voting cycles.
+Show active voting ballots and archived voting results with per-option vote breakdowns.
 
-## Files to create
+## Files
 
-- `web/app/[locale]/analytics/top/page.tsx` — top policies page
-- `web/components/PolicyRankList.tsx` — ranked list component
-- `web/components/VotingCycleSelector.tsx` — cycle dropdown
-- `web/messages/fa.json` — add top policies translations
-- `web/messages/en.json` — add top policies translations
+- `web/app/[locale]/collective-concerns/community-votes/page.tsx` — community votes page
+- `src/api/routes/analytics.py` — `GET /analytics/active-ballot` and `GET /analytics/top-policies`
+- `src/handlers/voting.py` — `close_and_tally` snapshots option labels/vote counts
+- `web/messages/en.json` / `web/messages/fa.json` — i18n keys
 
 ## Specification
 
-### Top policies page (`/analytics/top`)
+### Community Votes page (`/collective-concerns/community-votes`)
 
-Displays voting results ranked by approval count.
+#### Metric cards
+- Total Voters | Active Votes (policies on current ballot) | Archived Votes (completed results)
 
-- **Cycle selector**: Dropdown to select which voting cycle to view. Default: most recent completed cycle.
-- **Ranked list**: Ordered by approval_count descending
-  - Each item shows:
-    - Rank number (1, 2, 3...)
-    - Cluster summary (Farsi primary)
-    - Approval count (absolute number)
-    - Approval rate (percentage of total voters)
-    - Policy topic tag
-    - Link to cluster detail (`/analytics/clusters/[id]`)
-  - Visual indicator for top 3 (highlight or icon)
+#### Active Ballot section
+Fetches `GET /analytics/active-ballot`. Shown when an active voting cycle exists.
 
-- **Cycle stats**: At the top, show:
-  - Cycle date range (started_at — ends_at)
-  - Total voters
-  - Total clusters on ballot
+For each cluster on the ballot:
+- Ballot question (locale-aware: `ballot_question_fa` for Farsi, `ballot_question` otherwise)
+- List of options with letter labels (A, B, C...) showing label + description
+- TopicBadge for policy topic
+- "N voters so far" (total only, no per-option counts to prevent bandwagon effect)
+- "Results revealed when voting ends" note
+- Time remaining
 
-### API calls
+#### Archived Voting Results section
+Fetches `GET /analytics/top-policies`. Shown when tallied results exist.
 
-- `GET /api/cycles` → list of completed voting cycles
-- `GET /api/cycles/:id/results` → cycle results with ranked clusters
+Ranked list sorted by approval_rate descending:
+- Rank number badge
+- Cluster summary with link to detail page
+- TopicBadge
+- Approval rate % with horizontal background bar
+- Approval count
+- Audit trail link
+- **Per-option breakdown** (below main row):
+  - Option label (locale-aware)
+  - vote_count / total_voters with percentage
+  - Horizontal percentage bar
 
-Add to API client:
-```typescript
-export async function getCycles(): Promise<VotingCycle[]> { ... }
-export async function getCycleResults(id: string): Promise<CycleResults> { ... }
+### API endpoints
+
+#### `GET /analytics/active-ballot`
+Returns the active voting cycle with cluster details and options (no per-option vote counts):
+```json
+{
+  "id": "uuid",
+  "started_at": "iso",
+  "ends_at": "iso",
+  "total_voters": 7,
+  "clusters": [
+    {
+      "cluster_id": "uuid",
+      "summary": "...",
+      "policy_topic": "...",
+      "ballot_question": "...",
+      "ballot_question_fa": "...",
+      "options": [
+        {"id": "uuid", "position": 1, "label": "...", "label_en": "...", "description": "...", "description_en": "..."}
+      ]
+    }
+  ]
+}
 ```
+Returns `null` when no active cycle.
 
-### TypeScript types
+#### `GET /analytics/top-policies`
+Returns flattened results from all tallied cycles, sorted by approval_rate descending.
+Each item now includes `ballot_question`, `ballot_question_fa`, and `options` list with `vote_count` per option (snapshotted at tally time).
 
-```typescript
-interface VotingCycleSummary {
-  id: string;
-  started_at: string;
-  ends_at: string;
-  status: "active" | "closed" | "tallied";
-  total_voters: number;
-}
+### Tally snapshot (`close_and_tally`)
+When a voting cycle closes, `close_and_tally` snapshots into `cycle.results`:
+- `summary`, `policy_topic`, `ballot_question`, `ballot_question_fa`
+- `options`: list with `id`, `position`, `label`, `label_en`, `vote_count`
 
-interface CycleResults {
-  cycle: VotingCycleSummary;
-  results: RankedPolicy[];
-}
-
-interface RankedPolicy {
-  cluster_id: string;
-  summary: string;
-  policy_topic: string;
-  approval_count: number;
-  approval_rate: number;       // 0-1
-}
-```
+This replaces the previous raw `option_counts` dict, ensuring archived results are self-contained.
 
 ### Empty states
-
-- No completed cycles: "هنوز رای‌گیری‌ای انجام نشده است." / "No voting cycles completed yet."
-- Cycle with zero votes: Show results but note "No votes were cast in this cycle."
-
-### Navigation
-
-Add a link to this page from the main analytics page and the NavBar.
+- No active cycle + no results: "No voting cycles have started yet."
+- No active ballot: section hidden
+- No archived results: section hidden
 
 ## Constraints
-
-- Public page — no auth required.
-- Approval rate displayed as percentage (e.g., "73%"), not raw decimal.
-- Rankings must handle ties correctly (same rank for equal approval counts).
-- Do NOT show individual voter information.
-- SSR for SEO.
+- Public page — no auth required
+- No per-option vote counts during active voting (prevent bandwagon effect)
+- Approval rate displayed as percentage
+- Do NOT show individual voter information
+- SSR for SEO
 
 ## Tests
-
-Write tests covering:
-- Page renders ranked list with correct order (highest approval first)
-- Rank numbers are correct (1, 2, 3...)
-- Ties handled: two clusters with same count get same rank
-- Approval rate displayed as percentage
-- Cycle selector switches between cycles
-- Empty state renders when no completed cycles
-- Link to cluster detail works
-- Page renders in both locales (Farsi RTL, English LTR)
+- Backend: `close_and_tally` snapshots options with vote_count and ballot questions
+- Backend: `GET /analytics/active-ballot` returns null / full ballot data
+- Frontend: active ballot renders questions, options, voters count, "results after close" note
+- Frontend: archived results show per-option breakdown bars with vote counts

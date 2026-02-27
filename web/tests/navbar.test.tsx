@@ -26,9 +26,10 @@ describe("NavBar", () => {
     expect(signInLinks.length).toBeGreaterThanOrEqual(1);
   });
 
-  it("renders user email instead of signup when logged in", () => {
+  it("renders truncated email with full title when logged in", () => {
     render(<NavBar showOpsLink={false} userEmail="test@example.com" />);
-    expect(screen.getAllByText("test@example.com").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText("test@…").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByTitle("test@example.com")).toBeTruthy();
     expect(screen.queryByText("Sign In")).toBeNull();
   });
 

@@ -77,8 +77,11 @@ export function NavBar({showOpsLink, userEmail}: NavBarProps) {
           </a>
           {userEmail ? (
             <>
-              <span className="hidden rounded-lg bg-gray-100 px-3 py-1.5 text-sm font-medium text-gray-700 dark:bg-slate-700 dark:text-slate-300 sm:inline">
-                {userEmail}
+              <span
+                className="hidden rounded-lg bg-gray-100 px-3 py-1.5 text-sm font-medium text-gray-700 dark:bg-slate-700 dark:text-slate-300 sm:inline"
+                title={userEmail}
+              >
+                {userEmail.length > 5 ? userEmail.slice(0, 5) + "…" : userEmail}
               </span>
               <button
                 type="button"
