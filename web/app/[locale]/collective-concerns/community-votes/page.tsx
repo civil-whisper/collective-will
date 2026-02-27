@@ -101,11 +101,7 @@ export default async function CommunityVotesPage() {
         {t("communityVotesDescription")}
       </p>
 
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-3">
-        <MetricCard
-          label={t("totalVoters")}
-          value={stats.total_voters.toLocaleString()}
-        />
+      <div className="grid grid-cols-2 gap-4">
         <MetricCard
           label={t("activeVotes")}
           value={hasActiveBallot ? ballot.clusters.length.toLocaleString() : "0"}
