@@ -65,16 +65,18 @@ Polls every `BATCH_POLL_SECONDS` (default 60s) between runs to check unprocessed
 ```python
 async def scheduler_loop(*, session_factory, interval_hours, min_interval_hours,
                          batch_threshold=10, poll_seconds=60.0):
+    max_wait = max(interval_hours, min_interval_hours) * 3600
     while True:
-        result = await run_pipeline(session=session)
-        upsert_heartbeat(...)
-        # Poll until threshold or max interval reached
+        # Wait for threshold or max interval BEFORE running pipeline
         elapsed = 0.0
         while elapsed < max_wait:
-            await asyncio.sleep(poll_seconds)
-            elapsed += poll_seconds
             if count_unprocessed() >= batch_threshold:
                 break
+            await asyncio.sleep(poll_seconds)
+            elapsed += poll_seconds
+
+        result = await run_pipeline(session=session)
+        upsert_heartbeat(...)
 ```
 
 Run as a separate process: `python -m src.scheduler`

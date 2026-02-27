@@ -278,6 +278,53 @@ async def test_scheduler_loop_time_trigger() -> None:
     assert run_count == 2
 
 
+@pytest.mark.asyncio
+async def test_scheduler_loop_skips_pipeline_below_threshold() -> None:
+    """Pipeline does NOT run when count stays below threshold and interval hasn't elapsed."""
+    run_count = 0
+
+    async def _fake_run_pipeline(*, session: object, **kw: object) -> PipelineResult:
+        nonlocal run_count
+        run_count += 1
+        return PipelineResult()
+
+    poll_count = 0
+
+    async def _fake_count(session: object) -> int:
+        nonlocal poll_count
+        poll_count += 1
+        if poll_count >= 5:
+            raise _StopLoop
+        return 3
+
+    from src.scheduler.main import scheduler_loop
+
+    fake_session = AsyncMock()
+    fake_factory = AsyncMock()
+    fake_factory.__aenter__ = AsyncMock(return_value=fake_session)
+    fake_factory.__aexit__ = AsyncMock(return_value=False)
+
+    def _session_factory() -> object:
+        return fake_factory
+
+    with (
+        patch("src.scheduler.main.run_pipeline", side_effect=_fake_run_pipeline),
+        patch("src.scheduler.main._count_unprocessed", side_effect=_fake_count),
+        patch("src.scheduler.main.upsert_heartbeat", new_callable=AsyncMock),
+        pytest.raises(_StopLoop),
+    ):
+        await scheduler_loop(
+            session_factory=_session_factory,
+            interval_hours=1.0,
+            min_interval_hours=1.0,
+            batch_threshold=10,
+            poll_seconds=0.01,
+        )
+
+    assert run_count == 0, "Pipeline should not run when count stays below threshold"
+    assert poll_count >= 2
+
+
 class _StopLoop(Exception):
     """Raised to break out of the infinite scheduler loop in tests."""
 

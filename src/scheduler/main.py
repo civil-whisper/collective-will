@@ -322,6 +322,21 @@ async def scheduler_loop(
     max_wait = max(interval_hours, min_interval_hours) * 3600
 
     while True:
+        elapsed = 0.0
+        while elapsed < max_wait:
+            async with session_factory() as session:
+                count = await _count_unprocessed(session)
+            if count >= batch_threshold:
+                logger.info(
+                    "Batch threshold reached (%d >= %d), triggering pipeline",
+                    count,
+                    batch_threshold,
+                    extra={"event_type": "scheduler.threshold_trigger"},
+                )
+                break
+            await asyncio.sleep(poll_seconds)
+            elapsed += poll_seconds
+
         async with session_factory() as session:
             result = await run_pipeline(session=session)
         async with session_factory() as session:
@@ -334,18 +349,3 @@ async def scheduler_loop(
             if result.errors:
                 detail += f" errors={result.errors}"
             await upsert_heartbeat(session, status=status, detail=detail)
-
-        elapsed = 0.0
-        while elapsed < max_wait:
-            await asyncio.sleep(poll_seconds)
-            elapsed += poll_seconds
-            async with session_factory() as session:
-                count = await _count_unprocessed(session)
-            if count >= batch_threshold:
-                logger.info(
-                    "Batch threshold reached (%d >= %d), triggering pipeline",
-                    count,
-                    batch_threshold,
-                    extra={"event_type": "scheduler.threshold_trigger"},
-                )
-                break
