@@ -7,11 +7,29 @@
 ## Goal
 Implement rate limiting, burst detection, and quarantine logic as reusable functions that handlers call before processing.
 
-## Files to create
+## Files
 
 - `src/handlers/abuse.py` — rate limiting and quarantine logic
+- `src/db/ip_signup_log.py` — `IPSignupLog` ORM model for DB-backed IP rate limiting
+- `migrations/versions/003_ip_signup_log.py` — creates `ip_signup_log` table
 
 ## Specification
+
+### IP signup tracking (DB-backed)
+
+IP-based signup rate limits and domain-diversity telemetry are backed by the
+`ip_signup_log` table (not in-memory counters). Each signup records `(requester_ip,
+email_domain, created_at)`. Rate checks query this table with indexed lookups.
+
+The `requester_ip` is extracted server-side by `_get_client_ip()` in
+`src/api/routes/auth.py` from `X-Forwarded-For` (first hop) or `request.client.host`.
+It is **not** supplied by the client request body.
+
+```sql
+-- ip_signup_log indexes
+ix_ip_signup_log_ip_created_at (requester_ip, created_at)  -- rate-window lookups
+ix_ip_signup_log_created_at    (created_at)                 -- periodic cleanup
+```
 
 ### Rate limit checks
 
@@ -31,13 +49,15 @@ async def check_signup_ip_rate(
     db: AsyncSession,
     requester_ip: str,
 ) -> RateLimitResult:
-    """Check requester IP hasn't exceeded MAX_SIGNUPS_PER_IP_PER_DAY."""
+    """Check requester IP hasn't exceeded MAX_SIGNUPS_PER_IP_PER_DAY.
+    Queries ip_signup_log WHERE requester_ip = ? AND created_at >= (now - 24h)."""
 
 async def check_signup_domain_diversity_by_ip(
     db: AsyncSession,
     requester_ip: str,
 ) -> RateLimitResult:
     """Detect anomalous distinct email-domain count from one IP in 24h.
+    Queries ip_signup_log for COUNT(DISTINCT email_domain).
     v0 behavior: flag only (telemetry), do not block automatically."""
 
 async def score_disposable_email_domain(email_domain: str) -> float:
@@ -54,7 +74,7 @@ async def record_account_creation_velocity(
     requester_ip: str | None,
     email_domain: str,
 ) -> None:
-    """Emit account-creation velocity metrics for abuse monitoring."""
+    """Record signup event to ip_signup_log for DB-backed rate limiting."""
 ```
 
 ### RateLimitResult

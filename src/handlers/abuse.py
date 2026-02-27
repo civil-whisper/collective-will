@@ -77,7 +77,7 @@ async def check_signup_ip_rate(db: AsyncSession, requester_ip: str) -> RateLimit
 async def check_signup_domain_diversity_by_ip(db: AsyncSession, requester_ip: str) -> RateLimitResult:
     """Track and flag anomalous distinct email-domain count from one IP. v0: flag only, no block."""
     settings = get_settings()
-    cutoff = datetime.now(UTC) - timedelta(days=7)
+    cutoff = datetime.now(UTC) - timedelta(days=1)
     result = await db.execute(
         select(func.count(distinct(IPSignupLog.email_domain))).where(
             IPSignupLog.requester_ip == requester_ip,

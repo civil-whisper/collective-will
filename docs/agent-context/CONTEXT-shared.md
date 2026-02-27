@@ -363,6 +363,17 @@ Removed event types (clean slate — no backward compatibility):
 - `user_created` — redundant; `user_verified` is the meaningful identity event
 - `dispute_opened` — redundant; disputes are immediately resolved, so only `dispute_resolved` (and optionally `dispute_escalated`) matter
 
+### IPSignupLog (operational — `src/db/ip_signup_log.py`)
+
+```
+id: int (BIGSERIAL)
+requester_ip: str               # IPv4/IPv6, max 45 chars
+email_domain: str               # Domain portion of signup email
+created_at: datetime             # server_default=now()
+```
+
+DB-backed IP rate-limiting table. Replaces the former in-memory `_IP_SIGNUP_COUNTER` / `_IP_DOMAIN_TRACKER` dicts. Queried by `check_signup_ip_rate()` and `check_signup_domain_diversity_by_ip()` in `src/handlers/abuse.py`. Written to by `record_account_creation_velocity()`. Indexes: composite `(requester_ip, created_at)` for rate-window lookups, `(created_at)` for periodic cleanup.
+
 ### Evidence Payload Enrichment
 
 All `append_evidence` payloads include human-readable context so the evidence chain is self-describing. Key fields per event type:
@@ -407,7 +418,7 @@ The public `GET /analytics/evidence` endpoint strips PII keys from payloads befo
 | **Backend** | Python 3.11+, FastAPI, SQLAlchemy (async), Pydantic |
 | **Database** | PostgreSQL 15+ with pgvector extension |
 | **Website** | Next.js (App Router), TypeScript, Tailwind CSS, next-intl |
-| **Dependency mgmt** | uv (Python), pnpm (Node) |
+| **Dependency mgmt** | uv (Python), npm (Node) |
 | **Migrations** | Alembic |
 | **Testing** | pytest (Python), vitest or jest (TypeScript) |
 | **Linting** | ruff (Python), eslint (TypeScript) |
@@ -462,7 +473,12 @@ collective-will/
 │   │   ├── __init__.py
 │   │   ├── connection.py
 │   │   ├── evidence.py          # Evidence store operations
-│   │   └── queries.py
+│   │   ├── queries.py
+│   │   ├── sealed_mapping.py    # SealedAccountMapping ORM (platform_id ↔ account_ref)
+│   │   ├── verification_tokens.py # VerificationToken ORM (magic links, linking codes, web sessions)
+│   │   ├── ip_signup_log.py     # IPSignupLog ORM (DB-backed IP rate limiting)
+│   │   ├── anchoring.py         # DailyAnchor ORM (Merkle root)
+│   │   └── heartbeat.py         # SchedulerHeartbeat ORM
 │   ├── api/
 │   │   ├── __init__.py
 │   │   ├── main.py              # FastAPI app
@@ -473,7 +489,7 @@ collective-will/
 │   │   │   └── auth.py
 │   │   └── middleware/
 │   │       ├── audit.py
-│   │       └── auth.py
+│   │       └── request_context.py
 │   ├── scheduler.py
 │   └── config.py
 ├── migrations/
