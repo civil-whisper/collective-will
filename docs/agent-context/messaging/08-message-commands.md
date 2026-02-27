@@ -73,11 +73,7 @@ When the user taps "Vote on policies":
 
 5. **Back** (`vbk`): Decrement `current_idx`, re-show previous policy.
 
-6. **Summary** (after last policy): Show all selections with labels. Buttons: Submit Vote (`vsub`), Change Answers (`vchg`).
-
-7. **Change** (`vchg`): Reset `current_idx` to 0, re-show first policy (selections preserved).
-
-8. **Submit** (`vsub`): Convert `selections` dict to `[{cluster_id, option_id}, ...]`, call `cast_vote()` with `selections` parameter. Clear state, show confirmation + analytics link + menu.
+6. **Auto-submit** (after last policy): Show all selections with labels, then automatically submit the vote by converting `selections` dict to `[{cluster_id, option_id}, ...]` and calling `cast_vote()`. Clear state, show confirmation + analytics link + menu. No extra confirmation step required.
 
 ### Endorsement Flow (Pre-Ballot)
 
@@ -173,12 +169,13 @@ Tests in `tests/test_handlers/test_commands.py` covering:
 - `vo:N` → advances to next policy, records selection
 - `vsk` → skips without selection
 - `vbk` → goes back to previous policy
-- `vsub` → calls cast_vote with selections, clears state
+- `vsub` → calls cast_vote with selections, clears state (backward compat)
 - `vsub` with empty selections → returns to menu
 - `vsub` with expired cycle → no_active_cycle
 - `vsub` with rejection → shows error message
 - `vo:N` without active session → returns to menu
-- `vchg` → resets to first policy
+- `vchg` → resets to first policy (backward compat)
+- Last policy option select → auto-submits vote and returns to menu
 - Callback `endorse` with no endorsable clusters → no_endorsable_clusters message
 - Callback `endorse` with endorsable clusters → shows first cluster with ballot question
 - `e:{N}` from endorsement session → records endorsement, advances to next
@@ -188,6 +185,6 @@ Tests in `tests/test_handlers/test_commands.py` covering:
 - Last cluster endorsed/skipped → clears state, returns to menu
 - Active cycle clusters excluded from endorsement list
 - Archived clusters excluded from endorsement list (only `status='open'` shown)
-- Last policy option select → shows summary page
+- Last policy option select → auto-submits vote, shows summary + confirmation
 - Unrecognized text → re-sends menu
 - Bilingual message content verification

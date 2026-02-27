@@ -990,14 +990,27 @@ async def test_endorse_menu_excludes_active_cycle_clusters(
 
 
 # ---------------------------------------------------------------------------
-# Vote summary shown after last policy
+# Vote auto-submitted after last policy
 # ---------------------------------------------------------------------------
 
 @pytest.mark.asyncio
-async def test_last_policy_option_select_shows_summary() -> None:
+@patch("src.handlers.commands.cast_vote", new_callable=AsyncMock)
+@patch("src.handlers.commands.get_settings")
+async def test_last_policy_option_select_auto_submits(
+    mock_settings: MagicMock, mock_cast: AsyncMock
+) -> None:
+    mock_settings.return_value.min_account_age_hours = 0
+    mock_settings.return_value.require_contribution_for_vote = False
+    mock_settings.return_value.app_public_base_url = "https://example.com"
+
+    vote_mock = MagicMock()
+    vote_mock.id = uuid4()
+    mock_cast.return_value = (vote_mock, "recorded")
+
     cluster1_id = uuid4()
+    cycle_id = uuid4()
     session_data = {
-        "cycle_id": str(uuid4()),
+        "cycle_id": str(cycle_id),
         "cluster_ids": [str(cluster1_id)],
         "current_idx": 0,
         "selections": {},
@@ -1016,31 +1029,30 @@ async def test_last_policy_option_select_shows_summary() -> None:
     cluster1_result = MagicMock()
     cluster1_result.scalar_one_or_none.return_value = cluster1
 
-    # After selection: _show_current_policy sees idx=1 >= total=1,
-    # so it calls _show_vote_summary which queries DB twice per cluster.
     summary_cluster_result = MagicMock()
     summary_cluster_result.scalar_one_or_none.return_value = cluster1
 
+    cycle = MagicMock()
+    cycle.id = cycle_id
+    cycle.status = "active"
+    cycle_result = MagicMock()
+    cycle_result.scalar_one_or_none.return_value = cycle
+
     db.execute.side_effect = [
         user_result,
-        cluster1_result,       # _load_cluster_with_options for option select
-        cluster1_result,       # _load_cluster_with_options in summary (cache)
+        cluster1_result,         # _load_cluster_with_options for option select
+        cluster1_result,         # _load_cluster_with_options in summary (cache)
         summary_cluster_result,  # select(Cluster) in summary loop
+        cycle_result,            # VotingCycle query in auto-submit
     ]
 
     status = await route_message(session=db, message=_callback_msg("vo:1"), channel=channel)
-    assert status == "summary_shown"
-    assert user.bot_state_data["current_idx"] == 1
-    summary_msg = channel.messages[-1]
-    assert "Your selections" in summary_msg.text
-    assert summary_msg.reply_markup is not None
-    keyboard_data = [
-        btn["callback_data"]
-        for row in summary_msg.reply_markup["inline_keyboard"]
-        for btn in row
-    ]
-    assert "vsub" in keyboard_data
-    assert "vchg" in keyboard_data
+    assert status == "vote_recorded"
+    mock_cast.assert_called_once()
+    summary_texts = [m.text for m in channel.messages]
+    assert any("Your selections" in t for t in summary_texts)
+    assert any(_MESSAGES["en"]["vote_recorded"] in t for t in summary_texts)
+    assert user.bot_state is None
 
 
 # ---------------------------------------------------------------------------

@@ -381,7 +381,7 @@ async def _show_vote_summary(
     db: AsyncSession,
     session_data: dict[str, Any],
 ) -> str:
-    """Show a summary of all selections before final submission."""
+    """Show a summary of selections, auto-submit, and return to main menu."""
     locale = user.locale
     cluster_ids = session_data["cluster_ids"]
     selections = session_data.get("selections", {})
@@ -427,9 +427,70 @@ async def _show_vote_summary(
     await channel.send_message(OutboundMessage(
         recipient_ref=message.sender_ref,
         text="\n".join(lines),
-        reply_markup=_build_summary_keyboard(locale),
     ))
-    return "summary_shown"
+
+    cycle_id = UUID(session_data["cycle_id"])
+    cycle_result = await db.execute(
+        select(VotingCycle).where(VotingCycle.id == cycle_id)
+    )
+    cycle = cycle_result.scalar_one_or_none()
+    if cycle is None or cycle.status != "active":
+        await channel.send_message(OutboundMessage(
+            recipient_ref=message.sender_ref,
+            text=_msg(locale, "no_active_cycle"),
+        ))
+        user.bot_state = None
+        user.bot_state_data = None
+        await db.commit()
+        await _send_main_menu(locale, message.sender_ref, channel)
+        return "no_active_cycle"
+
+    selections_list = [
+        {"cluster_id": cid, "option_id": oid}
+        for cid, oid in selections.items()
+        if oid
+    ]
+
+    if not selections_list:
+        user.bot_state = None
+        user.bot_state_data = None
+        await db.commit()
+        await _send_main_menu(locale, message.sender_ref, channel)
+        return "empty_vote"
+
+    settings = get_settings()
+    vote, status = await cast_vote(
+        session=db,
+        user=user,
+        cycle=cycle,
+        selections=selections_list,
+        min_account_age_hours=settings.min_account_age_hours,
+        require_contribution=settings.require_contribution_for_vote,
+    )
+
+    user.bot_state = None
+    user.bot_state_data = None
+    await db.commit()
+
+    if vote is None:
+        await channel.send_message(OutboundMessage(
+            recipient_ref=message.sender_ref,
+            text=_msg(locale, "vote_rejected", reason=status),
+        ))
+        await _send_main_menu(locale, message.sender_ref, channel)
+        return status
+
+    base_url = settings.app_public_base_url
+    analytics_url = f"{base_url}/{locale}/collective-concerns/community-votes"
+    await channel.send_message(OutboundMessage(
+        recipient_ref=message.sender_ref,
+        text=(
+            f"{_msg(locale, 'vote_recorded')}\n"
+            f"{_msg(locale, 'analytics_link', url=analytics_url)}"
+        ),
+    ))
+    await _send_main_menu(locale, message.sender_ref, channel)
+    return "vote_recorded"
 
 
 # ---------------------------------------------------------------------------
