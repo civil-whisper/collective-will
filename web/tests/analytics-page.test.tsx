@@ -21,18 +21,20 @@ describe("AnalyticsPage", () => {
     vi.restoreAllMocks();
   });
 
+  const noStats = {total_voters: 0, total_submissions: 0, pending_submissions: 0, current_cycle: null, active_cycle: null};
+
   it("renders heading", async () => {
-    mockFetchSequence([], {total_voters: 0, total_submissions: 0, pending_submissions: 0, current_cycle: null}, {total: 0, items: []});
+    mockFetchSequence([], noStats, {total: 0, items: []});
     const jsx = await AnalyticsPage();
     render(jsx);
-    expect(screen.getByRole("heading", {level: 1})).toHaveTextContent("Clusters");
+    expect(screen.getByRole("heading", {level: 1})).toHaveTextContent("Community Priorities");
   });
 
-  it("shows empty state when no clusters", async () => {
-    mockFetchSequence([], {total_voters: 0, total_submissions: 0, pending_submissions: 0, current_cycle: null}, {total: 0, items: []});
+  it("shows empty state when no concern groups", async () => {
+    mockFetchSequence([], noStats, {total: 0, items: []});
     const jsx = await AnalyticsPage();
     render(jsx);
-    expect(screen.getByText("No clusters have been created yet.")).toBeTruthy();
+    expect(screen.getByText("No grouped concerns yet.")).toBeTruthy();
   });
 
   it("displays cluster list with details", async () => {
@@ -43,12 +45,13 @@ describe("AnalyticsPage", () => {
           summary: "Economic reform",
           policy_topic: "fiscal-policy",
           policy_key: "fiscal-policy-001",
+          status: "open",
           member_count: 12,
           approval_count: 8,
           endorsement_count: 5,
         },
       ],
-      {total_voters: 10, total_submissions: 5, pending_submissions: 0, current_cycle: null},
+      {...noStats, total_voters: 10, total_submissions: 5},
       {total: 0, items: []},
     );
     const jsx = await AnalyticsPage();
@@ -62,8 +65,8 @@ describe("AnalyticsPage", () => {
 
   it("links each cluster to its detail page", async () => {
     mockFetchSequence(
-      [{id: "c1", summary: "Reform A", policy_topic: "fiscal-policy", policy_key: "fiscal-policy-001", member_count: 5, approval_count: 3, endorsement_count: 2}],
-      {total_voters: 0, total_submissions: 0, pending_submissions: 0, current_cycle: null},
+      [{id: "c1", summary: "Reform A", policy_topic: "fiscal-policy", policy_key: "fiscal-policy-001", status: "open", member_count: 5, approval_count: 3, endorsement_count: 2}],
+      noStats,
       {total: 0, items: []},
     );
     const jsx = await AnalyticsPage();
@@ -76,10 +79,10 @@ describe("AnalyticsPage", () => {
   it("renders multiple clusters", async () => {
     mockFetchSequence(
       [
-        {id: "c1", summary: "Cluster A", policy_topic: "fiscal-policy", policy_key: "fiscal-policy-001", member_count: 5, approval_count: 3, endorsement_count: 1},
-        {id: "c2", summary: "Cluster B", policy_topic: "civil-rights", policy_key: "civil-rights-001", member_count: 8, approval_count: 6, endorsement_count: 4},
+        {id: "c1", summary: "Cluster A", policy_topic: "fiscal-policy", policy_key: "fiscal-policy-001", status: "open", member_count: 5, approval_count: 3, endorsement_count: 1},
+        {id: "c2", summary: "Cluster B", policy_topic: "civil-rights", policy_key: "civil-rights-001", status: "open", member_count: 8, approval_count: 6, endorsement_count: 4},
       ],
-      {total_voters: 0, total_submissions: 0, pending_submissions: 0, current_cycle: null},
+      noStats,
       {total: 0, items: []},
     );
     const jsx = await AnalyticsPage();
@@ -89,7 +92,7 @@ describe("AnalyticsPage", () => {
   });
 
   it("has navigation links to top-policies and evidence", async () => {
-    mockFetchSequence([], {total_voters: 0, total_submissions: 0, pending_submissions: 0, current_cycle: null}, {total: 0, items: []});
+    mockFetchSequence([], noStats, {total: 0, items: []});
     const jsx = await AnalyticsPage();
     render(jsx);
     const topLink = screen.getByRole("link", {name: /Top Policies/});
@@ -101,7 +104,7 @@ describe("AnalyticsPage", () => {
   it("shows pending-processing notice and unclustered candidates", async () => {
     mockFetchSequence(
       [],
-      {total_voters: 0, total_submissions: 1, pending_submissions: 1, current_cycle: null},
+      {...noStats, total_submissions: 1, pending_submissions: 1},
       {
         total: 1,
         items: [
@@ -122,6 +125,34 @@ describe("AnalyticsPage", () => {
     expect(screen.getByText("Public transport access")).toBeTruthy();
   });
 
+  it("shows archived concerns section for archived clusters", async () => {
+    mockFetchSequence(
+      [{id: "c1", summary: "Old Policy", policy_topic: "fiscal-policy", policy_key: "fiscal-policy-001", status: "archived", member_count: 5, approval_count: 3, endorsement_count: 2}],
+      noStats,
+      {total: 0, items: []},
+    );
+    const jsx = await AnalyticsPage();
+    render(jsx);
+    expect(screen.getByText("Archived Concerns")).toBeTruthy();
+    expect(screen.getByText("Archived")).toBeTruthy();
+    expect(screen.getByText("Old Policy")).toBeTruthy();
+  });
+
+  it("shows active voting cycle banner", async () => {
+    const futureDate = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString();
+    mockFetchSequence(
+      [],
+      {
+        ...noStats,
+        active_cycle: {id: "cyc1", started_at: new Date().toISOString(), ends_at: futureDate, cluster_count: 3},
+      },
+      {total: 0, items: []},
+    );
+    const jsx = await AnalyticsPage();
+    render(jsx);
+    expect(screen.getByText(/Voting is open/)).toBeTruthy();
+  });
+
   it("handles API failure gracefully", async () => {
     vi.stubGlobal(
       "fetch",
@@ -129,6 +160,6 @@ describe("AnalyticsPage", () => {
     );
     const jsx = await AnalyticsPage();
     render(jsx);
-    expect(screen.getByText("No clusters have been created yet.")).toBeTruthy();
+    expect(screen.getByText("No grouped concerns yet.")).toBeTruthy();
   });
 });

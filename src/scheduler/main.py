@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 from sqlalchemy import select
@@ -19,7 +19,7 @@ from src.db.queries import (
     create_cluster,
     create_policy_candidate,
 )
-from src.handlers.voting import close_and_tally
+from src.handlers.voting import close_and_tally, open_cycle
 from src.models.cluster import Cluster
 from src.models.submission import PolicyCandidate, Submission
 from src.models.vote import VotingCycle
@@ -43,6 +43,7 @@ class PipelineResult:
     created_candidates: int = 0
     created_clusters: int = 0
     qualified_clusters: int = 0
+    opened_cycle_id: str | None = None
     errors: list[str] = field(default_factory=list)
 
 
@@ -55,18 +56,7 @@ async def run_pipeline(*, session: AsyncSession, llm_router: LLMRouter | None = 
     result = PipelineResult()
     async with PIPELINE_LOCK:
         try:
-            expired_result = await session.execute(
-                select(VotingCycle)
-                .where(VotingCycle.status == "active")
-                .where(VotingCycle.ends_at <= datetime.now(UTC))
-            )
-            for cycle in expired_result.scalars().all():
-                logger.info(
-                    "Auto-closing expired voting cycle %s",
-                    cycle.id,
-                    extra={"event_type": "scheduler.cycle.auto_closed"},
-                )
-                await close_and_tally(session=session, cycle=cycle)
+            await _close_expired_cycles(session)
 
             ready_result = await session.execute(
                 select(Submission)
@@ -77,6 +67,9 @@ async def run_pipeline(*, session: AsyncSession, llm_router: LLMRouter | None = 
             submissions = list(ready_result.scalars().all())
             result.processed_submissions = len(submissions)
             if not submissions:
+                cycle = await _maybe_open_cycle(session)
+                if cycle:
+                    result.opened_cycle_id = str(cycle.id)
                 await _run_daily_anchoring(session=session, router=router)
                 return result
 
@@ -130,7 +123,10 @@ async def run_pipeline(*, session: AsyncSession, llm_router: LLMRouter | None = 
                 )
 
             all_clusters_result = await session.execute(
-                select(Cluster).where(Cluster.policy_key != "unassigned")
+                select(Cluster).where(
+                    Cluster.policy_key != "unassigned",
+                    Cluster.status == "open",
+                )
             )
             all_clusters = list(all_clusters_result.scalars().all())
             all_candidate_ids = {cid for cl in all_clusters for cid in cl.candidate_ids}
@@ -175,6 +171,10 @@ async def run_pipeline(*, session: AsyncSession, llm_router: LLMRouter | None = 
                 1 for item in agenda_items if item.qualifies
             )
 
+            cycle = await _maybe_open_cycle(session)
+            if cycle:
+                result.opened_cycle_id = str(cycle.id)
+
             for submission in submissions:
                 submission.status = "processed"
             await session.commit()
@@ -191,6 +191,7 @@ async def run_pipeline(*, session: AsyncSession, llm_router: LLMRouter | None = 
                         "created_candidates": result.created_candidates,
                         "created_clusters": result.created_clusters,
                         "qualified_clusters": result.qualified_clusters,
+                        "opened_cycle_id": result.opened_cycle_id,
                     },
                 },
             )
@@ -217,6 +218,82 @@ async def run_pipeline(*, session: AsyncSession, llm_router: LLMRouter | None = 
             return result
 
 
+async def _maybe_open_cycle(session: AsyncSession) -> VotingCycle | None:
+    """Auto-open a voting cycle if qualified clusters are ready and no cycle is active."""
+    settings = get_settings()
+
+    active_result = await session.execute(
+        select(VotingCycle).where(VotingCycle.status == "active")
+    )
+    if active_result.scalars().first() is not None:
+        return None
+
+    if settings.auto_cycle_cooldown_hours > 0:
+        last_result = await session.execute(
+            select(VotingCycle)
+            .where(VotingCycle.status.in_(["closed", "tallied"]))
+            .order_by(VotingCycle.ends_at.desc())
+        )
+        last_cycle = last_result.scalars().first()
+        if last_cycle:
+            elapsed = datetime.now(UTC) - last_cycle.ends_at
+            if elapsed < timedelta(hours=settings.auto_cycle_cooldown_hours):
+                logger.info(
+                    "Cycle cooldown active (%.1fh remaining)",
+                    (timedelta(hours=settings.auto_cycle_cooldown_hours) - elapsed).total_seconds() / 3600,
+                    extra={"event_type": "scheduler.cycle.cooldown_active"},
+                )
+                return None
+
+    all_clusters_result = await session.execute(
+        select(Cluster).where(
+            Cluster.policy_key != "unassigned",
+            Cluster.status == "open",
+        )
+    )
+    all_clusters = list(all_clusters_result.scalars().all())
+    if not all_clusters:
+        return None
+
+    endorsement_counts = {
+        str(c.id): await count_cluster_endorsements(session, c.id)
+        for c in all_clusters
+    }
+    agenda = build_agenda(
+        clusters=all_clusters,
+        endorsement_counts=endorsement_counts,
+        min_support=settings.min_preballot_endorsements,
+    )
+    qualified_ids = {item.cluster_id for item in agenda if item.qualifies}
+
+    vote_ready = [
+        c for c in all_clusters
+        if str(c.id) in qualified_ids
+        and c.ballot_question
+        and not c.needs_resummarize
+        and await _has_options(session, c.id)
+    ]
+    if not vote_ready:
+        return None
+
+    cycle = await open_cycle(cluster_ids=[c.id for c in vote_ready], db=session)
+    logger.info(
+        "Auto-opened voting cycle %s with %d clusters",
+        cycle.id,
+        len(vote_ready),
+        extra={
+            "event_type": "scheduler.cycle.auto_opened",
+            "ops_payload": {
+                "cycle_id": str(cycle.id),
+                "cluster_count": len(vote_ready),
+                "cluster_ids": [str(c.id) for c in vote_ready],
+            },
+        },
+    )
+    return cycle
+
+
+
 async def _find_or_create_cluster(
     *,
     session: AsyncSession,
@@ -227,7 +304,10 @@ async def _find_or_create_cluster(
     from src.models.cluster import ClusterCreate
 
     result = await session.execute(
-        select(Cluster).where(Cluster.policy_key == policy_key)
+        select(Cluster).where(
+            Cluster.policy_key == policy_key,
+            Cluster.status == "open",
+        )
     )
     existing = result.scalar_one_or_none()
 
@@ -311,6 +391,25 @@ async def _count_unprocessed(session: AsyncSession) -> int:
     return result.scalar_one()
 
 
+async def _close_expired_cycles(session: AsyncSession) -> int:
+    """Close any active voting cycles past their end time. Returns count closed."""
+    expired_result = await session.execute(
+        select(VotingCycle)
+        .where(VotingCycle.status == "active")
+        .where(VotingCycle.ends_at <= datetime.now(UTC))
+    )
+    closed = 0
+    for cycle in expired_result.scalars().all():
+        logger.info(
+            "Auto-closing expired voting cycle %s",
+            cycle.id,
+            extra={"event_type": "scheduler.cycle.auto_closed"},
+        )
+        await close_and_tally(session=session, cycle=cycle)
+        closed += 1
+    return closed
+
+
 async def scheduler_loop(
     *,
     session_factory,
@@ -326,6 +425,14 @@ async def scheduler_loop(
         while elapsed < max_wait:
             async with session_factory() as session:
                 count = await _count_unprocessed(session)
+                await _close_expired_cycles(session)
+                cycle = await _maybe_open_cycle(session)
+                if cycle:
+                    logger.info(
+                        "Cycle %s auto-opened during poll",
+                        cycle.id,
+                        extra={"event_type": "scheduler.cycle.poll_opened"},
+                    )
             if count >= batch_threshold:
                 logger.info(
                     "Batch threshold reached (%d >= %d), triggering pipeline",

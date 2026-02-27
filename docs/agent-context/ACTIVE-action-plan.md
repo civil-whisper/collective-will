@@ -645,6 +645,48 @@ Both are stance-neutral. Three-stage pipeline: inline assignment → hybrid norm
     - Added all missing event descriptions and i18n keys (en + fa)
     - Extended payloadDisplayKeys for new fields (policy_key, growth, survivor/merged keys, option_count)
 
+### P0 — Auto-open Voting Cycles
+
+91. [done] Auto-open voting cycles when qualified clusters are ready
+    - `_maybe_open_cycle()` in `scheduler/main.py`: checks for no active cycle, cooldown elapsed, and vote-ready clusters (ballot question + options + endorsement threshold)
+    - Called in both early-return (no submissions) and full pipeline paths
+    - New config: `auto_cycle_cooldown_hours` (default 1.0, staging 0, production 1)
+    - Staging `MIN_PREBALLOT_ENDORSEMENTS` raised from 1 to 5; `VOTING_CYCLE_HOURS` set to 48 (matching production)
+    - `PipelineResult.opened_cycle_id` tracks auto-opened cycles
+    - Cluster `status` field (`open`/`archived`) replaces `_clusters_in_completed_cycles()` exclusion
+    - Tests: 7 tests covering open, active-cycle skip, cooldown, below-threshold, no-ballot, no-options, no-open-clusters scenarios
+
+92. [done] Voting cycle timing visibility
+    - Telegram: `cycle_timing` i18n message shown before ballot with policy count and remaining time
+    - Website: green banner on Collective Concerns page when active cycle exists
+    - API: `GET /analytics/stats` now returns `active_cycle` object with `id`, `started_at`, `ends_at`, `cluster_count`
+    - `_format_cycle_end()` helper produces human-readable remaining time (en/fa)
+    - Tests: updated vote callback test, new analytics banner test (web)
+
+94. [done] Cluster lifecycle with open/archived status
+    - Added `status` column to `Cluster` model (`open` or `archived`, default `open`)
+    - Alembic migration `002_cluster_status`: adds column, status index, replaces unique index on `policy_key` with partial unique index (`WHERE status = 'open'`)
+    - `open_cycle()` sets included clusters to `archived` before creating the voting cycle
+    - `_find_or_create_cluster()` only matches clusters with `status='open'`; archived policy_keys get fresh open clusters
+    - `run_pipeline` and `_maybe_open_cycle` filter by `status='open'` (removed `_clusters_in_completed_cycles`)
+    - Analytics API returns `status` on cluster list/detail endpoints; website shows "Archived" badge
+    - Updated `ClusterCreate`/`ClusterRead` schemas with `status` field
+    - Tests: all 414 backend + 146 web tests pass; new test for archived badge
+
+95. [done] Community Priorities page UX improvements
+    - Page title changed from "Clusters" to "Community Priorities" with explanatory description
+    - Replaced technical "cluster" terminology with user-friendly alternatives: "Grouped Concerns", "Active Concerns", "Archived Concerns", "Ungrouped Submissions"
+    - Open and archived concerns split into separate sections; archived section appears at bottom with description
+    - `execute_key_merge()` in `normalize.py` now filters by `status='open'` — archived clusters excluded from merges
+    - Endorsement menu in `commands.py` now filters by `status='open'` — archived clusters excluded from endorsement flow
+    - Full i18n parity (en + fa)
+
+93. [done] Prompt cycle close/open in scheduler polling loop
+    - Extracted `_close_expired_cycles()` from `run_pipeline` into standalone function
+    - Both `_close_expired_cycles()` and `_maybe_open_cycle()` now run every 60s in `scheduler_loop` polling, not just inside `run_pipeline`
+    - Prevents cycles staying open past `ends_at` when no submissions trigger the full pipeline (production could delay up to 6h otherwise)
+    - Tests: new `test_close_expired_cycles_standalone`, updated scheduler_loop tests
+
 ## Definition of Done (This Cycle)
 
 - No CI/CD job performs paid LLM API calls

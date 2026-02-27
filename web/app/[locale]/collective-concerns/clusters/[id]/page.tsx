@@ -22,6 +22,7 @@ type ClusterDetail = {
   summary: string;
   member_count: number;
   approval_count: number;
+  endorsement_count: number;
   candidates: PolicyCandidatePublic[];
 };
 
@@ -47,20 +48,27 @@ export default async function ClusterDetailPage({params}: Props) {
     );
   }
 
+  const totalSupport = cluster.member_count + cluster.endorsement_count;
+
   return (
     <PageShell
-      title={cluster.summary}
+      title={cluster.policy_topic.replace(/-/g, " ")}
       actions={
         <div className="flex items-center gap-2">
           <TopicBadge topic={cluster.policy_topic} />
         </div>
       }
     >
+      {/* Cluster summary */}
+      <p className="text-sm leading-relaxed text-gray-700 sm:text-base dark:text-slate-300">
+        {cluster.summary}
+      </p>
+
       {/* Metrics */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <MetricCard label={t("memberCount")} value={cluster.member_count.toLocaleString()} />
-        <MetricCard label={t("approvalCount")} value={cluster.approval_count.toLocaleString()} />
-        <MetricCard label={t("policyTopic")} value={cluster.policy_topic.replace(/-/g, " ")} />
+        <MetricCard label={t("submissions")} value={cluster.member_count.toLocaleString()} />
+        <MetricCard label={t("endorsements")} value={cluster.endorsement_count.toLocaleString()} />
+        <MetricCard label={t("totalSupport")} value={totalSupport.toLocaleString()} />
         <Link
           href={`/${locale}/collective-concerns/evidence?entity=${id}`}
           className="flex items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-medium text-accent transition-colors hover:bg-accent/5 dark:border-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700"
@@ -74,7 +82,7 @@ export default async function ClusterDetailPage({params}: Props) {
 
       {/* Candidates / member submissions */}
       <div>
-        <h2 className="mb-3 text-sm font-semibold sm:text-lg">{t("memberCount")}</h2>
+        <h2 className="mb-3 text-sm font-semibold sm:text-lg">{t("submissions")}</h2>
         <div className="space-y-3">
           {cluster.candidates.map((candidate) => (
             <div

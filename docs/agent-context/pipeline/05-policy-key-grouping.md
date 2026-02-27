@@ -84,7 +84,7 @@ The scheduler finds or creates clusters:
 3. For each cluster with 2+ distinct `policy_key` values, sends all candidate
    summaries in full (no truncation) to LLM which produces a `key_mapping`
    (old→canonical, may create new keys)
-4. `execute_key_merge()` reassigns candidates and deletes merged clusters
+4. `execute_key_merge()` reassigns candidates and deletes merged clusters. Only `open` clusters are matched — archived clusters are excluded from merges.
 5. Survivor cluster gets `needs_resummarize=True`
 
 Key dependencies: `numpy`, `scipy` (for `pdist`, `linkage`, `fcluster`)

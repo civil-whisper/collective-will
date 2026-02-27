@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
@@ -96,6 +97,7 @@ _MESSAGES: dict[str, dict[str, str]] = {
         "no_endorsable_clusters": "در حال حاضر سیاستی برای امضا وجود ندارد.",
         "endorse_policy_header": "✍️ سیاست {n} از {total}:",
         "endorse_complete": "✅ همه سیاست‌ها بررسی شدند!",
+        "cycle_timing": "🗳️ رای‌گیری فعال — {policies} سیاست\n⏰ پایان: {ends_at}\n",
     },
     "en": {
         "submission_prompt": "📝 Please type your concern or policy proposal:",
@@ -129,10 +131,36 @@ _MESSAGES: dict[str, dict[str, str]] = {
         "no_endorsable_clusters": "No policies available for endorsement right now.",
         "endorse_policy_header": "✍️ Policy {n} of {total}:",
         "endorse_complete": "✅ All policies reviewed!",
+        "cycle_timing": "🗳️ Active vote — {policies} policies\n⏰ Ends: {ends_at}\n",
     },
 }
 
 _OPTION_LETTERS = "ABCDEFGHIJ"
+
+_FARSI_DIGITS_TABLE = str.maketrans("0123456789", "۰۱۲۳۴۵۶۷۸۹")
+
+
+def _format_cycle_end(ends_at: datetime, locale: str) -> str:
+    """Human-readable remaining time for cycle end."""
+    remaining = ends_at - datetime.now(UTC)
+    total_hours = max(0, remaining.total_seconds()) / 3600
+    if total_hours >= 24:
+        days = int(total_hours // 24)
+        hours = int(total_hours % 24)
+        if locale == "fa":
+            d = str(days).translate(_FARSI_DIGITS_TABLE)
+            h = str(hours).translate(_FARSI_DIGITS_TABLE)
+            return f"{d} روز و {h} ساعت دیگر"
+        return f"in {days}d {hours}h"
+    if total_hours >= 1:
+        hours = int(total_hours)
+        if locale == "fa":
+            return f"{str(hours).translate(_FARSI_DIGITS_TABLE)} ساعت دیگر"
+        return f"in {hours}h"
+    minutes = max(1, int(total_hours * 60))
+    if locale == "fa":
+        return f"{str(minutes).translate(_FARSI_DIGITS_TABLE)} دقیقه دیگر"
+    return f"in {minutes}m"
 
 
 def _msg(locale: str, key: str, **kwargs: str | int) -> str:
@@ -483,7 +511,7 @@ async def _handle_endorse_menu(
     """Show endorsable pre-ballot clusters."""
     cluster_result = await db.execute(
         select(Cluster)
-        .where(Cluster.ballot_question.isnot(None))
+        .where(Cluster.ballot_question.isnot(None), Cluster.status == "open")
         .order_by(Cluster.created_at)
     )
     all_clusters = list(cluster_result.scalars().all())
@@ -555,6 +583,16 @@ async def _handle_vote_callback(
         ))
         await _send_main_menu(user.locale, message.sender_ref, channel)
         return "no_active_cycle"
+
+    await channel.send_message(OutboundMessage(
+        recipient_ref=message.sender_ref,
+        text=_msg(
+            user.locale,
+            "cycle_timing",
+            policies=str(len(active_cycle.cluster_ids)),
+            ends_at=_format_cycle_end(active_cycle.ends_at, user.locale),
+        ),
+    ))
 
     session_data = _init_vote_session(active_cycle.id, active_cycle.cluster_ids)
     user.bot_state = "voting"

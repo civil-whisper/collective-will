@@ -32,6 +32,7 @@ class Settings(BaseSettings):
     burst_quarantine_window_minutes: int = 5
     major_email_providers: str = "gmail.com,outlook.com,yahoo.com,protonmail.com"
     voting_cycle_hours: int = 48
+    auto_cycle_cooldown_hours: float = 1.0
     pipeline_interval_hours: float = 6.0
     pipeline_min_interval_hours: float = 0.01
     batch_threshold: int = 10

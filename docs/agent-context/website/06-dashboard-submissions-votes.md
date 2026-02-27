@@ -83,7 +83,8 @@ interface UserSubmission {
   cluster?: {
     id: string;
     summary: string;
-    approval_count: number;
+    member_count: number;
+    endorsement_count: number;
   };
 }
 

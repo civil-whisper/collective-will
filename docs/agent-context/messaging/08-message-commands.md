@@ -83,7 +83,7 @@ When the user taps "Vote on policies":
 
 When the user taps "Endorse policies":
 
-1. **Session initialization**: Query clusters with `ballot_question IS NOT NULL` that are NOT in any active `VotingCycle`. Query user's existing endorsements for display. Store session in `bot_state_data`:
+1. **Session initialization**: Query clusters with `ballot_question IS NOT NULL` and `status='open'` that are NOT in any active `VotingCycle`. Query user's existing endorsements for display. Store session in `bot_state_data`:
    ```json
    {
      "endorsing": true,
@@ -187,6 +187,7 @@ Tests in `tests/test_handlers/test_commands.py` covering:
 - `ebk` → goes back to previous cluster
 - Last cluster endorsed/skipped → clears state, returns to menu
 - Active cycle clusters excluded from endorsement list
+- Archived clusters excluded from endorsement list (only `status='open'` shown)
 - Last policy option select → shows summary page
 - Unrecognized text → re-sends menu
 - Bilingual message content verification

@@ -61,23 +61,44 @@ Output JSON:
 ### build_agenda()
 
 ```python
-async def build_agenda(
-    cycle_id: UUID,
-    db: AsyncSession,
-    min_size: int = 5,
-    min_endorsements: int = 5,
-) -> list[UUID]:
-    """Select clusters for voting. Returns list of cluster IDs."""
+def build_agenda(
+    *,
+    clusters: list[Cluster],
+    endorsement_counts: dict[str, int],
+    min_support: int,
+) -> list[AgendaItem]:
+    """Build the voting agenda using a single combined gate."""
 ```
 
-Steps:
-1. Load all clusters for this cycle
-2. Filter to clusters with `member_count >= min_size`
-3. For remaining clusters, count distinct `PolicyEndorsement.user_id` signatures on each cluster
-4. Keep only clusters with endorsement_count >= `min_endorsements`
-5. Include ALL qualifying clusters — no editorial selection, no ranking, no filtering by topic
-6. Log agenda-preparation evidence with qualifying/disqualified counts (the actual cycle_opened event is logged by the voting service)
-7. Return the list of qualifying cluster IDs
+Qualification formula: `total_support = member_count + endorsement_count >= min_support`.
+Submissions count as implicit endorsements. `min_support` defaults to 5 (`MIN_PREBALLOT_ENDORSEMENTS`).
+
+### Auto-open voting cycles
+
+After the agenda is built, `_maybe_open_cycle()` in `scheduler/main.py` automatically opens a `VotingCycle` when all conditions are met:
+1. No active voting cycle exists
+2. Cooldown period since last closed cycle has elapsed (`AUTO_CYCLE_COOLDOWN_HOURS`, default 1h)
+3. At least one cluster with `status='open'` is vote-ready: qualifies by endorsement threshold AND has a ballot question AND has policy options generated
+
+When a cycle opens, `open_cycle()` sets all included clusters to `status='archived'`. This prevents re-voting on the same policies and frees up the `policy_key` for new submissions to create a fresh cluster on the same topic.
+
+The function runs in both the early-return (no submissions) and full pipeline paths, so cycles open even when no new submissions are pending.
+
+**Important**: Both `_close_expired_cycles` and `_maybe_open_cycle` also run in the **60-second polling loop** inside `scheduler_loop`, not just inside `run_pipeline`. This ensures cycles close promptly (within ~60s of `ends_at`) regardless of submission activity — the full pipeline may only run every 6 hours on production.
+
+### Cluster lifecycle
+
+Clusters have a `status` field with two states:
+- **`open`** — actively collecting submissions and endorsements. The pipeline processes only open clusters (summarization, ballot questions, options, agenda, normalization, key merges). The Telegram endorsement flow also only shows open clusters.
+- **`archived`** — included in a voting cycle and frozen. New submissions with the same `policy_key` create a fresh `open` cluster. Archived clusters remain visible on the website in a separate "Archived Concerns" section.
+
+A partial unique index on `policy_key` (`WHERE status = 'open'`) ensures only one open cluster per policy key, while allowing multiple archived clusters with the same key.
+
+### Cycle timing visibility
+
+When a voting cycle is active:
+- **Telegram**: The bot sends a timing header (`cycle_timing` message) showing policy count and time remaining before presenting the ballot.
+- **Website**: The Collective Concerns page shows a green banner with policy count and end time via `GET /analytics/stats` → `active_cycle` field (includes `started_at`, `ends_at`, `cluster_count`).
 
 ### Policy Option Generation (post-summarization)
 
@@ -106,7 +127,7 @@ The options are used in the per-policy voting flow (see `messaging/08-message-co
 
 - Only aggregated/anonymized content is sent to the LLM. Never individual submissions or user data.
 - Full candidate summaries are passed without truncation — the LLM sees the complete citizen input.
-- Ballot inclusion requires BOTH gates: size threshold and endorsement-signature threshold. No editorial filtering beyond these gates.
+- Ballot inclusion uses a single combined gate: `total_support = member_count + endorsements >= min_support`. No editorial filtering beyond this gate.
 - Small clusters (below threshold) are NOT deleted. They remain visible on the analytics dashboard but don't appear in the voting ballot.
 - Summary generation must always have a fallback path configured for risk management (`english_reasoning_fallback_model`).
 - Policy option generation must have a fallback path (generic support/oppose) so voting is never blocked by LLM failures.
@@ -122,12 +143,18 @@ Tests in `tests/test_pipeline/test_endorsement.py`, `tests/test_pipeline/test_ag
 - Bilingual ballot question fields extracted correctly
 
 **Agenda:**
-- Clusters with member_count >= 5 and endorsements >= threshold included in agenda
-- Clusters with member_count < 5 excluded
-- Clusters meeting size but missing endorsement threshold are excluded from ballot
+- Clusters with `total_support >= min_support` included in agenda
+- Clusters below threshold excluded
 - Empty cluster set returns empty agenda
-- All qualifying clusters included (no filtering beyond size + endorsements)
-- Cluster inherits `policy_topic` from its candidates
+- All qualifying clusters included (no editorial filtering)
+
+**Auto-cycle opening (tests/test_pipeline/test_scheduler.py):**
+- Opens cycle when qualified clusters with ballot questions + options exist and no active cycle
+- Skips when active cycle already exists
+- Respects cooldown period
+- Skips when below endorsement threshold
+- Skips when ballot question not generated
+- Skips when policy options not generated
 
 **Options (tests/test_pipeline/test_options.py):**
 - `_parse_options_json()` handles valid JSON, markdown fences, truncation to 4, rejects < 2 options

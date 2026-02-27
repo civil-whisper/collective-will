@@ -75,8 +75,19 @@ async def open_cycle(
     cluster_ids: list[UUID],
     db: AsyncSession,
 ) -> VotingCycle:
+    from sqlalchemy import update
+
+    from src.models.cluster import Cluster
+
     settings = get_settings()
     now = datetime.now(UTC)
+
+    await db.execute(
+        update(Cluster)
+        .where(Cluster.id.in_(cluster_ids))
+        .values(status="archived")
+    )
+
     cycle = await create_voting_cycle(
         db,
         VotingCycleCreate(

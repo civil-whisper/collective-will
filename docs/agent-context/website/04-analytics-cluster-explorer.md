@@ -18,29 +18,25 @@ Build the public analytics page that lists all clusters and allows drill-down in
 
 ## Specification
 
-### Analytics page (`/analytics`)
+### Community Priorities page (`/collective-concerns`)
 
-Displays all clusters from the most recent clustering cycle.
+Page title: "Community Priorities" (اولویت‌های جمعی). Includes a short description explaining that citizen submissions are organized by AI into concern groups around shared policy topics, and groups that gain enough community support enter the voting ballot.
 
-- **Cluster cards grid**: Each card shows:
-  - Cluster summary (Farsi primary, with English toggle)
-  - Member count (number of submissions in this cluster)
-  - Approval count (votes, if voting has happened)
-  - Policy topic tag (e.g., "economy", "rights")
+User-facing terminology: "concern groups" / "grouped concerns" instead of "clusters". Internal code still uses `Cluster` model and `clusters` API endpoints.
+
+- **Stats bar at top**: Total Voters, Grouped Concerns (count), Total Submissions, Ungrouped (count)
+
+- **Active cycle banner**: When a voting cycle is active, a green banner appears below the stats showing policy count and end time. Data sourced from `GET /analytics/stats` → `active_cycle` field.
+
+- **Active Concerns section**: Open clusters sorted by total support (endorsements + members). Each card shows:
+  - Cluster summary
+  - Policy topic badge
+  - Member count, endorsement count, total support
   - Click to navigate to cluster detail page
 
-- **Sorting options**: By member count (default), by approval count, by policy topic
-- **Topic filter**: Filter clusters by policy topic
+- **Ungrouped Submissions section**: Candidates not yet assigned to a cluster. Each card shows user submission blockquote (RTL-aware), AI interpretation, and confidence score.
 
-- **Stats bar at top**: Total submissions, total clusters, unclustered submissions count, active voting cycle (yes/no)
-
-- **Unclustered section** (transparency requirement):
-  - Show count of candidates currently labeled as noise/unclustered
-  - Show a paginated list of unclustered candidates, each displaying:
-    - **User Submission**: the original `raw_text` from the submission (styled as blockquote, RTL-aware for Farsi)
-    - **AI Interpretation**: the canonicalized `title` and `summary` (always English)
-    - **AI Confidence**: the confidence score as a percentage
-  - Include explanatory text: these items are retained and may be clustered in future cycles
+- **Archived Concerns section** (at the bottom): Archived clusters that have been included in a voting cycle. Each card shows the same info as active concerns, plus an "Archived" badge. Section includes a description: "These concerns have been included in a voting cycle and are no longer accepting new submissions." Only appears when archived concerns exist.
 
 ### Cluster detail page (`/analytics/clusters/[id]`)
 
@@ -113,7 +109,8 @@ interface PolicyCandidatePublic {
 
 ### Empty states
 
-- No clusters yet: "هنوز خوشه‌ای ایجاد نشده است." / "No clusters have been created yet."
+- No grouped concerns yet: "No grouped concerns yet." / "هنوز دغدغه گروه‌بندی شده‌ای وجود ندارد."
+- No archived concerns: section is hidden entirely
 - Cluster with no votes: Show "No votes yet" instead of 0%
 
 ## Constraints

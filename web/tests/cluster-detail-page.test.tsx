@@ -21,6 +21,7 @@ const FULL_CLUSTER = {
   policy_key: "fiscal-policy-001",
   member_count: 12,
   approval_count: 8,
+  endorsement_count: 5,
   candidates: [
     {id: "p1", title: "Tax Reform", summary: "Simplify tax code", policy_topic: "fiscal-policy", policy_key: "fiscal-policy-001", confidence: 0.92},
     {id: "p2", title: "Budget Cuts", summary: "Reduce spending", policy_topic: "fiscal-policy", policy_key: "fiscal-policy-002", confidence: 0.78},
@@ -43,23 +44,27 @@ describe("ClusterDetailPage", () => {
     );
     const jsx = await ClusterDetailPage({params: makeParams("nonexistent")});
     render(jsx);
-    expect(screen.getByText("No clusters have been created yet.")).toBeTruthy();
+    expect(screen.getByText("No grouped concerns yet.")).toBeTruthy();
   });
 
-  it("renders cluster summary as heading", async () => {
+  it("renders policy topic as heading and summary as body text", async () => {
     mockFetchWith(FULL_CLUSTER);
     const jsx = await ClusterDetailPage({params: makeParams("c1")});
     render(jsx);
-    expect(screen.getByRole("heading", {level: 1})).toHaveTextContent("Economic reform proposals");
+    expect(screen.getByRole("heading", {level: 1})).toHaveTextContent("fiscal policy");
+    expect(screen.getByText("Economic reform proposals")).toBeTruthy();
   });
 
-  it("displays policy_topic, member count, and approval count", async () => {
+  it("displays submissions, endorsements, and total support", async () => {
     mockFetchWith(FULL_CLUSTER);
     const jsx = await ClusterDetailPage({params: makeParams("c1")});
     render(jsx);
-    expect(screen.getAllByText(/fiscal policy/).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText("Submissions").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText("Endorsements")).toBeTruthy();
+    expect(screen.getByText("Total Support")).toBeTruthy();
     expect(screen.getAllByText(/12/).length).toBeGreaterThanOrEqual(1);
-    expect(screen.getAllByText(/8/).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText(/5/).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText(/17/).length).toBeGreaterThanOrEqual(1);
   });
 
   it("lists all policy candidates", async () => {

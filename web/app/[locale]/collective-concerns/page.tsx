@@ -4,14 +4,39 @@ import {getLocale, getTranslations} from "next-intl/server";
 import {apiGet} from "@/lib/api";
 import {MetricCard, PageShell, TopicBadge} from "@/components/ui";
 
+function formatCycleEnd(endsAt: string, locale: string): string {
+  const end = new Date(endsAt);
+  const now = new Date();
+  const hoursLeft = Math.max(0, (end.getTime() - now.getTime()) / 3_600_000);
+  const dateStr = end.toLocaleDateString(locale === "fa" ? "fa-IR" : "en-US", {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+  if (hoursLeft < 1) return dateStr;
+  if (hoursLeft < 24) return `${dateStr} (~${Math.round(hoursLeft)}h left)`;
+  const days = Math.floor(hoursLeft / 24);
+  const hrs = Math.round(hoursLeft % 24);
+  return `${dateStr} (~${days}d ${hrs}h left)`;
+}
+
 type Cluster = {
   id: string;
   policy_topic: string;
   policy_key: string;
+  status: string;
   summary: string;
   member_count: number;
   approval_count: number;
   endorsement_count: number;
+};
+
+type ActiveCycle = {
+  id: string;
+  started_at: string;
+  ends_at: string;
+  cluster_count: number;
 };
 
 type CycleStats = {
@@ -19,6 +44,7 @@ type CycleStats = {
   total_submissions: number;
   pending_submissions: number;
   current_cycle: string | null;
+  active_cycle: ActiveCycle | null;
 };
 
 type UnclusteredItem = {
@@ -48,6 +74,7 @@ export default async function AnalyticsPage() {
       total_submissions: 0,
       pending_submissions: 0,
       current_cycle: null,
+      active_cycle: null,
     })),
     apiGet<UnclusteredResponse>("/analytics/unclustered").catch(() => ({
       total: 0,
@@ -55,15 +82,19 @@ export default async function AnalyticsPage() {
     })),
   ]);
 
-  const sortedClusters = [...clusters].sort(
-    (a, b) =>
-      (b.endorsement_count + b.member_count) -
-      (a.endorsement_count + a.member_count),
-  );
+  const bySupport = (a: Cluster, b: Cluster) =>
+    (b.endorsement_count + b.member_count) -
+    (a.endorsement_count + a.member_count);
+
+  const openConcerns = clusters.filter((c) => c.status === "open").sort(bySupport);
+  const archivedConcerns = clusters.filter((c) => c.status === "archived").sort(bySupport);
 
   return (
-    <PageShell title={t("clusters")}>
-      {/* Metric cards */}
+    <PageShell title={t("pageTitle")}>
+      <p className="text-sm text-gray-600 dark:text-slate-400">
+        {t("pageDescription")}
+      </p>
+
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <MetricCard
           label={t("totalVoters")}
@@ -83,6 +114,17 @@ export default async function AnalyticsPage() {
         />
       </div>
 
+      {stats.active_cycle && (
+        <div className="rounded-lg border border-emerald-300 bg-emerald-50 p-4 dark:border-emerald-700 dark:bg-emerald-950/40">
+          <p className="font-semibold text-emerald-900 dark:text-emerald-200">
+            🗳️ {t("activeCycleBanner", {count: stats.active_cycle.cluster_count})}
+          </p>
+          <p className="mt-1 text-sm text-emerald-700 dark:text-emerald-300">
+            {t("activeCycleEnds", {endsAt: formatCycleEnd(stats.active_cycle.ends_at, locale)})}
+          </p>
+        </div>
+      )}
+
       {stats.pending_submissions > 0 && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
           {t("pendingSubmissions", {count: stats.pending_submissions})}
@@ -90,42 +132,13 @@ export default async function AnalyticsPage() {
       )}
 
       <div>
-        <h2 className="mb-3 text-lg font-semibold">{t("clusteredConcerns")}</h2>
-        {clusters.length === 0 ? (
+        <h2 className="mb-3 text-lg font-semibold">{t("activeConcerns")}</h2>
+        {openConcerns.length === 0 ? (
           <div className="rounded-lg border border-gray-200 bg-white p-12 text-center dark:border-slate-700 dark:bg-slate-800">
             <p className="text-gray-500 dark:text-slate-400">{t("noClusters")}</p>
           </div>
         ) : (
-          <div className="space-y-2">
-            {sortedClusters.map((cluster) => (
-              <Link
-                key={cluster.id}
-                href={`/${locale}/collective-concerns/clusters/${cluster.id}`}
-                className="flex items-center justify-between rounded-lg border border-gray-200 bg-white px-5 py-4 transition-colors hover:bg-gray-50 dark:border-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700"
-              >
-                <div className="min-w-0 flex-1">
-                  <p className="truncate font-medium">{cluster.summary}</p>
-                  <div className="mt-1 flex items-center gap-3">
-                    <TopicBadge topic={cluster.policy_topic} />
-                    <span className="text-xs text-gray-500 dark:text-slate-400">
-                      {t("submissions")}: {cluster.member_count}
-                    </span>
-                    <span className="text-xs text-gray-500 dark:text-slate-400">
-                      {t("endorsements")}: {cluster.endorsement_count}
-                    </span>
-                  </div>
-                </div>
-                <div className="ms-4 text-end">
-                  <p className="text-lg font-bold">
-                    {cluster.endorsement_count + cluster.member_count}
-                  </p>
-                  <p className="text-xs text-gray-500 dark:text-slate-400">
-                    {t("totalSupport")}
-                  </p>
-                </div>
-              </Link>
-            ))}
-          </div>
+          <ConcernList concerns={openConcerns} locale={locale} t={t} />
         )}
       </div>
 
@@ -180,6 +193,16 @@ export default async function AnalyticsPage() {
         )}
       </div>
 
+      {archivedConcerns.length > 0 && (
+        <div>
+          <h2 className="mb-1 text-lg font-semibold">{t("archivedConcerns")}</h2>
+          <p className="mb-3 text-sm text-gray-500 dark:text-slate-400">
+            {t("archivedConcernsDescription")}
+          </p>
+          <ConcernList concerns={archivedConcerns} locale={locale} t={t} />
+        </div>
+      )}
+
       {/* Footer links */}
       <div className="flex items-center gap-4 text-sm">
         <Link
@@ -196,5 +219,53 @@ export default async function AnalyticsPage() {
         </Link>
       </div>
     </PageShell>
+  );
+}
+
+function ConcernList({
+  concerns,
+  locale,
+  t,
+}: {
+  concerns: Cluster[];
+  locale: string;
+  t: (key: string, values?: Record<string, string | number>) => string;
+}) {
+  return (
+    <div className="space-y-2">
+      {concerns.map((concern) => (
+        <Link
+          key={concern.id}
+          href={`/${locale}/collective-concerns/clusters/${concern.id}`}
+          className="flex items-center justify-between rounded-lg border border-gray-200 bg-white px-5 py-4 transition-colors hover:bg-gray-50 dark:border-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700"
+        >
+          <div className="min-w-0 flex-1">
+            <p className="truncate font-medium">{concern.summary}</p>
+            <div className="mt-1 flex items-center gap-3">
+              <TopicBadge topic={concern.policy_topic} />
+              {concern.status === "archived" && (
+                <span className="rounded bg-gray-200 px-1.5 py-0.5 text-xs font-medium text-gray-600 dark:bg-slate-600 dark:text-slate-300">
+                  {t("archived")}
+                </span>
+              )}
+              <span className="text-xs text-gray-500 dark:text-slate-400">
+                {t("submissions")}: {concern.member_count}
+              </span>
+              <span className="text-xs text-gray-500 dark:text-slate-400">
+                {t("endorsements")}: {concern.endorsement_count}
+              </span>
+            </div>
+          </div>
+          <div className="ms-4 text-end">
+            <p className="text-lg font-bold">
+              {concern.endorsement_count + concern.member_count}
+            </p>
+            <p className="text-xs text-gray-500 dark:text-slate-400">
+              {t("totalSupport")}
+            </p>
+          </div>
+        </Link>
+      ))}
+    </div>
   );
 }

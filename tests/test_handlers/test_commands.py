@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
@@ -302,6 +303,7 @@ async def test_callback_vote_with_cycle_shows_first_policy() -> None:
     cycle.id = uuid4()
     cycle.cluster_ids = [cluster1_id, cluster2_id]
     cycle.status = "active"
+    cycle.ends_at = datetime(2026, 3, 1, 12, 0, 0, tzinfo=UTC)
     cycle_scalars = MagicMock()
     cycle_scalars.first.return_value = cycle
     cycle_result = MagicMock()
@@ -326,8 +328,10 @@ async def test_callback_vote_with_cycle_shows_first_policy() -> None:
     assert user.bot_state_data["current_idx"] == 0
     assert len(user.bot_state_data["cluster_ids"]) == 2
 
-    assert len(channel.messages) >= 1
-    ballot_msg = channel.messages[0]
+    assert len(channel.messages) >= 2
+    timing_msg = channel.messages[0]
+    assert "Active vote" in timing_msg.text or "رای‌گیری فعال" in timing_msg.text
+    ballot_msg = channel.messages[1]
     assert "Policy 1 of 2" in ballot_msg.text
     assert ballot_msg.reply_markup is not None
     keyboard = ballot_msg.reply_markup["inline_keyboard"]

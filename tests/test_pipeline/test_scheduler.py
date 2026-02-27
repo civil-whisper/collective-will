@@ -9,7 +9,13 @@ import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.pipeline.llm import LLMResponse
-from src.scheduler import PipelineResult, _count_unprocessed, run_pipeline
+from src.scheduler import (
+    PipelineResult,
+    _close_expired_cycles,
+    _count_unprocessed,
+    _maybe_open_cycle,
+    run_pipeline,
+)
 
 
 class FakeScalars:
@@ -18,6 +24,9 @@ class FakeScalars:
 
     def all(self) -> list[object]:
         return self._items
+
+    def first(self) -> object | None:
+        return self._items[0] if self._items else None
 
 
 class FakeResult:
@@ -29,6 +38,9 @@ class FakeResult:
 
     def scalar_one_or_none(self) -> object | None:
         return self._items[0] if self._items else None
+
+    def all(self) -> list[object]:
+        return self._items
 
 
 class FakeRouter:
@@ -62,6 +74,7 @@ async def test_pipeline_result_has_expected_fields() -> None:
     assert result.created_candidates == 0
     assert result.created_clusters == 0
     assert result.qualified_clusters == 0
+    assert result.opened_cycle_id is None
     assert result.errors == []
 
 
@@ -107,6 +120,22 @@ async def test_expired_cycle_auto_closed() -> None:
 
     mock_tally.assert_called_once_with(session=session, cycle=expired_cycle)
     assert result.processed_submissions == 0
+
+
+@pytest.mark.asyncio
+async def test_close_expired_cycles_standalone() -> None:
+    """_close_expired_cycles closes expired cycles without running full pipeline."""
+    expired_cycle = _FakeCycle()
+
+    session = AsyncMock(spec=AsyncSession)
+    session.execute = AsyncMock(return_value=FakeResult([expired_cycle]))
+
+    mock_tally = AsyncMock(return_value=expired_cycle)
+    with patch("src.scheduler.main.close_and_tally", mock_tally):
+        closed = await _close_expired_cycles(session)
+
+    assert closed == 1
+    mock_tally.assert_called_once_with(session=session, cycle=expired_cycle)
 
 
 @pytest.mark.asyncio
@@ -221,6 +250,8 @@ async def test_scheduler_loop_threshold_trigger() -> None:
     with (
         patch("src.scheduler.main.run_pipeline", side_effect=_fake_run_pipeline),
         patch("src.scheduler.main._count_unprocessed", side_effect=_fake_count),
+        patch("src.scheduler.main._close_expired_cycles", new_callable=AsyncMock, return_value=0),
+        patch("src.scheduler.main._maybe_open_cycle", new_callable=AsyncMock, return_value=None),
         patch("src.scheduler.main.upsert_heartbeat", new_callable=AsyncMock),
         pytest.raises(_StopLoop),
     ):
@@ -264,6 +295,8 @@ async def test_scheduler_loop_time_trigger() -> None:
     with (
         patch("src.scheduler.main.run_pipeline", side_effect=_fake_run_pipeline),
         patch("src.scheduler.main._count_unprocessed", side_effect=_always_zero),
+        patch("src.scheduler.main._close_expired_cycles", new_callable=AsyncMock, return_value=0),
+        patch("src.scheduler.main._maybe_open_cycle", new_callable=AsyncMock, return_value=None),
         patch("src.scheduler.main.upsert_heartbeat", new_callable=AsyncMock),
         pytest.raises(_StopLoop),
     ):
@@ -310,6 +343,8 @@ async def test_scheduler_loop_skips_pipeline_below_threshold() -> None:
     with (
         patch("src.scheduler.main.run_pipeline", side_effect=_fake_run_pipeline),
         patch("src.scheduler.main._count_unprocessed", side_effect=_fake_count),
+        patch("src.scheduler.main._close_expired_cycles", new_callable=AsyncMock, return_value=0),
+        patch("src.scheduler.main._maybe_open_cycle", new_callable=AsyncMock, return_value=None),
         patch("src.scheduler.main.upsert_heartbeat", new_callable=AsyncMock),
         pytest.raises(_StopLoop),
     ):
@@ -425,3 +460,213 @@ async def test_find_or_create_cluster_skips_event_when_no_change() -> None:
         )
 
     mock_evidence.assert_not_called()
+
+
+# --- _maybe_open_cycle tests ---
+
+
+class _FakeCluster:
+    """Minimal Cluster stand-in for _maybe_open_cycle tests."""
+
+    def __init__(
+        self, *, member_count: int = 5, ballot_question: str | None = "Q?",
+        needs_resummarize: bool = False, policy_key: str = "clean-water",
+        status: str = "open",
+    ) -> None:
+        self.id = uuid4()
+        self.policy_key = policy_key
+        self.member_count = member_count
+        self.ballot_question = ballot_question
+        self.needs_resummarize = needs_resummarize
+        self.status = status
+
+
+def _settings_patch(**overrides: object) -> MagicMock:
+    defaults = {
+        "min_preballot_endorsements": 5,
+        "auto_cycle_cooldown_hours": 0,
+    }
+    defaults.update(overrides)
+    s = MagicMock()
+    for k, v in defaults.items():
+        setattr(s, k, v)
+    return s
+
+
+@pytest.mark.asyncio
+async def test_maybe_open_cycle_opens_when_qualified() -> None:
+    cluster = _FakeCluster(member_count=5)
+    cycle_obj = MagicMock()
+    cycle_obj.id = uuid4()
+
+    call_idx = 0
+
+    async def _fake_execute(stmt: object, *a: object, **kw: object) -> FakeResult:
+        nonlocal call_idx
+        call_idx += 1
+        if call_idx == 1:
+            return FakeResult([])  # no active cycle
+        if call_idx == 2:
+            return FakeResult([cluster])  # open clusters
+        return FakeResult([])
+
+    session = AsyncMock(spec=AsyncSession)
+    session.execute = AsyncMock(side_effect=_fake_execute)
+
+    with (
+        patch("src.scheduler.main.get_settings", return_value=_settings_patch()),
+        patch("src.scheduler.main.count_cluster_endorsements", new_callable=AsyncMock, return_value=0),
+        patch("src.scheduler.main._has_options", new_callable=AsyncMock, return_value=True),
+        patch("src.scheduler.main.open_cycle", new_callable=AsyncMock, return_value=cycle_obj) as mock_open,
+    ):
+        result = await _maybe_open_cycle(session)
+
+    assert result is cycle_obj
+    mock_open.assert_called_once()
+    opened_ids = mock_open.call_args.kwargs["cluster_ids"]
+    assert cluster.id in opened_ids
+
+
+@pytest.mark.asyncio
+async def test_maybe_open_cycle_skips_when_active_cycle_exists() -> None:
+    active_cycle = _FakeCycle()
+
+    session = AsyncMock(spec=AsyncSession)
+    session.execute = AsyncMock(return_value=FakeResult([active_cycle]))
+
+    with patch("src.scheduler.main.get_settings", return_value=_settings_patch()):
+        result = await _maybe_open_cycle(session)
+
+    assert result is None
+
+
+@pytest.mark.asyncio
+async def test_maybe_open_cycle_respects_cooldown() -> None:
+    recently_closed = MagicMock()
+    recently_closed.ends_at = datetime.now(UTC) - timedelta(minutes=10)
+
+    call_idx = 0
+
+    async def _fake_execute(stmt: object, *a: object, **kw: object) -> FakeResult:
+        nonlocal call_idx
+        call_idx += 1
+        if call_idx == 1:
+            return FakeResult([])  # no active cycle
+        if call_idx == 2:
+            return FakeResult([recently_closed])  # last closed cycle
+        return FakeResult([])
+
+    session = AsyncMock(spec=AsyncSession)
+    session.execute = AsyncMock(side_effect=_fake_execute)
+
+    with patch("src.scheduler.main.get_settings", return_value=_settings_patch(auto_cycle_cooldown_hours=1)):
+        result = await _maybe_open_cycle(session)
+
+    assert result is None
+
+
+@pytest.mark.asyncio
+async def test_maybe_open_cycle_skips_when_below_threshold() -> None:
+    cluster = _FakeCluster(member_count=2)  # only 2 submissions, threshold is 5
+
+    call_idx = 0
+
+    async def _fake_execute(stmt: object, *a: object, **kw: object) -> FakeResult:
+        nonlocal call_idx
+        call_idx += 1
+        if call_idx == 1:
+            return FakeResult([])  # no active cycle
+        if call_idx == 2:
+            return FakeResult([cluster])  # open clusters
+        return FakeResult([])
+
+    session = AsyncMock(spec=AsyncSession)
+    session.execute = AsyncMock(side_effect=_fake_execute)
+
+    with (
+        patch("src.scheduler.main.get_settings", return_value=_settings_patch()),
+        patch("src.scheduler.main.count_cluster_endorsements", new_callable=AsyncMock, return_value=0),
+        patch("src.scheduler.main._has_options", new_callable=AsyncMock, return_value=True),
+    ):
+        result = await _maybe_open_cycle(session)
+
+    assert result is None
+
+
+@pytest.mark.asyncio
+async def test_maybe_open_cycle_skips_without_ballot_question() -> None:
+    cluster = _FakeCluster(member_count=5, ballot_question=None)
+
+    call_idx = 0
+
+    async def _fake_execute(stmt: object, *a: object, **kw: object) -> FakeResult:
+        nonlocal call_idx
+        call_idx += 1
+        if call_idx == 1:
+            return FakeResult([])  # no active cycle
+        if call_idx == 2:
+            return FakeResult([cluster])  # open clusters
+        return FakeResult([])
+
+    session = AsyncMock(spec=AsyncSession)
+    session.execute = AsyncMock(side_effect=_fake_execute)
+
+    with (
+        patch("src.scheduler.main.get_settings", return_value=_settings_patch()),
+        patch("src.scheduler.main.count_cluster_endorsements", new_callable=AsyncMock, return_value=0),
+        patch("src.scheduler.main._has_options", new_callable=AsyncMock, return_value=True),
+    ):
+        result = await _maybe_open_cycle(session)
+
+    assert result is None
+
+
+@pytest.mark.asyncio
+async def test_maybe_open_cycle_skips_without_options() -> None:
+    cluster = _FakeCluster(member_count=5)
+
+    call_idx = 0
+
+    async def _fake_execute(stmt: object, *a: object, **kw: object) -> FakeResult:
+        nonlocal call_idx
+        call_idx += 1
+        if call_idx == 1:
+            return FakeResult([])  # no active cycle
+        if call_idx == 2:
+            return FakeResult([cluster])  # open clusters
+        return FakeResult([])
+
+    session = AsyncMock(spec=AsyncSession)
+    session.execute = AsyncMock(side_effect=_fake_execute)
+
+    with (
+        patch("src.scheduler.main.get_settings", return_value=_settings_patch()),
+        patch("src.scheduler.main.count_cluster_endorsements", new_callable=AsyncMock, return_value=0),
+        patch("src.scheduler.main._has_options", new_callable=AsyncMock, return_value=False),
+    ):
+        result = await _maybe_open_cycle(session)
+
+    assert result is None
+
+
+@pytest.mark.asyncio
+async def test_maybe_open_cycle_skips_when_no_open_clusters() -> None:
+    """When all clusters are archived (query returns empty), no cycle opens."""
+    call_idx = 0
+
+    async def _fake_execute(stmt: object, *a: object, **kw: object) -> FakeResult:
+        nonlocal call_idx
+        call_idx += 1
+        if call_idx == 1:
+            return FakeResult([])  # no active cycle
+        if call_idx == 2:
+            return FakeResult([])  # no open clusters (all archived)
+        return FakeResult([])
+
+    session = AsyncMock(spec=AsyncSession)
+    session.execute = AsyncMock(side_effect=_fake_execute)
+
+    with patch("src.scheduler.main.get_settings", return_value=_settings_patch()):
+        result = await _maybe_open_cycle(session)
+
+    assert result is None

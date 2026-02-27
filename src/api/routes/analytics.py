@@ -42,6 +42,7 @@ async def clusters(session: AsyncSession = Depends(get_db)) -> list[dict[str, ob
             "id": str(row.Cluster.id),
             "policy_topic": row.Cluster.policy_topic,
             "policy_key": row.Cluster.policy_key,
+            "status": row.Cluster.status,
             "summary": row.Cluster.summary,
             "member_count": row.Cluster.member_count,
             "approval_count": row.Cluster.approval_count,
@@ -88,6 +89,7 @@ async def cluster_detail(
         "id": str(cluster.id),
         "policy_topic": cluster.policy_topic,
         "policy_key": cluster.policy_key,
+        "status": cluster.status,
         "summary": cluster.summary,
         "member_count": cluster.member_count,
         "approval_count": cluster.approval_count,
@@ -149,11 +151,21 @@ async def stats(session: AsyncSession = Depends(get_db)) -> dict[str, object]:
     )
     active_cycle = cycle_result.scalars().first()
 
+    cycle_info: dict[str, object] | None = None
+    if active_cycle:
+        cycle_info = {
+            "id": str(active_cycle.id),
+            "started_at": active_cycle.started_at.isoformat(),
+            "ends_at": active_cycle.ends_at.isoformat(),
+            "cluster_count": len(active_cycle.cluster_ids),
+        }
+
     return {
         "total_voters": total_voters,
         "total_submissions": total_submissions,
         "pending_submissions": pending_submissions,
         "current_cycle": str(active_cycle.id) if active_cycle else None,
+        "active_cycle": cycle_info,
     }
 
 

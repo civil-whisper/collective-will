@@ -29,6 +29,7 @@ def _make_cluster(**overrides: Any) -> MagicMock:
     cluster.summary = overrides.get("summary", "Test cluster")
     cluster.policy_topic = overrides.get("policy_topic", "economy")
     cluster.policy_key = overrides.get("policy_key", "test-policy")
+    cluster.status = overrides.get("status", "open")
     cluster.member_count = overrides.get("member_count", 5)
     cluster.approval_count = overrides.get("approval_count", 0)
     cluster.created_at = overrides.get("created_at", datetime.now(UTC))
@@ -105,6 +106,7 @@ class TestClusters:
             assert data[0]["summary"] == "Reform A"
             assert data[0]["policy_topic"] == "governance"
             assert data[0]["policy_key"] == "governance-reform"
+            assert data[0]["status"] == "open"
             assert data[0]["member_count"] == 10
             assert data[0]["approval_count"] == 0
             assert data[0]["endorsement_count"] == 3
@@ -142,6 +144,9 @@ class TestStats:
 
         cycle = MagicMock(spec=VotingCycle)
         cycle.id = uuid4()
+        cycle.started_at = datetime(2026, 2, 26, 12, 0, 0, tzinfo=UTC)
+        cycle.ends_at = datetime(2026, 2, 28, 12, 0, 0, tzinfo=UTC)
+        cycle.cluster_ids = [uuid4(), uuid4()]
         cycle_result = MagicMock()
         cycle_result.scalars.return_value = MagicMock(first=MagicMock(return_value=cycle))
 
@@ -156,6 +161,8 @@ class TestStats:
             assert data["total_submissions"] == 11
             assert data["pending_submissions"] == 4
             assert data["current_cycle"] == str(cycle.id)
+            assert data["active_cycle"] is not None
+            assert data["active_cycle"]["cluster_count"] == 2
         finally:
             app.dependency_overrides.pop(get_db, None)
 

@@ -256,7 +256,10 @@ async def execute_key_merge(
 ) -> None:
     """Move candidates and endorsements from merged clusters to the survivor."""
     survivor_result = await session.execute(
-        select(Cluster).where(Cluster.policy_key == survivor_key)
+        select(Cluster).where(
+            Cluster.policy_key == survivor_key,
+            Cluster.status == "open",
+        )
     )
     survivor = survivor_result.scalar_one_or_none()
     if survivor is None:
@@ -265,7 +268,10 @@ async def execute_key_merge(
 
     for merged_key in merged_keys:
         merged_result = await session.execute(
-            select(Cluster).where(Cluster.policy_key == merged_key)
+            select(Cluster).where(
+                Cluster.policy_key == merged_key,
+                Cluster.status == "open",
+            )
         )
         merged_cluster = merged_result.scalar_one_or_none()
         if merged_cluster is None:

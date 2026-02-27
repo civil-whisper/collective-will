@@ -268,7 +268,8 @@ evidence_log_id: int
 ```
 id: UUID
 policy_topic: str                   # Stance-neutral umbrella topic (e.g., "internet-censorship")
-policy_key: str                     # Unique stance-neutral ballot-level key (e.g., "political-internet-censorship")
+policy_key: str                     # Stance-neutral ballot-level key (partial unique index where status='open')
+status: str                         # "open" (active) or "archived" (voted on, frozen)
 summary: str                        # English (canonical language; base fields are always English)
 ballot_question: str | None         # Stance-neutral English ballot question for endorsement step
 ballot_question_fa: str | None      # Farsi ballot question
@@ -280,6 +281,8 @@ last_summarized_count: int          # member_count at last summarization (for gr
 created_at: datetime
 evidence_log_id: int
 ```
+
+Cluster lifecycle: `open` → `archived` (when included in a voting cycle via `open_cycle()`). New submissions with the same `policy_key` create a fresh open cluster. Only open clusters are processed by the pipeline (summarization, ballot questions, options, agenda, normalization, key merges) and shown in the Telegram endorsement flow.
 
 ### Vote
 

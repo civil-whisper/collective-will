@@ -4,6 +4,7 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 from uuid import UUID, uuid4
 
+import sqlalchemy as sa
 from pydantic import BaseModel, Field
 from sqlalchemy import Boolean, DateTime, Integer, String
 from sqlalchemy.dialects.postgresql import ARRAY
@@ -19,13 +20,24 @@ if TYPE_CHECKING:
 
 class Cluster(Base):
     __tablename__ = "clusters"
+    __table_args__ = (
+        sa.Index(
+            "uq_cluster_policy_key_open",
+            "policy_key",
+            unique=True,
+            postgresql_where=sa.text("status = 'open'"),
+        ),
+    )
 
     id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
     policy_topic: Mapped[str] = mapped_column(
         String(255), nullable=False, index=True, server_default="unassigned"
     )
     policy_key: Mapped[str] = mapped_column(
-        String(255), nullable=False, unique=True, index=True, server_default="unassigned"
+        String(255), nullable=False, index=True, server_default="unassigned"
+    )
+    status: Mapped[str] = mapped_column(
+        String(16), nullable=False, server_default="open", index=True
     )
     summary: Mapped[str] = mapped_column(String, nullable=False)
     ballot_question: Mapped[str | None] = mapped_column(String, nullable=True)
@@ -60,12 +72,14 @@ class ClusterCreate(BaseModel):
     approval_count: int = 0
     needs_resummarize: bool = True
     last_summarized_count: int = 0
+    status: str = "open"
 
 
 class ClusterRead(BaseModel):
     id: UUID
     policy_topic: str
     policy_key: str
+    status: str
     summary: str
     ballot_question: str | None
     ballot_question_fa: str | None
@@ -83,6 +97,7 @@ class ClusterRead(BaseModel):
             id=db_cluster.id,
             policy_topic=db_cluster.policy_topic,
             policy_key=db_cluster.policy_key,
+            status=db_cluster.status,
             summary=db_cluster.summary,
             ballot_question=db_cluster.ballot_question,
             ballot_question_fa=db_cluster.ballot_question_fa,

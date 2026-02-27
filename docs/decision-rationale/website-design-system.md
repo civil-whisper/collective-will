@@ -105,6 +105,23 @@ Shared UI building blocks (all Tailwind-styled):
 | `PageShell` | Consistent page padding, max-width, heading |
 | `Card` | Generic surface container with border/shadow |
 
+## Cluster Metrics Vocabulary
+
+All pages displaying cluster/policy metrics must use the same three metrics consistently:
+
+| Metric | Translation Key | Source Field | Formula |
+|--------|----------------|--------------|---------|
+| Submissions | `submissions` | `member_count` | direct |
+| Endorsements | `endorsements` | `endorsement_count` | direct |
+| Total Support | `totalSupport` | — | `member_count + endorsement_count` |
+
+**Pages that display cluster metrics** (grep for these keys when changing the vocabulary):
+- `web/app/[locale]/collective-concerns/page.tsx` (cluster list)
+- `web/app/[locale]/collective-concerns/clusters/[id]/page.tsx` (cluster detail)
+- `web/app/[locale]/collective-concerns/top-policies/page.tsx` (top policies)
+
+Legacy field `approval_count` is still returned by the API but should not be displayed on new pages. The canonical public metrics are Submissions + Endorsements = Total Support.
+
 ## RTL Considerations
 
 - Tailwind `rtl:` prefix for directional utilities
