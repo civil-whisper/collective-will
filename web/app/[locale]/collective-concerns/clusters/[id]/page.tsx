@@ -11,6 +11,8 @@ type PolicyCandidatePublic = {
   policy_topic: string;
   policy_key: string;
   confidence: number;
+  raw_text: string | null;
+  language: string | null;
 };
 
 type ClusterDetail = {
@@ -75,9 +77,29 @@ export default async function ClusterDetailPage({params}: Props) {
         <h2 className="mb-3 text-sm font-semibold sm:text-lg">{t("memberCount")}</h2>
         <div className="space-y-3">
           {cluster.candidates.map((candidate) => (
-            <Card key={candidate.id}>
+            <div
+              key={candidate.id}
+              id={`candidate-${candidate.id}`}
+              className="scroll-mt-24 rounded-lg border border-gray-200 bg-white px-5 py-4 transition-shadow target:ring-2 target:ring-accent target:shadow-lg dark:border-slate-700 dark:bg-slate-800"
+            >
+              {candidate.raw_text && (
+                <div className="mb-3">
+                  <p className="mb-1 text-xs font-medium uppercase tracking-wide text-gray-400 dark:text-slate-500">
+                    {t("userSubmission")}
+                  </p>
+                  <blockquote
+                    className="border-s-2 border-gray-300 ps-3 text-sm text-gray-600 dark:border-slate-600 dark:text-slate-300"
+                    dir={candidate.language === "fa" ? "rtl" : "ltr"}
+                  >
+                    {candidate.raw_text}
+                  </blockquote>
+                </div>
+              )}
               <div className="flex items-start justify-between gap-4">
                 <div className="min-w-0 flex-1">
+                  <p className="mb-1 text-xs font-medium uppercase tracking-wide text-gray-400 dark:text-slate-500">
+                    {t("aiInterpretation")}
+                  </p>
                   <p className="text-sm font-medium sm:text-base">{candidate.title}</p>
                   <p className="mt-1 text-xs text-gray-600 sm:text-sm dark:text-slate-400">
                     {candidate.summary}
@@ -87,22 +109,13 @@ export default async function ClusterDetailPage({params}: Props) {
                   </div>
                 </div>
                 <div className="text-end">
-                  <div className="text-sm font-medium">
+                  <p className="text-xs text-gray-400 dark:text-slate-500">{t("aiConfidence")}</p>
+                  <p className="text-sm font-semibold text-gray-600 dark:text-slate-300">
                     {Math.round(candidate.confidence * 100)}%
-                  </div>
-                  <div className="text-xs text-gray-500 dark:text-slate-400">
-                    confidence
-                  </div>
+                  </p>
                 </div>
               </div>
-              {/* Confidence bar */}
-              <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-slate-700">
-                <div
-                  className="h-full rounded-full bg-accent transition-all"
-                  style={{width: `${Math.round(candidate.confidence * 100)}%`}}
-                />
-              </div>
-            </Card>
+            </div>
           ))}
         </div>
       </div>

@@ -98,10 +98,14 @@
     "evidence": "Evidence Chain",
     "noClusters": "No clusters have been created yet.",
     "noCycles": "No voting cycles completed yet.",
+    "submissions": "Submissions",
+    "endorsements": "Endorsements",
+    "totalSupport": "Total Support",
     "memberCount": "Member Count",
     "approvalCount": "Approval Count",
     "approvalRate": "Approval Rate",
     "policyTopic": "Policy Topic",
+    "clusteredConcerns": "Clustered Concerns",
     "unclustered": "Unclustered",
     "verifyChain": "Verify Chain",
     "chainValid": "Chain is valid",
@@ -150,7 +154,11 @@
     "noUnclusteredCandidates": "No unclustered candidates right now.",
     "userSubmission": "User Submission",
     "aiInterpretation": "AI Interpretation",
-    "aiConfidence": "AI Confidence"
+    "aiConfidence": "AI Confidence",
+    "submissionNotFound": "Submission not found",
+    "submissionNotFoundDescription": "This submission could not be found. It may have been removed or the link is invalid.",
+    "submissionRedirecting": "Finding your submission…",
+    "backToCollectiveConcerns": "Back to Collective Concerns"
   },
   "ops": {
     "title": "Ops Console",

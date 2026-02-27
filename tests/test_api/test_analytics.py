@@ -60,9 +60,24 @@ def _make_evidence_entry(**overrides: Any) -> MagicMock:
     return entry
 
 
+def _mock_cluster_session(rows: list[tuple[Any, int]]) -> AsyncMock:
+    """Mock session for the clusters endpoint which uses result.all() with (Cluster, count) tuples."""
+    session = AsyncMock()
+    result = MagicMock()
+    row_mocks = []
+    for cluster, endorsement_count in rows:
+        row = MagicMock()
+        row.Cluster = cluster
+        row.endorsement_count = endorsement_count
+        row_mocks.append(row)
+    result.all.return_value = row_mocks
+    session.execute.return_value = result
+    return session
+
+
 class TestClusters:
     def test_returns_empty_list(self) -> None:
-        session = _mock_session([])
+        session = _mock_cluster_session([])
         app.dependency_overrides[get_db] = lambda: session
         try:
             client = TestClient(app)
@@ -74,13 +89,11 @@ class TestClusters:
 
     def test_returns_cluster_list(self) -> None:
         cid = uuid4()
-        clusters = [
-            _make_cluster(
-                id=cid, summary="Reform A", policy_topic="governance",
-                policy_key="governance-reform", member_count=10,
-            )
-        ]
-        session = _mock_session(clusters)
+        cluster = _make_cluster(
+            id=cid, summary="Reform A", policy_topic="governance",
+            policy_key="governance-reform", member_count=10,
+        )
+        session = _mock_cluster_session([(cluster, 3)])
         app.dependency_overrides[get_db] = lambda: session
         try:
             client = TestClient(app)
@@ -94,12 +107,16 @@ class TestClusters:
             assert data[0]["policy_key"] == "governance-reform"
             assert data[0]["member_count"] == 10
             assert data[0]["approval_count"] == 0
+            assert data[0]["endorsement_count"] == 3
         finally:
             app.dependency_overrides.pop(get_db, None)
 
     def test_returns_multiple_clusters(self) -> None:
-        clusters = [_make_cluster(summary="A"), _make_cluster(summary="B")]
-        session = _mock_session(clusters)
+        clusters = [
+            (_make_cluster(summary="A"), 1),
+            (_make_cluster(summary="B"), 0),
+        ]
+        session = _mock_cluster_session(clusters)
         app.dependency_overrides[get_db] = lambda: session
         try:
             client = TestClient(app)

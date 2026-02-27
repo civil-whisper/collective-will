@@ -11,6 +11,7 @@ from src.db.connection import get_db
 from src.db.evidence import EvidenceLogEntry, isoformat_z
 from src.db.evidence import verify_chain as db_verify_chain
 from src.models.cluster import Cluster
+from src.models.endorsement import PolicyEndorsement
 from src.models.submission import PolicyCandidate, Submission
 from src.models.vote import Vote, VotingCycle
 
@@ -25,16 +26,26 @@ router = APIRouter()
 
 @router.get("/clusters")
 async def clusters(session: AsyncSession = Depends(get_db)) -> list[dict[str, object]]:
-    result = await session.execute(select(Cluster).order_by(Cluster.created_at.desc()))
-    rows = result.scalars().all()
+    endorsement_count = (
+        func.count(PolicyEndorsement.id).label("endorsement_count")
+    )
+    stmt = (
+        select(Cluster, endorsement_count)
+        .outerjoin(PolicyEndorsement, PolicyEndorsement.cluster_id == Cluster.id)
+        .group_by(Cluster.id)
+        .order_by(Cluster.created_at.desc())
+    )
+    result = await session.execute(stmt)
+    rows = result.all()
     return [
         {
-            "id": str(row.id),
-            "policy_topic": row.policy_topic,
-            "policy_key": row.policy_key,
-            "summary": row.summary,
-            "member_count": row.member_count,
-            "approval_count": row.approval_count,
+            "id": str(row.Cluster.id),
+            "policy_topic": row.Cluster.policy_topic,
+            "policy_key": row.Cluster.policy_key,
+            "summary": row.Cluster.summary,
+            "member_count": row.Cluster.member_count,
+            "approval_count": row.Cluster.approval_count,
+            "endorsement_count": row.endorsement_count,
         }
         for row in rows
     ]
@@ -50,10 +61,19 @@ async def cluster_detail(
     if cluster is None:
         raise HTTPException(status_code=404, detail="cluster_not_found")
 
+    endorsement_result = await session.execute(
+        select(func.count(PolicyEndorsement.id)).where(PolicyEndorsement.cluster_id == cluster_id)
+    )
+    endorsement_count = int(endorsement_result.scalar_one())
+
     candidate_ids = list(cluster.candidate_ids)
     if candidate_ids:
+        from sqlalchemy.orm import selectinload
+
         candidates_result = await session.execute(
-            select(PolicyCandidate).where(PolicyCandidate.id.in_(candidate_ids))
+            select(PolicyCandidate)
+            .options(selectinload(PolicyCandidate.submission))
+            .where(PolicyCandidate.id.in_(candidate_ids))
         )
         db_candidates = candidates_result.scalars().all()
     else:
@@ -71,6 +91,7 @@ async def cluster_detail(
         "summary": cluster.summary,
         "member_count": cluster.member_count,
         "approval_count": cluster.approval_count,
+        "endorsement_count": endorsement_count,
         "candidates": [
             {
                 "id": str(candidate.id),
@@ -79,10 +100,35 @@ async def cluster_detail(
                 "policy_topic": candidate.policy_topic,
                 "policy_key": candidate.policy_key,
                 "confidence": candidate.confidence,
+                "raw_text": candidate.submission.raw_text if candidate.submission else None,
+                "language": candidate.submission.language if candidate.submission else None,
             }
             for candidate in ordered_candidates
         ],
     }
+
+
+@router.get("/candidate/{candidate_id}/location")
+async def candidate_location(
+    candidate_id: UUID,
+    session: AsyncSession = Depends(get_db),
+) -> dict[str, object]:
+    """Return where a candidate lives: unclustered or inside a specific cluster."""
+    candidate_result = await session.execute(
+        select(PolicyCandidate).where(PolicyCandidate.id == candidate_id)
+    )
+    candidate = candidate_result.scalar_one_or_none()
+    if candidate is None:
+        raise HTTPException(status_code=404, detail="candidate_not_found")
+
+    cluster_result = await session.execute(
+        select(Cluster).where(Cluster.candidate_ids.any(candidate_id))
+    )
+    cluster = cluster_result.scalar_one_or_none()
+
+    if cluster is not None:
+        return {"status": "clustered", "cluster_id": str(cluster.id)}
+    return {"status": "unclustered"}
 
 
 @router.get("/stats")

@@ -98,10 +98,14 @@
     "evidence": "زنجیره شواهد",
     "noClusters": "هنوز خوشه‌ای ایجاد نشده است.",
     "noCycles": "هنوز رای‌گیری‌ای انجام نشده است.",
+    "submissions": "ارسال‌ها",
+    "endorsements": "امضاها",
+    "totalSupport": "حمایت کل",
     "memberCount": "تعداد اعضا",
     "approvalCount": "تعداد تأییدها",
     "approvalRate": "نرخ تأیید",
     "policyTopic": "موضوع سیاستی",
+    "clusteredConcerns": "دغدغه‌های خوشه‌بندی شده",
     "unclustered": "خوشه‌بندی نشده",
     "verifyChain": "بررسی زنجیره",
     "chainValid": "زنجیره سالم است",
@@ -150,7 +154,11 @@
     "noUnclusteredCandidates": "فعلاً نامزد خوشه‌بندی‌نشده‌ای وجود ندارد.",
     "userSubmission": "پیام کاربر",
     "aiInterpretation": "تفسیر هوش مصنوعی",
-    "aiConfidence": "اطمینان هوش مصنوعی"
+    "aiConfidence": "اطمینان هوش مصنوعی",
+    "submissionNotFound": "ارسال یافت نشد",
+    "submissionNotFoundDescription": "این ارسال پیدا نشد. ممکن است حذف شده باشد یا لینک نامعتبر باشد.",
+    "submissionRedirecting": "در حال یافتن ارسال شما…",
+    "backToCollectiveConcerns": "بازگشت به دغدغه‌های جمعی"
   },
   "ops": {
     "title": "کنسول عملیات",

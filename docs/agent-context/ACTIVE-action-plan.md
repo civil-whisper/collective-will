@@ -630,6 +630,15 @@ Both are stance-neutral. Three-stage pipeline: inline assignment → hybrid norm
       - `cluster_updated` when an existing cluster gains members (skipped if no change)
     - Tests: `test_find_or_create_cluster_emits_cluster_created`, `_updated`, `_skips_event_when_no_change`
 
+90. [done] Stable submission permalinks and full cards in clusters
+    - Cluster detail API now includes `raw_text` and `language` via `selectinload(PolicyCandidate.submission)`
+    - Cluster detail page shows full candidate cards matching unclustered format (user submission blockquote + AI interpretation)
+    - Each candidate card has `id="candidate-{uuid}"` anchor for deep linking with CSS `target:` highlight
+    - New API endpoint: `GET /analytics/candidate/{id}/location` returns unclustered/clustered status
+    - New `/submission/{id}` Next.js page: resolves candidate location and redirects to the right page with hash anchor
+    - Telegram confirmation link updated from `collective-concerns#candidate-{id}` to `submission/{id}`
+    - Context doc `04-analytics-cluster-explorer.md` updated to reflect `raw_text` in cluster candidates and new API
+
 89. [done] Complete frontend evidence event coverage
     - Added `submission_rejected_not_policy`, `cluster_merged`, `ballot_question_generated`, `policy_options_generated` to filter categories
     - Split `cluster_created` and `cluster_updated` into separate eventDescription cases

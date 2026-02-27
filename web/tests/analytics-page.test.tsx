@@ -45,6 +45,7 @@ describe("AnalyticsPage", () => {
           policy_key: "fiscal-policy-001",
           member_count: 12,
           approval_count: 8,
+          endorsement_count: 5,
         },
       ],
       {total_voters: 10, total_submissions: 5, pending_submissions: 0, current_cycle: null},
@@ -55,12 +56,13 @@ describe("AnalyticsPage", () => {
     expect(screen.getAllByText("Economic reform").length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText(/fiscal policy/).length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText(/12/).length).toBeGreaterThanOrEqual(1);
-    expect(screen.getAllByText(/8/).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText(/5/).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText(/17/).length).toBeGreaterThanOrEqual(1);
   });
 
   it("links each cluster to its detail page", async () => {
     mockFetchSequence(
-      [{id: "c1", summary: "Reform A", policy_topic: "fiscal-policy", policy_key: "fiscal-policy-001", member_count: 5, approval_count: 3}],
+      [{id: "c1", summary: "Reform A", policy_topic: "fiscal-policy", policy_key: "fiscal-policy-001", member_count: 5, approval_count: 3, endorsement_count: 2}],
       {total_voters: 0, total_submissions: 0, pending_submissions: 0, current_cycle: null},
       {total: 0, items: []},
     );
@@ -74,8 +76,8 @@ describe("AnalyticsPage", () => {
   it("renders multiple clusters", async () => {
     mockFetchSequence(
       [
-        {id: "c1", summary: "Cluster A", policy_topic: "fiscal-policy", policy_key: "fiscal-policy-001", member_count: 5, approval_count: 3},
-        {id: "c2", summary: "Cluster B", policy_topic: "civil-rights", policy_key: "civil-rights-001", member_count: 8, approval_count: 6},
+        {id: "c1", summary: "Cluster A", policy_topic: "fiscal-policy", policy_key: "fiscal-policy-001", member_count: 5, approval_count: 3, endorsement_count: 1},
+        {id: "c2", summary: "Cluster B", policy_topic: "civil-rights", policy_key: "civil-rights-001", member_count: 8, approval_count: 6, endorsement_count: 4},
       ],
       {total_voters: 0, total_submissions: 0, pending_submissions: 0, current_cycle: null},
       {total: 0, items: []},

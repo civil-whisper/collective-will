@@ -193,7 +193,7 @@ async def handle_submission(
         submission.status = "canonicalized"
         user.contribution_count += 1
         await db.commit()
-        analytics_url = f"{settings.app_public_base_url}/{locale}/collective-concerns#candidate-{db_candidate.id}"
+        analytics_url = f"{settings.app_public_base_url}/{locale}/submission/{db_candidate.id}"
         text = _msg(locale, "confirmation", title=result.title, url=analytics_url)
         await channel.send_message(OutboundMessage(recipient_ref=message.sender_ref, text=text))
     except Exception:

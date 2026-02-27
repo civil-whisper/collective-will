@@ -2,8 +2,7 @@ import Link from "next/link";
 import {getLocale, getTranslations} from "next-intl/server";
 
 import {apiGet} from "@/lib/api";
-import {MetricCard, BreakdownTable, PageShell, TopicBadge} from "@/components/ui";
-import type {BreakdownItem} from "@/components/ui";
+import {MetricCard, PageShell, TopicBadge} from "@/components/ui";
 
 type Cluster = {
   id: string;
@@ -12,6 +11,7 @@ type Cluster = {
   summary: string;
   member_count: number;
   approval_count: number;
+  endorsement_count: number;
 };
 
 type CycleStats = {
@@ -56,34 +56,10 @@ export default async function AnalyticsPage() {
   ]);
 
   const sortedClusters = [...clusters].sort(
-    (a, b) => b.approval_count - a.approval_count,
+    (a, b) =>
+      (b.endorsement_count + b.member_count) -
+      (a.endorsement_count + a.member_count),
   );
-
-  const topicCounts: Record<string, number> = {};
-  for (const c of clusters) {
-    topicCounts[c.policy_topic] = (topicCounts[c.policy_topic] ?? 0) + c.member_count;
-  }
-  const topicItems: BreakdownItem[] = Object.entries(topicCounts)
-    .sort((a, b) => b[1] - a[1])
-    .map(([topic, count]) => ({
-      key: topic,
-      label: <TopicBadge topic={topic} />,
-      value: count,
-    }));
-
-  const clusterItems: BreakdownItem[] = sortedClusters.slice(0, 10).map((c) => ({
-    key: c.id,
-    label: (
-      <Link
-        href={`/${locale}/collective-concerns/clusters/${c.id}`}
-        className="text-gray-900 hover:text-accent dark:text-slate-100 dark:hover:text-indigo-300"
-      >
-        {c.summary}
-      </Link>
-    ),
-    value: c.approval_count,
-    displayValue: `${c.approval_count.toLocaleString()} approvals`,
-  }));
 
   return (
     <PageShell title={t("clusters")}>
@@ -113,25 +89,13 @@ export default async function AnalyticsPage() {
         </div>
       )}
 
-      {clusters.length === 0 ? (
-        <div className="rounded-lg border border-gray-200 bg-white p-12 text-center dark:border-slate-700 dark:bg-slate-800">
-          <p className="text-gray-500 dark:text-slate-400">{t("noClusters")}</p>
-        </div>
-      ) : (
-        <>
-          {/* Breakdown tables — side by side */}
-          <div className="grid gap-4 lg:grid-cols-2">
-            <BreakdownTable
-              title={t("topPolicies")}
-              items={clusterItems}
-            />
-            <BreakdownTable
-              title={t("policyTopic")}
-              items={topicItems}
-            />
+      <div>
+        <h2 className="mb-3 text-lg font-semibold">{t("clusteredConcerns")}</h2>
+        {clusters.length === 0 ? (
+          <div className="rounded-lg border border-gray-200 bg-white p-12 text-center dark:border-slate-700 dark:bg-slate-800">
+            <p className="text-gray-500 dark:text-slate-400">{t("noClusters")}</p>
           </div>
-
-          {/* Full cluster list */}
+        ) : (
           <div className="space-y-2">
             {sortedClusters.map((cluster) => (
               <Link
@@ -141,24 +105,29 @@ export default async function AnalyticsPage() {
               >
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-medium">{cluster.summary}</p>
-                  <div className="mt-1 flex items-center gap-2">
+                  <div className="mt-1 flex items-center gap-3">
                     <TopicBadge topic={cluster.policy_topic} />
                     <span className="text-xs text-gray-500 dark:text-slate-400">
-                      {t("memberCount")}: {cluster.member_count}
+                      {t("submissions")}: {cluster.member_count}
+                    </span>
+                    <span className="text-xs text-gray-500 dark:text-slate-400">
+                      {t("endorsements")}: {cluster.endorsement_count}
                     </span>
                   </div>
                 </div>
                 <div className="ms-4 text-end">
-                  <p className="text-lg font-bold">{cluster.approval_count}</p>
+                  <p className="text-lg font-bold">
+                    {cluster.endorsement_count + cluster.member_count}
+                  </p>
                   <p className="text-xs text-gray-500 dark:text-slate-400">
-                    {t("approvalCount")}
+                    {t("totalSupport")}
                   </p>
                 </div>
               </Link>
             ))}
           </div>
-        </>
-      )}
+        )}
+      </div>
 
       <div>
         <h2 className="mb-3 text-lg font-semibold">{t("unclusteredCandidates")}</h2>

@@ -45,17 +45,20 @@ Displays all clusters from the most recent clustering cycle.
 ### Cluster detail page (`/analytics/clusters/[id]`)
 
 - **Cluster summary**: Full text in Farsi + English
-- **Member submissions**: Anonymized list of canonical policy candidates in this cluster
-  - Show: title, summary, policy_topic, policy_key, confidence score
-  - Do NOT show: user information, submission timestamps, raw text
+- **Member submissions**: Anonymized list of policy candidates in this cluster
+  - Show: original user submission text (`raw_text`), title, summary, policy_topic, policy_key, confidence score
+  - Each candidate card matches the unclustered card format (user submission blockquote + AI interpretation)
+  - Each card has `id="candidate-{uuid}"` anchor for deep linking
+  - Do NOT show: user information, submission timestamps
 - **Vote count**: If voting has happened, show approval count and rate
 
 ### API calls
 
 Fetch data from the Python backend:
 - `GET /api/analytics/clusters` → list of clusters with stats
-- `GET /api/analytics/clusters/:id` → single cluster with member candidates
+- `GET /api/analytics/clusters/:id` → single cluster with member candidates (includes `raw_text` and `language`)
 - `GET /api/analytics/unclustered` → current unclustered/noise candidates + count
+- `GET /api/analytics/candidate/:id/location` → returns `{ status: "unclustered" }` or `{ status: "clustered", cluster_id: "..." }`
 
 Create a typed API client:
 ```typescript
@@ -103,6 +106,8 @@ interface PolicyCandidatePublic {
   policy_topic: string;
   policy_key: string;
   confidence: number;
+  raw_text: string | null;   // Original user submission text
+  language: string | null;   // Detected input language (e.g. "fa", "en")
 }
 ```
 
