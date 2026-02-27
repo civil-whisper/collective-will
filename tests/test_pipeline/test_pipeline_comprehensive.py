@@ -62,15 +62,19 @@ pytestmark = [
 
 @pytest.fixture(autouse=True)
 def _real_env(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Override the default test env with real .env values for integration testing."""
+    """Override the default test env with real .env + .env.secrets values."""
     from dotenv import dotenv_values
 
-    env_file = PROJECT_ROOT / ".env"
-    if not env_file.exists():
-        pytest.skip(".env file not found")
-    for key, value in dotenv_values(env_file).items():
-        if value is not None:
-            monkeypatch.setenv(key, value)
+    loaded = False
+    for name in (".env.secrets", ".env"):
+        path = PROJECT_ROOT / name
+        if path.exists():
+            for key, value in dotenv_values(path).items():
+                if value is not None:
+                    monkeypatch.setenv(key, value)
+            loaded = True
+    if not loaded:
+        pytest.skip(".env / .env.secrets not found")
     # Lower thresholds for smaller samples
     if SAMPLE_PERCENT < 100:
         monkeypatch.setenv("MIN_CLUSTER_SIZE", "3")

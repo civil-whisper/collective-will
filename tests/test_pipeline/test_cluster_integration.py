@@ -134,13 +134,16 @@ async def _async_generate(inputs: list[dict[str, str]]) -> None:
     from src.pipeline.llm import LLMRouter
 
     project_root = Path(__file__).parent.parent.parent
-    env_file = project_root / ".env"
-    if not env_file.exists():
-        pytest.skip(".env file required for embedding generation")
-
-    for key, value in dotenv_values(env_file).items():
-        if value is not None:
-            os.environ[key] = value
+    loaded = False
+    for name in (".env.secrets", ".env"):
+        path = project_root / name
+        if path.exists():
+            for key, value in dotenv_values(path).items():
+                if value is not None:
+                    os.environ[key] = value
+            loaded = True
+    if not loaded:
+        pytest.skip(".env / .env.secrets required for embedding generation")
     get_settings.cache_clear()
     settings = get_settings()
     router = LLMRouter(settings=settings)

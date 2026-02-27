@@ -21,7 +21,8 @@ import httpx
 import pytest
 from dotenv import load_dotenv
 
-load_dotenv()
+load_dotenv(".env.secrets")
+load_dotenv(".env")
 
 _API_ID = os.getenv("TELEGRAM_API_ID")
 _API_HASH = os.getenv("TELEGRAM_API_HASH")

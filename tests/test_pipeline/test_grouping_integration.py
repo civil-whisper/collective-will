@@ -814,15 +814,19 @@ def _build_entries_for_test_cluster(
 
 @pytest.fixture(autouse=True)
 def _real_env(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Load real .env for API keys."""
+    """Load real .env + .env.secrets for API keys."""
     from dotenv import dotenv_values
 
-    env_file = PROJECT_ROOT / ".env"
-    if not env_file.exists():
-        pytest.skip(".env file not found")
-    for key, value in dotenv_values(env_file).items():
-        if value is not None:
-            monkeypatch.setenv(key, value)
+    loaded = False
+    for name in (".env.secrets", ".env"):
+        path = PROJECT_ROOT / name
+        if path.exists():
+            for key, value in dotenv_values(path).items():
+                if value is not None:
+                    monkeypatch.setenv(key, value)
+            loaded = True
+    if not loaded:
+        pytest.skip(".env / .env.secrets not found")
 
 
 def _interleaved_submissions() -> list[dict[str, str]]:

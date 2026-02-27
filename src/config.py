@@ -96,7 +96,9 @@ class Settings(BaseSettings):
     db_pool_timeout_seconds: int = 30
     db_echo_sql: bool = False
 
-    model_config = SettingsConfigDict(env_file=".env", case_sensitive=False, extra="ignore")
+    model_config = SettingsConfigDict(
+        env_file=(".env.secrets", ".env"), case_sensitive=False, extra="ignore",
+    )
 
     @field_validator("app_public_base_url")
     @classmethod

@@ -53,12 +53,14 @@ def test_get_settings_uses_cache(monkeypatch: pytest.MonkeyPatch) -> None:
     assert first is second
 
 
-# --- 4. .env.example covers all Settings keys ---
+# --- 4. .env.example + .env.secrets.example cover all Settings keys ---
 def test_env_example_contains_all_expected_keys() -> None:
-    content = Path(".env.example").read_text(encoding="utf-8")
-    settings_fields = {
-        "DATABASE_URL", "APP_PUBLIC_BASE_URL", "ANTHROPIC_API_KEY", "OPENAI_API_KEY",
-        "MISTRAL_API_KEY", "DEEPSEEK_API_KEY", "EVOLUTION_API_KEY", "EVOLUTION_API_URL",
+    public = Path(".env.example").read_text(encoding="utf-8")
+    secrets = Path(".env.secrets.example").read_text(encoding="utf-8")
+    combined = public + "\n" + secrets
+
+    public_keys = {
+        "APP_PUBLIC_BASE_URL", "EVOLUTION_API_URL",
         "CORS_ALLOW_ORIGINS", "TELEGRAM_HTTP_TIMEOUT_SECONDS", "WHATSAPP_HTTP_TIMEOUT_SECONDS",
         "EMAIL_HTTP_TIMEOUT_SECONDS", "WITNESS_HTTP_TIMEOUT_SECONDS",
         "MIN_ACCOUNT_AGE_HOURS", "MIN_CLUSTER_SIZE", "MIN_PREBALLOT_ENDORSEMENTS",
@@ -68,7 +70,7 @@ def test_env_example_contains_all_expected_keys() -> None:
         "MAX_SIGNUPS_PER_DOMAIN_PER_DAY", "MAX_SIGNUPS_PER_IP_PER_DAY",
         "BURST_QUARANTINE_THRESHOLD_COUNT", "BURST_QUARANTINE_WINDOW_MINUTES",
         "MAJOR_EMAIL_PROVIDERS", "PIPELINE_INTERVAL_HOURS", "MAX_SUBMISSIONS_PER_DAY",
-        "PIPELINE_MIN_INTERVAL_HOURS",
+        "PIPELINE_MIN_INTERVAL_HOURS", "BATCH_THRESHOLD", "BATCH_POLL_SECONDS",
         "REQUIRE_CONTRIBUTION_FOR_VOTE", "MAX_VOTE_SUBMISSIONS_PER_CYCLE",
         "SIGNUP_DOMAIN_DIVERSITY_THRESHOLD", "MAGIC_LINK_EXPIRY_MINUTES",
         "LINKING_CODE_EXPIRY_MINUTES", "DISPUTE_METRICS_LOOKBACK_DAYS",
@@ -78,7 +80,7 @@ def test_env_example_contains_all_expected_keys() -> None:
         "ENGLISH_REASONING_MODEL", "ENGLISH_REASONING_FALLBACK_MODEL",
         "DISPUTE_RESOLUTION_MODEL", "DISPUTE_RESOLUTION_FALLBACK_MODEL",
         "DISPUTE_RESOLUTION_ENSEMBLE_MODELS", "DISPUTE_RESOLUTION_CONFIDENCE_THRESHOLD",
-        "WITNESS_PUBLISH_ENABLED", "WITNESS_API_URL", "WITNESS_API_KEY",
+        "WITNESS_PUBLISH_ENABLED", "WITNESS_API_URL",
         "EMBEDDING_MODEL", "EMBEDDING_FALLBACK_MODEL",
         "LLM_MAX_RETRIES", "LLM_COMPLETION_RETRY_BACKOFF_BASE_SECONDS",
         "LLM_EMBEDDING_RETRY_BACKOFF_BASE_SECONDS", "LLM_EMBED_BATCH_SIZE",
@@ -89,8 +91,20 @@ def test_env_example_contains_all_expected_keys() -> None:
         "DISPUTE_ENSEMBLE_TEMPERATURE",
         "DB_POOL_SIZE", "DB_MAX_OVERFLOW", "DB_POOL_TIMEOUT_SECONDS", "DB_ECHO_SQL",
     }
-    for key in settings_fields:
-        assert f"{key}=" in content, f"Missing {key} in .env.example"
+    secret_keys = {
+        "DATABASE_URL", "DB_PASSWORD",
+        "ANTHROPIC_API_KEY", "OPENAI_API_KEY", "GOOGLE_API_KEY",
+        "MISTRAL_API_KEY", "DEEPSEEK_API_KEY",
+        "EVOLUTION_API_KEY", "TELEGRAM_BOT_TOKEN",
+        "RESEND_API_KEY", "WITNESS_API_KEY",
+        "WEB_ACCESS_TOKEN_SECRET",
+    }
+    for key in public_keys:
+        assert f"{key}=" in public, f"Missing {key} in .env.example"
+    for key in secret_keys:
+        assert f"{key}=" in secrets, f"Missing {key} in .env.secrets.example"
+    for key in public_keys | secret_keys:
+        assert f"{key}=" in combined, f"Missing {key} in example files"
 
 
 # --- 5. app_public_base_url validated as present ---

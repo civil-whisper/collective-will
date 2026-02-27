@@ -10,6 +10,7 @@ venv/
 # Environment
 .env
 .env.local
+.env.secrets
 deploy/.env.*
 *.session
 
