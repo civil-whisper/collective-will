@@ -21,7 +21,7 @@ services:
       AUTHENTICATION_API_KEY: ${EVOLUTION_API_KEY}
       DATABASE_ENABLED: "false"
     ports:
-      - "8080:8080"
+      - "127.0.0.1:8080:8080"
     volumes:
       - ./data/evolution:/evolution/instances
 
@@ -48,7 +48,7 @@ services:
     environment:
       DATABASE_URL: postgresql+asyncpg://collective:${DB_PASSWORD}@postgres:5432/collective_will
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     depends_on:
       postgres:
         condition: service_healthy

@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -14,6 +14,7 @@ from src.config import get_settings
 from src.db.anchoring import compute_daily_merkle_root, publish_daily_merkle_root
 from src.db.evidence import append_evidence
 from src.db.heartbeat import upsert_heartbeat
+from src.db.ip_signup_log import IPSignupLog
 from src.db.queries import (
     count_cluster_endorsements,
     create_cluster,
@@ -57,6 +58,7 @@ async def run_pipeline(*, session: AsyncSession, llm_router: LLMRouter | None = 
     async with PIPELINE_LOCK:
         try:
             await _close_expired_cycles(session)
+            await _prune_ip_signup_log(session)
 
             ready_result = await session.execute(
                 select(Submission)
@@ -389,6 +391,12 @@ async def _count_unprocessed(session: AsyncSession) -> int:
         .where(Submission.status.in_(["canonicalized", "pending"]))
     )
     return result.scalar_one()
+
+
+async def _prune_ip_signup_log(session: AsyncSession) -> None:
+    """Delete ip_signup_log rows older than 30 days to bound table growth."""
+    cutoff = datetime.now(UTC) - timedelta(days=30)
+    await session.execute(delete(IPSignupLog).where(IPSignupLog.created_at < cutoff))
 
 
 async def _close_expired_cycles(session: AsyncSession) -> int:

@@ -190,6 +190,7 @@ async def test_batch_canonicalization_increments_contribution_count() -> None:
         patch("src.scheduler.main.generate_ballot_questions", new_callable=AsyncMock),
         patch("src.scheduler.main.generate_policy_options", new_callable=AsyncMock),
         patch("src.scheduler.main.build_agenda", return_value=[]),
+        patch("src.scheduler.main._prune_ip_signup_log", new_callable=AsyncMock),
         patch("src.scheduler.main._run_daily_anchoring", new_callable=AsyncMock),
     ):
         fake_sub.candidates = [mock_candidate]

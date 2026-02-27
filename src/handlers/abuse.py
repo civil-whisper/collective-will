@@ -47,8 +47,11 @@ async def check_domain_rate(db: AsyncSession, email_domain: str) -> RateLimitRes
     if is_major_provider(email_domain, settings):
         return RateLimitResult(allowed=True)
     start = datetime.now(UTC) - timedelta(days=1)
+    escaped_domain = email_domain.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
     result = await db.execute(
-        select(func.count(User.id)).where(User.email.ilike(f"%@{email_domain}"), User.created_at >= start)
+        select(func.count(User.id)).where(
+            User.email.ilike(f"%@{escaped_domain}", escape="\\"), User.created_at >= start
+        )
     )
     count = int(result.scalar_one())
     if count >= settings.max_signups_per_domain_per_day:
@@ -139,6 +142,7 @@ async def check_signup_limits(*, session: AsyncSession, email: str, requester_ip
     ip_result = await check_signup_ip_rate(session, requester_ip)
     if not ip_result.allowed:
         return False, ip_result.reason
+    await check_signup_domain_diversity_by_ip(session, requester_ip)
     await record_account_creation_velocity(session, requester_ip, domain)
     return True, None
 
