@@ -76,7 +76,7 @@ variable. New config fields in `Settings`:
 
 | Field | Env var | Prod default | Staging override |
 |-------|---------|-------------|-----------------|
-| `voting_cycle_hours` | `VOTING_CYCLE_HOURS` | `48` | `2` |
+| `voting_cycle_hours` | `VOTING_CYCLE_HOURS` | `48` | `1` |
 | `max_submissions_per_day` | `MAX_SUBMISSIONS_PER_DAY` | `5` | `50` |
 | `require_contribution_for_vote` | `REQUIRE_CONTRIBUTION_FOR_VOTE` | `true` | `false` |
 
