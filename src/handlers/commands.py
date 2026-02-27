@@ -67,7 +67,11 @@ _MESSAGES: dict[str, dict[str, str]] = {
     "fa": {
         "submission_prompt": "📝 لطفاً نگرانی یا پیشنهاد سیاستی خود را بنویسید:",
         "menu_hint": "لطفاً از دکمه‌های زیر استفاده کنید.",
-        "no_active_cycle": "در حال حاضر رای‌گیری فعالی وجود ندارد.",
+        "no_active_cycle": (
+            "در حال حاضر رای‌گیری فعالی وجود ندارد.\n\n"
+            "رای‌گیری زمانی آغاز می‌شود که سیاست‌های کافی توسط شهروندان امضا شده باشند. "
+            "می‌توانید با امضای سیاست‌ها به شروع زودتر رای‌گیری کمک کنید!"
+        ),
         "endorsement_header": (
             "موضوعات زیر برای رای‌گیری بعدی در نظر گرفته شده‌اند.\n"
             "روی هر کدام که می‌خواهید در رای‌گیری باشد ضربه بزنید:"
@@ -91,11 +95,16 @@ _MESSAGES: dict[str, dict[str, str]] = {
         "no_options": "گزینه‌ای برای این سیاست موجود نیست.",
         "no_endorsable_clusters": "در حال حاضر سیاستی برای امضا وجود ندارد.",
         "endorse_policy_header": "✍️ سیاست {n} از {total}:",
+        "endorse_complete": "✅ همه سیاست‌ها بررسی شدند!",
     },
     "en": {
         "submission_prompt": "📝 Please type your concern or policy proposal:",
         "menu_hint": "Please use the buttons below.",
-        "no_active_cycle": "There is no active vote at this time.",
+        "no_active_cycle": (
+            "There is no active vote at this time.\n\n"
+            "Voting begins once enough policies have been endorsed by citizens. "
+            "You can help start the next vote sooner by endorsing policies!"
+        ),
         "endorsement_header": (
             "These topics are being considered for the next vote.\n"
             "Tap to endorse ones you want on the ballot:"
@@ -119,6 +128,7 @@ _MESSAGES: dict[str, dict[str, str]] = {
         "no_options": "No options available for this policy.",
         "no_endorsable_clusters": "No policies available for endorsement right now.",
         "endorse_policy_header": "✍️ Policy {n} of {total}:",
+        "endorse_complete": "✅ All policies reviewed!",
     },
 }
 
@@ -138,16 +148,16 @@ _MAIN_MENU: dict[str, dict[str, list[list[dict[str, str]]]]] = {
     "fa": {
         "inline_keyboard": [
             [{"text": "📝 ارسال نگرانی", "callback_data": "submit"}],
-            [{"text": "🗳️ رای دادن", "callback_data": "vote"}],
             [{"text": "✍️ امضای سیاست", "callback_data": "endorse"}],
+            [{"text": "🗳️ رای دادن", "callback_data": "vote"}],
             [{"text": "🌐 Change language", "callback_data": "lang"}],
         ]
     },
     "en": {
         "inline_keyboard": [
             [{"text": "📝 Submit a concern", "callback_data": "submit"}],
-            [{"text": "🗳️ Vote", "callback_data": "vote"}],
             [{"text": "✍️ Endorse policies", "callback_data": "endorse"}],
+            [{"text": "🗳️ Vote", "callback_data": "vote"}],
             [{"text": "🌐 تغییر زبان", "callback_data": "lang"}],
         ]
     },
@@ -428,6 +438,13 @@ async def _show_endorsement_policy(
         user.bot_state = None
         user.bot_state_data = None
         await db.commit()
+        await channel.edit_message_markup(
+            message.sender_ref, message.message_id, {"inline_keyboard": []},
+        )
+        await channel.send_message(OutboundMessage(
+            recipient_ref=message.sender_ref,
+            text=_msg(user.locale, "endorse_complete"),
+        ))
         await _send_main_menu(user.locale, message.sender_ref, channel)
         return "endorse_done"
 

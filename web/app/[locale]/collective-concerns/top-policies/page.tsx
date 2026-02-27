@@ -54,7 +54,7 @@ export default async function TopPoliciesPage() {
                 <div className="min-w-0 flex-1">
                   <Link
                     href={`/${locale}/collective-concerns/clusters/${item.cluster_id}`}
-                    className="font-medium text-gray-900 hover:text-accent dark:text-slate-100 dark:hover:text-indigo-300"
+                    className="block truncate font-medium text-gray-900 hover:text-accent dark:text-slate-100 dark:hover:text-indigo-300"
                   >
                     {item.summary ?? item.cluster_id}
                   </Link>

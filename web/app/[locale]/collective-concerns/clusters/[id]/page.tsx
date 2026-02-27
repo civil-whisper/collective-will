@@ -72,14 +72,14 @@ export default async function ClusterDetailPage({params}: Props) {
 
       {/* Candidates / member submissions */}
       <div>
-        <h2 className="mb-3 text-lg font-semibold">{t("memberCount")}</h2>
+        <h2 className="mb-3 text-sm font-semibold sm:text-lg">{t("memberCount")}</h2>
         <div className="space-y-3">
           {cluster.candidates.map((candidate) => (
             <Card key={candidate.id}>
               <div className="flex items-start justify-between gap-4">
                 <div className="min-w-0 flex-1">
-                  <p className="font-medium">{candidate.title}</p>
-                  <p className="mt-1 text-sm text-gray-600 dark:text-slate-400">
+                  <p className="text-sm font-medium sm:text-base">{candidate.title}</p>
+                  <p className="mt-1 text-xs text-gray-600 sm:text-sm dark:text-slate-400">
                     {candidate.summary}
                   </p>
                   <div className="mt-2">
