@@ -1,14 +1,12 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
 import pytest
 
+from src.db.ip_signup_log import IPSignupLog
 from src.handlers.abuse import (
-    _IP_DOMAIN_TRACKER,
-    _IP_SIGNUP_COUNTER,
     RateLimitResult,
     check_burst,
     check_domain_rate,
@@ -20,12 +18,6 @@ from src.handlers.abuse import (
     record_account_creation_velocity,
     score_disposable_email_domain,
 )
-
-
-@pytest.fixture(autouse=True)
-def _clear_counters() -> None:
-    _IP_SIGNUP_COUNTER.clear()
-    _IP_DOMAIN_TRACKER.clear()
 
 
 def test_rate_limit_result_fields() -> None:
@@ -109,6 +101,9 @@ async def test_check_domain_rate_major_exempt(mock_settings: MagicMock) -> None:
 async def test_check_signup_ip_rate_allows_up_to_cap(mock_settings: MagicMock) -> None:
     mock_settings.return_value.max_signups_per_ip_per_day = 10
     db = AsyncMock()
+    scalar_mock = MagicMock()
+    scalar_mock.scalar_one.return_value = 9
+    db.execute.return_value = scalar_mock
     result = await check_signup_ip_rate(db, "1.2.3.4")
     assert result.allowed is True
 
@@ -117,8 +112,10 @@ async def test_check_signup_ip_rate_allows_up_to_cap(mock_settings: MagicMock) -
 @patch("src.handlers.abuse.get_settings")
 async def test_check_signup_ip_rate_denies_above_cap(mock_settings: MagicMock) -> None:
     mock_settings.return_value.max_signups_per_ip_per_day = 2
-    _IP_SIGNUP_COUNTER["1.2.3.4"] = [datetime.now(UTC), datetime.now(UTC)]
     db = AsyncMock()
+    scalar_mock = MagicMock()
+    scalar_mock.scalar_one.return_value = 2
+    db.execute.return_value = scalar_mock
     result = await check_signup_ip_rate(db, "1.2.3.4")
     assert result.allowed is False
     assert result.reason == "ip_daily_limit"
@@ -128,8 +125,10 @@ async def test_check_signup_ip_rate_denies_above_cap(mock_settings: MagicMock) -
 @patch("src.handlers.abuse.get_settings")
 async def test_domain_diversity_flags_high_count(mock_settings: MagicMock) -> None:
     mock_settings.return_value.signup_domain_diversity_threshold = 5
-    _IP_DOMAIN_TRACKER["1.2.3.4"] = {"a.com", "b.com", "c.com", "d.com", "e.com"}
     db = AsyncMock()
+    scalar_mock = MagicMock()
+    scalar_mock.scalar_one.return_value = 5
+    db.execute.return_value = scalar_mock
     result = await check_signup_domain_diversity_by_ip(db, "1.2.3.4")
     assert result.allowed is True
     assert result.reason == "high_domain_diversity_flagged"
@@ -139,8 +138,10 @@ async def test_domain_diversity_flags_high_count(mock_settings: MagicMock) -> No
 @patch("src.handlers.abuse.get_settings")
 async def test_domain_diversity_normal(mock_settings: MagicMock) -> None:
     mock_settings.return_value.signup_domain_diversity_threshold = 5
-    _IP_DOMAIN_TRACKER["1.2.3.4"] = {"a.com"}
     db = AsyncMock()
+    scalar_mock = MagicMock()
+    scalar_mock.scalar_one.return_value = 1
+    db.execute.return_value = scalar_mock
     result = await check_signup_domain_diversity_by_ip(db, "1.2.3.4")
     assert result.allowed is True
     assert result.reason is None
@@ -218,8 +219,12 @@ async def test_check_vote_change_second_denied(mock_settings: MagicMock) -> None
 async def test_record_velocity_tracks() -> None:
     db = AsyncMock()
     await record_account_creation_velocity(db, "1.2.3.4", "example.com")
-    assert "1.2.3.4" in _IP_SIGNUP_COUNTER
-    assert "example.com" in _IP_DOMAIN_TRACKER.get("1.2.3.4", set())
+    db.add.assert_called_once()
+    added = db.add.call_args[0][0]
+    assert isinstance(added, IPSignupLog)
+    assert added.requester_ip == "1.2.3.4"
+    assert added.email_domain == "example.com"
+    db.flush.assert_awaited_once()
 
 
 @pytest.mark.asyncio

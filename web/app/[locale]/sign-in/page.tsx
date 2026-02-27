@@ -18,7 +18,6 @@ export default function SignInPage() {
       await apiPost("/auth/subscribe", {
         email,
         locale,
-        requester_ip: "0.0.0.0",
         messaging_account_ref: `web-${crypto.randomUUID()}`,
       });
       setStatus("sent");

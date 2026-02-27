@@ -30,7 +30,6 @@ class TestSubscribe:
                     json={
                         "email": "user@example.com",
                         "locale": "fa",
-                        "requester_ip": "1.2.3.4",
                         "messaging_account_ref": "web-signup",
                     },
                 )
@@ -56,7 +55,6 @@ class TestSubscribe:
                     json={
                         "email": "user@example.com",
                         "locale": "fa",
-                        "requester_ip": "1.2.3.4",
                         "messaging_account_ref": "web-signup",
                     },
                 )
@@ -80,7 +78,6 @@ class TestSubscribe:
                     json={
                         "email": "user@example.com",
                         "locale": "fa",
-                        "requester_ip": "1.2.3.4",
                         "messaging_account_ref": "web-signup",
                     },
                 )
@@ -99,7 +96,6 @@ class TestSubscribe:
                 json={
                     "email": "not-an-email",
                     "locale": "fa",
-                    "requester_ip": "1.2.3.4",
                     "messaging_account_ref": "web-signup",
                 },
             )
@@ -130,9 +126,9 @@ class TestSubscribe:
                     json={
                         "email": "test@example.org",
                         "locale": "en",
-                        "requester_ip": "10.0.0.1",
                         "messaging_account_ref": "ref-abc",
                     },
+                    headers={"X-Forwarded-For": "10.0.0.1"},
                 )
                 mock_subscribe.assert_called_once()
                 call_kwargs = mock_subscribe.call_args.kwargs

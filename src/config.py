@@ -45,7 +45,7 @@ class Settings(BaseSettings):
     linking_code_expiry_minutes: int = 60
     web_session_code_expiry_minutes: int = 10
     web_access_token_expiry_hours: int = 24 * 30
-    web_access_token_secret: str = "change-me-in-production"
+    web_access_token_secret: str
     dispute_metrics_lookback_days: int = 7
     dispute_rate_tuning_threshold: float = 0.05
     dispute_disagreement_tuning_threshold: float = 0.30
@@ -106,6 +106,13 @@ class Settings(BaseSettings):
     def validate_public_base_url(cls, value: str) -> str:
         if not value.strip():
             raise ValueError("APP_PUBLIC_BASE_URL must be provided")
+        return value
+
+    @field_validator("web_access_token_secret")
+    @classmethod
+    def validate_web_access_token_secret(cls, value: str) -> str:
+        if value == "change-me-in-production":
+            raise ValueError("WEB_ACCESS_TOKEN_SECRET must be changed from the default placeholder")
         return value
 
     def major_email_provider_list(self) -> list[str]:

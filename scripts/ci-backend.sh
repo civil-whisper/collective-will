@@ -22,6 +22,7 @@ export ANTHROPIC_API_KEY="${ANTHROPIC_API_KEY:-test-anthropic-key}"
 export OPENAI_API_KEY="${OPENAI_API_KEY:-test-openai-key}"
 export DEEPSEEK_API_KEY="${DEEPSEEK_API_KEY:-test-deepseek-key}"
 export EVOLUTION_API_KEY="${EVOLUTION_API_KEY:-test-evolution-key}"
+export WEB_ACCESS_TOKEN_SECRET="${WEB_ACCESS_TOKEN_SECRET:-test-web-token-secret}"
 
 cleanup() {
   if [[ "$STARTED_LOCAL_DB" -eq 1 && "$KEEP_LOCAL_CI_DB" != "1" ]]; then

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, EmailStr
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -10,10 +10,18 @@ from src.handlers.identity import exchange_web_session_code, subscribe_email, ve
 router = APIRouter()
 
 
+def _get_client_ip(request: Request) -> str:
+    forwarded_for = request.headers.get("X-Forwarded-For")
+    if forwarded_for:
+        return forwarded_for.split(",")[0].strip()
+    if request.client:
+        return request.client.host
+    return ""
+
+
 class SubscribeRequest(BaseModel):
     email: EmailStr
     locale: str = "fa"
-    requester_ip: str
     messaging_account_ref: str
 
 
@@ -25,13 +33,15 @@ class WebSessionRequest(BaseModel):
 @router.post("/subscribe")
 async def subscribe(
     payload: SubscribeRequest,
+    request: Request,
     session: AsyncSession = Depends(get_db),
 ) -> dict[str, str]:
+    requester_ip = _get_client_ip(request)
     user, token = await subscribe_email(
         session=session,
         email=str(payload.email),
         locale=payload.locale,
-        requester_ip=payload.requester_ip,
+        requester_ip=requester_ip,
         messaging_account_ref=payload.messaging_account_ref,
     )
     if user is None:

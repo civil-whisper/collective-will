@@ -5,10 +5,11 @@ from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 from pydantic import BaseModel
-from sqlalchemy import func, select
+from sqlalchemy import distinct, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.config import Settings, get_settings
+from src.db.ip_signup_log import IPSignupLog
 from src.models.submission import Submission
 from src.models.user import User
 from src.models.vote import Vote
@@ -16,9 +17,6 @@ from src.models.vote import Vote
 logger = logging.getLogger(__name__)
 
 KNOWN_DISPOSABLE_DOMAINS = {"mailinator.com", "guerrillamail.com", "tempmail.com", "throwaway.email", "yopmail.com"}
-
-_IP_SIGNUP_COUNTER: dict[str, list[datetime]] = {}
-_IP_DOMAIN_TRACKER: dict[str, set[str]] = {}
 
 
 class RateLimitResult(BaseModel):
@@ -60,12 +58,15 @@ async def check_domain_rate(db: AsyncSession, email_domain: str) -> RateLimitRes
 
 async def check_signup_ip_rate(db: AsyncSession, requester_ip: str) -> RateLimitResult:
     settings = get_settings()
-    now = datetime.now(UTC)
-    cutoff = now - timedelta(days=1)
-    entries = _IP_SIGNUP_COUNTER.get(requester_ip, [])
-    recent = [ts for ts in entries if ts >= cutoff]
-    _IP_SIGNUP_COUNTER[requester_ip] = recent
-    if len(recent) >= settings.max_signups_per_ip_per_day:
+    cutoff = datetime.now(UTC) - timedelta(days=1)
+    result = await db.execute(
+        select(func.count(IPSignupLog.id)).where(
+            IPSignupLog.requester_ip == requester_ip,
+            IPSignupLog.created_at >= cutoff,
+        )
+    )
+    count = int(result.scalar_one())
+    if count >= settings.max_signups_per_ip_per_day:
         return RateLimitResult(allowed=False, reason="ip_daily_limit")
     return RateLimitResult(allowed=True)
 
@@ -73,9 +74,16 @@ async def check_signup_ip_rate(db: AsyncSession, requester_ip: str) -> RateLimit
 async def check_signup_domain_diversity_by_ip(db: AsyncSession, requester_ip: str) -> RateLimitResult:
     """Track and flag anomalous distinct email-domain count from one IP. v0: flag only, no block."""
     settings = get_settings()
-    domains = _IP_DOMAIN_TRACKER.get(requester_ip, set())
-    if len(domains) >= settings.signup_domain_diversity_threshold:
-        logger.warning("High domain diversity from IP %s: %d domains", requester_ip, len(domains))
+    cutoff = datetime.now(UTC) - timedelta(days=7)
+    result = await db.execute(
+        select(func.count(distinct(IPSignupLog.email_domain))).where(
+            IPSignupLog.requester_ip == requester_ip,
+            IPSignupLog.created_at >= cutoff,
+        )
+    )
+    count = int(result.scalar_one())
+    if count >= settings.signup_domain_diversity_threshold:
+        logger.warning("High domain diversity from IP %s: %d domains", requester_ip, count)
         return RateLimitResult(allowed=True, reason="high_domain_diversity_flagged")
     return RateLimitResult(allowed=True)
 
@@ -115,10 +123,10 @@ async def record_account_creation_velocity(
     requester_ip: str | None,
     email_domain: str,
 ) -> None:
-    """Emit account-creation velocity metrics for abuse monitoring."""
+    """Record account-creation velocity to the DB for abuse monitoring."""
     if requester_ip:
-        _IP_SIGNUP_COUNTER.setdefault(requester_ip, []).append(datetime.now(UTC))
-        _IP_DOMAIN_TRACKER.setdefault(requester_ip, set()).add(email_domain)
+        db.add(IPSignupLog(requester_ip=requester_ip, email_domain=email_domain))
+        await db.flush()
     logger.info("Account creation velocity: ip=%s domain=%s", requester_ip, email_domain)
 
 

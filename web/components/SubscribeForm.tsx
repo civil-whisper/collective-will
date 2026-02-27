@@ -19,7 +19,6 @@ export function SubscribeForm() {
       await apiPost("/auth/subscribe", {
         email,
         locale,
-        requester_ip: "127.0.0.1",
         messaging_account_ref: `web-${crypto.randomUUID()}`,
       });
       setStatus("success");

@@ -294,6 +294,7 @@ async def process_submission(
         db_candidate = await create_policy_candidate(session, result)
         await compute_and_store_embeddings(session=session, candidates=[db_candidate], llm_router=router)
         submission.status = "canonicalized"
+        user.contribution_count += 1
         await session.commit()
         return submission, ("accepted_flagged" if quarantined else "accepted")
     except Exception:
