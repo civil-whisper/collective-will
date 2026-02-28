@@ -719,30 +719,31 @@ After:   Client → Cloudflare → Caddy (VPS) → Docker containers
 
 **Operator Manual Steps (must be done before code changes):**
 
-- [ ] Create Cloudflare account at https://dash.cloudflare.com/sign-up (use project email, not personal)
-- [ ] Add site `collectivewill.org`, choose Free plan
-- [ ] Verify DNS records are imported:
+- [x] Create Cloudflare account at https://dash.cloudflare.com/sign-up (use project email, not personal)
+- [x] Add site `collectivewill.org`, choose Free plan
+- [x] Verify DNS records are imported:
   - `A` record: `@` → VPS IP (Proxied / orange cloud)
   - `A` record: `staging` → VPS IP (Proxied / orange cloud)
-- [ ] Copy the two Cloudflare nameservers (e.g. `ada.ns.cloudflare.com`, `beth.ns.cloudflare.com`)
-- [ ] Log into Njalla → domain settings → replace current nameservers with Cloudflare's two
-- [ ] Wait for propagation (minutes to ~24h); verify `dig collectivewill.org` shows Cloudflare IPs
-- [ ] SSL/TLS → Overview: set encryption mode to **Full (strict)** (Caddy already has valid LE certs)
-- [ ] SSL/TLS → Edge Certificates: Always Use HTTPS = On, Minimum TLS = 1.2, TLS 1.3 = On
-- [ ] Caching → Cache Rules: create rule "Bypass API and auth" — URI Path starts with `/api/` → Bypass cache
-- [ ] Security → Settings: Security Level = Medium
-- [ ] Security → Bots: enable Bot Fight Mode
-- [ ] Network → WebSockets: On
-- [ ] Verify: visit both domains, confirm `cf-ray` header present in response
-- [ ] Verify: Telegram webhook still works (POST requests pass through CF fine)
-- [ ] Tell the agent "Cloudflare is live" to trigger the code changes below
+- [x] Copy the two Cloudflare nameservers (`glen.ns.cloudflare.com`, `tani.ns.cloudflare.com`)
+- [x] Log into Njalla → domain settings → replace current nameservers with Cloudflare's two
+- [x] Wait for propagation; verified `dig collectivewill.org NS` returns Cloudflare nameservers
+- [x] SSL/TLS → Overview: set encryption mode to **Full (strict)** (Caddy already has valid LE certs)
+- [x] SSL/TLS → Edge Certificates: Always Use HTTPS = On, Minimum TLS = 1.2, TLS 1.3 = On
+- [x] Caching → Cache Rules: create rule "Bypass API and auth" — URI Path starts with `/api/` → Bypass cache
+- [x] Security → Settings: Security Level = automated ("always protected" — CF removed manual levels)
+- [x] Security → Bots: enable Bot Fight Mode
+- [x] Network → WebSockets: On
+- [x] Verify: both domains return `cf-ray` header (confirmed via `curl -sI`)
+- [x] Verify: Telegram webhook still works (POST requests pass through CF fine)
+- [x] Cloudflare is live — code changes triggered
 
 **Code Changes (agent implements after CF is live):**
 
-98. [ ] Update Caddyfile with Cloudflare trusted proxy config
-    - Add `servers { trusted_proxies cloudflare }` global block (Caddy 2.7+ built-in)
-    - Ensures `request.client.host` reflects real client IP, not Cloudflare edge IP
-    - **Note**: This is a prerequisite for production-safe IP extraction. Without it, item 99's `X-Forwarded-For` parsing is still spoofable by direct connections that bypass the reverse proxy.
+98. [done] Update Caddyfile with Cloudflare trusted proxy config
+    - Added global `servers { trusted_proxies static ... }` block with all Cloudflare IPv4/IPv6 ranges
+    - Added `trusted_proxies_strict` for right-to-left XFF parsing (recommended for upstream proxies like CF)
+    - Ensures `{client_ip}` and `X-Forwarded-For` reflect real client IP, not Cloudflare edge IP
+    - **Note**: The `cloudflare` module is a Caddy plugin (not built-in); used `trusted_proxies static` with published IP ranges instead. Ranges from https://www.cloudflare.com/ips/ — update if CF publishes new ranges.
 
 99. [done] Fix server-side IP extraction (remove spoofable `requester_ip` from request body)
     - `src/api/routes/auth.py`: added `_get_client_ip()` helper extracting IP from `X-Forwarded-For` (first hop) / `request.client.host` fallback; removed `requester_ip` from `SubscribeRequest` schema
@@ -753,9 +754,9 @@ After:   Client → Cloudflare → Caddy (VPS) → Docker containers
     - Tests: `TestGetClientIp` covers XFF single, XFF chain, client.host fallback, and empty fallback
     - **Prerequisite**: item 98 (Caddyfile trusted proxies) must be deployed before this is production-safe against XFF spoofing
 
-100. [ ] Update infrastructure docs
-     - Mark Cloudflare as active (not just planned) in `docs/infrastructure-guide.md`
-     - Update `docs/agent-context/CONTEXT-shared.md` proxy/CDN layer description
+100. [done] Update infrastructure docs
+     - Marked Cloudflare as active in `docs/infrastructure-guide.md` (updated architecture diagram, DNS section, settings)
+     - Updated `docs/agent-context/CONTEXT-shared.md` Infrastructure frozen decision to reflect active CF + trusted proxies
 
 ### P1 — Email: Verify Domain in Resend + Future SMTP Migration Path
 

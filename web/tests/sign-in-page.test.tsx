@@ -55,7 +55,6 @@ describe("SignInPage", () => {
     expect(JSON.parse(options.body)).toEqual({
       email: "test@example.com",
       locale: "en",
-      requester_ip: "0.0.0.0",
       messaging_account_ref: expect.stringMatching(/^web-/),
     });
   });

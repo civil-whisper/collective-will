@@ -32,14 +32,16 @@ A practical guide for setting up and managing the infrastructure for Collective 
                     ┌──────────────────┼──────────────────┐
                     │                  │                  │
                     ▼                  ▼                  │
-               Your Users        WhatsApp API            │
+               Your Users      Telegram Bot API          │
                     │                  │                  │
                     └──────────────────┘                  │
                                        │                  │
                                        ▼                  │
                               ┌─────────────────┐        │
                               │   Cloudflare    │        │
-                              │   (DNS + CDN)   │        │
+                              │  (DNS + CDN +   │        │
+                              │   DDoS + WAF)   │        │
+                              │    ✅ ACTIVE     │        │
                               └────────┬────────┘        │
                                        │                  │
                                        ▼                  │
@@ -50,7 +52,7 @@ A practical guide for setting up and managing the infrastructure for Collective 
 │  │                      Docker Compose                         │ │
 │  │                                                             │ │
 │  │  ┌─────────┐  ┌─────────┐  ┌─────────┐  ┌─────────────┐   │ │
-│  │  │  nginx  │  │   web   │  │ backend │  │  scheduler  │   │ │
+│  │  │  Caddy  │  │   web   │  │ backend │  │  scheduler  │   │ │
 │  │  │ :80/443 │─▶│ :3000   │  │  :8000  │  │   (cron)    │   │ │
 │  │  └─────────┘  └─────────┘  └─────────┘  └─────────────┘   │ │
 │  │       │                          │              │          │ │
@@ -76,7 +78,7 @@ A practical guide for setting up and managing the infrastructure for Collective 
 | **Single VPS** | Simple, sufficient for MVP scale (<1000 users) |
 | **Docker Compose** | Reproducible deployments, easy updates, isolated services |
 | **Njalla + 1984.is** | Njalla for domain privacy + 1984.is for VPS hosting |
-| **Cloudflare** | Free DDoS protection, hides server IP, fast DNS |
+| **Cloudflare** | Free DDoS protection, hides server IP, fast DNS — **active** (nameservers: `glen.ns.cloudflare.com`, `tani.ns.cloudflare.com`) |
 | **PostgreSQL** | Mature, reliable, supports pgvector for embeddings |
 
 ### When to Scale Beyond This
@@ -581,44 +583,43 @@ docker stats
 
 For a privacy-sensitive project, consider **Njalla** (Swedish, privacy-first).
 
-### Set Up Cloudflare DNS
+### Cloudflare DNS & CDN (ACTIVE)
 
-Cloudflare provides free:
+Cloudflare is **active** for `collectivewill.org` (Free plan). Nameservers
+`glen.ns.cloudflare.com` and `tani.ns.cloudflare.com` are set at Njalla.
+
+**What Cloudflare provides (free tier):**
 - DNS hosting
-- DDoS protection
+- DDoS protection + Bot Fight Mode
 - CDN (faster page loads)
-- Hides your server IP from public
+- Hides origin server IP from public
+- Automatic HTTPS (edge certificates)
 
-**Setup:**
+**Current DNS records (managed in Cloudflare):**
+```
+A   collectivewill.org   → VPS IP   (Proxied / orange cloud)
+A   staging              → VPS IP   (Proxied / orange cloud)
+MX  send                 → Resend SMTP (DNS only)
+TXT resend_domainkey     → DKIM key (DNS only)
+TXT send                 → SPF record (DNS only)
+```
 
-1. Create Cloudflare account: https://dash.cloudflare.com/sign-up
+**Cloudflare settings applied:**
+- SSL/TLS → Full (strict)
+- SSL/TLS → Edge Certificates: Always Use HTTPS, Min TLS 1.2, TLS 1.3
+- Caching → Cache Rule: bypass cache for `/api/*`
+- Security → automated protection (always protected) + Bot Fight Mode
+- Network → WebSockets enabled
 
-2. Add your domain:
-   - Click "Add a Site"
-   - Enter your domain
-   - Choose Free plan
+**Caddy trusted proxy configuration:** The Caddyfile includes a global
+`trusted_proxies static` block with all Cloudflare IPv4/IPv6 ranges plus
+`trusted_proxies_strict` (right-to-left XFF parsing). This ensures
+`{client_ip}` and `X-Forwarded-For` reflect the real visitor IP, not the
+Cloudflare edge. See `deploy/Caddyfile`.
 
-3. Update nameservers at your registrar:
-   - Cloudflare will show you two nameservers (e.g., `ada.ns.cloudflare.com`)
-   - Go to your domain registrar → DNS settings
-   - Replace nameservers with Cloudflare's
-
-4. Add DNS records in Cloudflare:
-   ```
-   Type: A
-   Name: @
-   Content: YOUR_SERVER_IP
-   Proxy: Yes (orange cloud)
-   
-   Type: A
-   Name: www
-   Content: YOUR_SERVER_IP
-   Proxy: Yes (orange cloud)
-   ```
-
-5. SSL/TLS settings in Cloudflare:
-   - Go to SSL/TLS → Overview
-   - Set mode to **Full (strict)**
+**Maintaining Cloudflare IP ranges:** Cloudflare publishes its ranges at
+https://www.cloudflare.com/ips/. If they change, update the `trusted_proxies`
+block in `deploy/Caddyfile` accordingly.
 
 ### Set Up HTTPS with Let's Encrypt
 
