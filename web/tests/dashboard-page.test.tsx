@@ -34,26 +34,29 @@ describe("DashboardPage", () => {
   });
 
   it("renders heading and summary cards", async () => {
-    mockFetchSequence([], []);
+    mockFetchSequence([], [], {entries: []});
     const jsx = await DashboardPage();
     render(jsx);
     expect(screen.getByRole("heading", {level: 1})).toHaveTextContent("My Activity");
     expect(screen.getByText(/Total Submissions/)).toBeTruthy();
     expect(screen.getByText(/Total Votes/)).toBeTruthy();
+    expect(screen.getByText(/Total Receipts/)).toBeTruthy();
   });
 
   it("shows empty state messages when no data", async () => {
-    mockFetchSequence([], []);
+    mockFetchSequence([], [], {entries: []});
     const jsx = await DashboardPage();
     render(jsx);
     expect(screen.getByText("You haven't submitted any concerns yet.")).toBeTruthy();
     expect(screen.getByText("You haven't voted yet.")).toBeTruthy();
+    expect(screen.getByText("You do not have any receipt-eligible actions yet.")).toBeTruthy();
   });
 
   it("displays submissions with raw text and status", async () => {
     mockFetchSequence(
       [{id: "s1", raw_text: "Fix the economy", status: "processed", hash: "abc"}],
       [],
+      {entries: []},
     );
     const jsx = await DashboardPage();
     render(jsx);
@@ -65,6 +68,7 @@ describe("DashboardPage", () => {
     mockFetchSequence(
       [{id: "s1", raw_text: "My concern", status: "pending", hash: "abc"}],
       [],
+      {entries: []},
     );
     const jsx = await DashboardPage();
     render(jsx);
@@ -88,6 +92,7 @@ describe("DashboardPage", () => {
         },
       ],
       [],
+      {entries: []},
     );
     const jsx = await DashboardPage();
     render(jsx);
@@ -109,6 +114,7 @@ describe("DashboardPage", () => {
         },
       ],
       [],
+      {entries: []},
     );
     const jsx = await DashboardPage();
     render(jsx);
@@ -121,6 +127,7 @@ describe("DashboardPage", () => {
     mockFetchSequence(
       [{id: "s1", raw_text: "Test", status: "processed", hash: "abc", dispute_status: "open"}],
       [],
+      {entries: []},
     );
     const jsx = await DashboardPage();
     render(jsx);
@@ -131,6 +138,7 @@ describe("DashboardPage", () => {
     mockFetchSequence(
       [{id: "s1", raw_text: "Test", status: "processed", hash: "abc", dispute_status: "resolved"}],
       [],
+      {entries: []},
     );
     const jsx = await DashboardPage();
     render(jsx);
@@ -141,6 +149,7 @@ describe("DashboardPage", () => {
     mockFetchSequence(
       [{id: "s1", raw_text: "Test", status: "processed", hash: "abc"}],
       [],
+      {entries: []},
     );
     const jsx = await DashboardPage();
     render(jsx);
@@ -151,6 +160,7 @@ describe("DashboardPage", () => {
     mockFetchSequence(
       [{id: "s1", raw_text: "Test", status: "pending", hash: "abc"}],
       [],
+      {entries: []},
     );
     const jsx = await DashboardPage();
     render(jsx);
@@ -161,6 +171,7 @@ describe("DashboardPage", () => {
     mockFetchSequence(
       [],
       [{id: "v1", cycle_id: "cycle-99"}],
+      {entries: []},
     );
     const jsx = await DashboardPage();
     render(jsx);
@@ -174,6 +185,7 @@ describe("DashboardPage", () => {
         {id: "s2", raw_text: "B", status: "pending", hash: "b"},
       ],
       [{id: "v1", cycle_id: "c1"}],
+      {entries: []},
     );
     const jsx = await DashboardPage();
     render(jsx);
@@ -188,5 +200,48 @@ describe("DashboardPage", () => {
     render(jsx);
     expect(screen.getByText("You haven't submitted any concerns yet.")).toBeTruthy();
     expect(screen.getByText("You haven't voted yet.")).toBeTruthy();
+  });
+
+  it("renders receipt cards with verification link and status chips", async () => {
+    mockFetchSequence(
+      [],
+      [],
+      {
+        entries: [
+          {
+            id: 1,
+            timestamp: "2026-03-15T10:00:00Z",
+            event_type: "policy_endorsed",
+            entity_type: "policy_endorsement",
+            entity_id: "cluster-1",
+            payload: {cluster_id: "cluster-1"},
+            hash: "receipt-hash-1",
+            prev_hash: "prev",
+            receipt_token: "token-1",
+          },
+        ],
+      },
+      {
+        status: "published",
+        receipt_valid: true,
+        entry_found: true,
+        bundle_day: "2026-03-15",
+        included_in_public_bundle: true,
+        bundle_hash_matches_manifest: true,
+        ots_proof_present: false,
+        ots_verified: false,
+        verified_before: null,
+        download_urls: {bundle: null, manifest: null, ots_proof: null},
+      },
+    );
+    const jsx = await DashboardPage();
+    render(jsx);
+    expect(screen.getByText("Receipts")).toBeTruthy();
+    expect(screen.getByText("Policy endorsed")).toBeTruthy();
+    expect(screen.getByText("Recorded")).toBeTruthy();
+    expect(screen.getByText("Published")).toBeTruthy();
+    expect(screen.getByText("Timestamped")).toBeTruthy();
+    const link = screen.getByRole("link", {name: "Verify this receipt"});
+    expect(link.getAttribute("href")).toBe("/en/my-activity/receipts/receipt-hash-1");
   });
 });

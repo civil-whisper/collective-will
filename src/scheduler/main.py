@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from uuid import UUID
@@ -11,7 +12,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from src.config import get_settings
-from src.db.anchoring import compute_daily_merkle_root, publish_daily_merkle_root
+from src.db.anchoring import (
+    compute_daily_merkle_root,
+    export_daily_audit_bundle,
+    publish_daily_audit_bundle_metadata,
+    publish_daily_merkle_root,
+)
 from src.db.evidence import append_evidence
 from src.db.heartbeat import upsert_heartbeat
 from src.db.ip_signup_log import IPSignupLog
@@ -376,10 +382,25 @@ async def _has_options(session: AsyncSession, cluster_id: UUID) -> bool:
 
 async def _run_daily_anchoring(*, session: AsyncSession, router: LLMRouter) -> None:
     settings = get_settings()
-    root = await compute_daily_merkle_root(session, datetime.now(UTC).date())
+    today_utc = datetime.now(UTC).date()
+    root = await compute_daily_merkle_root(session, today_utc)
     if root is None:
         return
-    await publish_daily_merkle_root(root, datetime.now(UTC).date(), settings, session=session)
+    bundle = await export_daily_audit_bundle(
+        session,
+        today_utc,
+        output_dir=settings.audit_bundle_output_dir,
+    )
+    if bundle is not None:
+        timestamping = await publish_daily_merkle_root(root, today_utc, settings, session=session)
+        await publish_daily_audit_bundle_metadata(
+            session,
+            day=today_utc,
+            merkle_root=root,
+            bundle=bundle,
+            output_dir=settings.audit_bundle_output_dir,
+            timestamping=timestamping,
+        )
 
 
 async def _count_unprocessed(session: AsyncSession) -> int:
@@ -420,12 +441,12 @@ async def _close_expired_cycles(session: AsyncSession) -> int:
 
 async def scheduler_loop(
     *,
-    session_factory,
+    session_factory: Callable[[], AsyncSession],
     interval_hours: float,
     min_interval_hours: float,
     batch_threshold: int = 10,
     poll_seconds: float = 60.0,
-) -> None:  # type: ignore[no-untyped-def]
+) -> None:
     max_wait = max(interval_hours, min_interval_hours) * 3600
 
     while True:

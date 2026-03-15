@@ -6,6 +6,16 @@ import {DisputeButton} from "@/components/DisputeButton";
 import {DisputeStatus} from "@/components/DisputeStatus";
 import {apiGet} from "@/lib/api";
 import {buildBearerHeaders, getBackendAccessToken} from "@/lib/backend-auth";
+import {eventDescription} from "@/lib/evidence";
+import {
+  type ReceiptEntry,
+  type ReceiptListResponse,
+  type ReceiptStatus,
+  type ReceiptVerification,
+  formatReceiptTimestamp,
+  reachedReceiptStates,
+  receiptBadgeVariant,
+} from "@/lib/receipts";
 import {PageShell, MetricCard, Card, TopicBadge, StatusBadge} from "@/components/ui";
 
 type Submission = {
@@ -33,6 +43,11 @@ type Vote = {
   approved_cluster_ids?: string[];
 };
 
+type ReceiptWithVerification = {
+  entry: ReceiptEntry;
+  verification: ReceiptVerification;
+};
+
 async function getSubmissions(accessToken: string): Promise<Submission[]> {
   return apiGet<Submission[]>("/user/dashboard/submissions", {
     headers: buildBearerHeaders(accessToken),
@@ -43,6 +58,34 @@ async function getVotes(accessToken: string): Promise<Vote[]> {
   return apiGet<Vote[]>("/user/dashboard/votes", {
     headers: buildBearerHeaders(accessToken),
   }).catch(() => []);
+}
+
+async function getReceipts(accessToken: string): Promise<ReceiptEntry[]> {
+  const response = await apiGet<ReceiptListResponse>("/user/dashboard/receipts", {
+    headers: buildBearerHeaders(accessToken),
+  }).catch(() => null);
+  return response?.entries ?? [];
+}
+
+async function getReceiptVerification(accessToken: string, entryHash: string): Promise<ReceiptVerification> {
+  return apiGet<ReceiptVerification>(`/user/dashboard/receipts/${entryHash}/verify`, {
+    headers: buildBearerHeaders(accessToken),
+  }).catch(() => ({
+    status: "recorded",
+    receipt_valid: true,
+    entry_found: true,
+    bundle_day: "",
+    included_in_public_bundle: false,
+    bundle_hash_matches_manifest: false,
+    ots_proof_present: false,
+    ots_verified: false,
+    verified_before: null,
+    download_urls: {
+      bundle: null,
+      manifest: null,
+      ots_proof: null,
+    },
+  }));
 }
 
 const STATUS_VARIANT: Record<string, "success" | "warning" | "info" | "neutral"> = {
@@ -60,21 +103,31 @@ export async function generateMetadata() {
 export default async function DashboardPage() {
   const accessToken = await getBackendAccessToken();
   const t = await getTranslations("dashboard");
+  const tAnalytics = await getTranslations("analytics");
+  const tReceipt = await getTranslations("receiptVerification");
   const locale = await getLocale();
   if (!accessToken) {
     redirect(`/${locale}/sign-in`);
   }
-  const [submissions, votes] = await Promise.all([
+  const [submissions, votes, receipts] = await Promise.all([
     getSubmissions(accessToken),
     getVotes(accessToken),
+    getReceipts(accessToken),
   ]);
+  const receiptsWithVerification: ReceiptWithVerification[] = await Promise.all(
+    receipts.map(async (entry) => ({
+      entry,
+      verification: await getReceiptVerification(accessToken, entry.hash),
+    })),
+  );
 
   return (
     <PageShell title={t("title")}>
       {/* Overview metrics */}
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid gap-4 sm:grid-cols-3">
         <MetricCard label={t("totalSubmissions")} value={submissions.length} />
         <MetricCard label={t("totalVotes")} value={votes.length} />
+        <MetricCard label={t("totalReceipts")} value={receiptsWithVerification.length} />
       </div>
 
       {/* Submissions */}
@@ -169,6 +222,63 @@ export default async function DashboardPage() {
                 </div>
               </Card>
             ))}
+          </div>
+        )}
+      </div>
+
+      {/* Receipts */}
+      <div>
+        <h2 className="mb-3 text-lg font-semibold">{t("receipts")}</h2>
+        {receiptsWithVerification.length === 0 ? (
+          <Card>
+            <p className="py-4 text-center text-sm text-gray-500 dark:text-slate-400">
+              {t("noReceipts")}
+            </p>
+          </Card>
+        ) : (
+          <div className="space-y-3">
+            {receiptsWithVerification.map(({entry, verification}) => {
+              const reachedStates = new Set<ReceiptStatus>(reachedReceiptStates(verification.status));
+              return (
+                <Card key={entry.hash}>
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium">{eventDescription(entry, tAnalytics)}</p>
+                      <p className="mt-1 text-sm text-gray-500 dark:text-slate-400">
+                        {formatReceiptTimestamp(entry.timestamp, locale)}
+                      </p>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {(["recorded", "published", "timestamped"] as ReceiptStatus[]).map((status) => (
+                          <StatusBadge
+                            key={status}
+                            label={tReceipt(`states.${status}.label`)}
+                            variant={reachedStates.has(status) ? receiptBadgeVariant(status) : "neutral"}
+                          />
+                        ))}
+                        {verification.status === "verified" && (
+                          <StatusBadge
+                            label={tReceipt("states.verified.label")}
+                            variant={receiptBadgeVariant("verified")}
+                          />
+                        )}
+                        {verification.status === "failed" && (
+                          <StatusBadge
+                            label={tReceipt("states.failed.label")}
+                            variant={receiptBadgeVariant("failed")}
+                          />
+                        )}
+                      </div>
+                    </div>
+                    <Link
+                      href={`/${locale}/my-activity/receipts/${entry.hash}`}
+                      className="inline-flex items-center justify-center rounded-md bg-accent px-3 py-2 text-sm font-medium text-white hover:opacity-90"
+                    >
+                      {tReceipt("verifyReceipt")}
+                    </Link>
+                  </div>
+                </Card>
+              );
+            })}
           </div>
         )}
       </div>

@@ -12,12 +12,12 @@ This subcontext implements shared-context D19/D20 as:
 
 - Append-only hash-chain evidence log remains the primary audit substrate.
 - Daily Merkle-root computation is mandatory in v0.
-- External Witness publication is optional and config-driven.
+- External timestamping/attestation is optional and config-driven.
 - Entry hash material covers full entry fields (not payload-only) using canonical JSON serialization for reproducible third-party verification.
 
 ---
 
-## Decision: Always compute local roots, optionally publish externally
+## Decision: Always compute local roots, optionally timestamp/publish externally
 
 **Why this is correct**
 
@@ -32,8 +32,9 @@ This subcontext implements shared-context D19/D20 as:
 **Guardrail**
 
 - Treat root computation as a required daily job.
-- Make only publication conditional (`WITNESS_PUBLISH_ENABLED`).
+- Make only external timestamping/publication conditional.
 - Evidence-log the full anchoring path: `anchor_publish_attempted`, `anchor_publish_succeeded`, `anchor_publish_failed` events tracked alongside `anchor_computed`.
+- Evidence-log bundle export lifecycle: `audit_bundle_generated`, `audit_bundle_publish_succeeded`, `audit_bundle_publish_failed`.
 - Hash full evidence entry material (`timestamp`, `event_type`, `entity_type`, `entity_id`, `payload`, `prev_hash`) with canonical serialization (sorted keys) so independent verifiers can reproduce hashes.
 
 **Verdict**: **Keep with guardrail**
@@ -58,6 +59,6 @@ This subcontext implements shared-context D19/D20 as:
 
 - Evidence endpoint queries active cycle IDs at request time (not cached).
 - Receipt tokens are HMAC-SHA256 bound to the evidence entry hash — stateless verification, no receipt table needed.
-- Blockchain anchoring is explicitly deferred to later versions; witness publication is the phase-1 external trust anchor.
+- Blockchain anchoring is explicitly deferred to later versions; OpenTimestamps-backed proof publication is the phase-1 external trust anchor.
 
 **Verdict**: **Implemented as planned**

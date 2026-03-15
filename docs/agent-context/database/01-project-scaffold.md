@@ -83,9 +83,11 @@ class Settings(BaseSettings):
     dispute_resolution_fallback_model: str = "claude-sonnet-latest"
     dispute_resolution_ensemble_models: str = "claude-opus-latest,claude-sonnet-latest,deepseek-chat"
     dispute_resolution_confidence_threshold: float = 0.75
-    witness_publish_enabled: bool = False
-    witness_api_url: str = "https://api.witness.co"
-    witness_api_key: str | None = None
+    audit_timestamp_provider: str = "none"
+    opentimestamps_calendar_urls: str = ""
+    opentimestamps_timeout_seconds: int = 5
+    opentimestamps_required_calendar_count: int = 2
+    opentimestamps_bitcoin_node_url: str | None = None
     embedding_model: str = "text-embedding-3-large"
     embedding_fallback_model: str = "mistral-embed"
 
@@ -123,9 +125,11 @@ DISPUTE_RESOLUTION_MODEL=claude-opus-latest
 DISPUTE_RESOLUTION_FALLBACK_MODEL=claude-sonnet-latest
 DISPUTE_RESOLUTION_ENSEMBLE_MODELS=claude-opus-latest,claude-sonnet-latest,deepseek-chat
 DISPUTE_RESOLUTION_CONFIDENCE_THRESHOLD=0.75
-WITNESS_PUBLISH_ENABLED=false
-WITNESS_API_URL=https://api.witness.co
-WITNESS_API_KEY=  # Optional; required only when WITNESS_PUBLISH_ENABLED=true
+AUDIT_TIMESTAMP_PROVIDER=none
+OPENTIMESTAMPS_CALENDAR_URLS=
+OPENTIMESTAMPS_TIMEOUT_SECONDS=5
+OPENTIMESTAMPS_REQUIRED_CALENDAR_COUNT=2
+OPENTIMESTAMPS_BITCOIN_NODE_URL=
 EMBEDDING_MODEL=text-embedding-3-large
 EMBEDDING_FALLBACK_MODEL=mistral-embed
 ```
@@ -163,5 +167,5 @@ Write tests in `tests/test_config.py` covering:
 - `dispute_resolution_ensemble_models` is configurable for low-confidence tie-breaker flow
 - `dispute_resolution_confidence_threshold` is configurable and controls escalation policy
 - Merkle-root computation runs in v0 regardless of publish setting
-- `witness_publish_enabled` toggles only external publication (not root computation)
-- `witness_api_key` is optional unless publishing is enabled
+- `audit_timestamp_provider` toggles only external timestamping (not root computation)
+- OpenTimestamps calendar/node settings are optional unless `AUDIT_TIMESTAMP_PROVIDER=opentimestamps`

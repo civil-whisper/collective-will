@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import {useTranslations, useLocale} from "next-intl";
 
 export function Footer() {
@@ -19,22 +20,18 @@ export function Footer() {
             </p>
           </div>
           <div className="flex items-center gap-4 text-xs text-gray-500 dark:text-slate-400">
-            <a
-              href="https://t.me/collective_will_dev_bot"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="transition-colors hover:text-gray-900 dark:hover:text-white"
-            >
+            <a href="https://t.me/collective_will_dev_bot" target="_blank" rel="noopener noreferrer" className="transition-colors hover:text-gray-900 dark:hover:text-white">
               {t("telegram")}
             </a>
-            <a
-              href="https://github.com/civil-whisper/collective-will"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="transition-colors hover:text-gray-900 dark:hover:text-white"
-            >
+            <a href="https://github.com/civil-whisper/collective-will" target="_blank" rel="noopener noreferrer" className="transition-colors hover:text-gray-900 dark:hover:text-white">
               {t("source")}
             </a>
+            <Link
+              href={`/${locale}/independent-verification`}
+              className="transition-colors hover:text-gray-900 dark:hover:text-white"
+            >
+              {t("verify")}
+            </Link>
           </div>
         </div>
       </div>

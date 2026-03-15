@@ -101,6 +101,12 @@ class Settings(BaseSettings):
     witness_publish_enabled: bool = False
     witness_api_url: str = "https://api.witness.co"
     witness_api_key: str | None = None
+    audit_bundle_output_dir: str = "data/audit-bundles"
+    audit_timestamp_provider: str = "none"
+    opentimestamps_calendar_urls: str = ""
+    opentimestamps_timeout_seconds: int = 5
+    opentimestamps_required_calendar_count: int = 2
+    opentimestamps_bitcoin_node_url: str | None = None
 
     embedding_model: str = "gemini-embedding-001"
     embedding_fallback_model: str = "text-embedding-3-large"
@@ -140,6 +146,14 @@ class Settings(BaseSettings):
             raise ValueError("WEB_ACCESS_TOKEN_SECRET must be changed from the default placeholder")
         return value
 
+    @field_validator("audit_timestamp_provider")
+    @classmethod
+    def validate_audit_timestamp_provider(cls, value: str) -> str:
+        normalized = value.strip().lower()
+        if normalized not in {"none", "opentimestamps"}:
+            raise ValueError("AUDIT_TIMESTAMP_PROVIDER must be 'none' or 'opentimestamps'")
+        return normalized
+
     def major_email_provider_list(self) -> list[str]:
         return [item.strip().lower() for item in self.major_email_providers.split(",") if item.strip()]
 
@@ -161,6 +175,9 @@ class Settings(BaseSettings):
 
     def llm_non_retriable_status_code_set(self) -> set[int]:
         return {int(item.strip()) for item in self.llm_non_retriable_status_codes.split(",") if item.strip()}
+
+    def opentimestamps_calendar_url_list(self) -> list[str]:
+        return [item.strip() for item in self.opentimestamps_calendar_urls.split(",") if item.strip()]
 
 
 @lru_cache(maxsize=1)

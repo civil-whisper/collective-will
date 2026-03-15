@@ -95,7 +95,17 @@ export const EVENT_CATEGORIES: Record<FilterCategory, string[]> = {
   votes: ["vote_cast", "vote_not_eligible", "vote_change_limit_reached", "policy_endorsed", "endorsement_not_eligible", "cycle_opened", "cycle_closed"],
   disputes: ["dispute_escalated", "dispute_resolved"],
   users: ["user_verified"],
-  system: ["anchor_computed", "anchor_publish_attempted", "anchor_publish_succeeded", "anchor_publish_failed", "dispute_metrics_recorded", "dispute_tuning_recommended"],
+  system: [
+    "anchor_computed",
+    "anchor_publish_attempted",
+    "anchor_publish_succeeded",
+    "anchor_publish_failed",
+    "audit_bundle_generated",
+    "audit_bundle_publish_succeeded",
+    "audit_bundle_publish_failed",
+    "dispute_metrics_recorded",
+    "dispute_tuning_recommended",
+  ],
 };
 
 function truncate(text: string, max: number): string {
@@ -193,6 +203,14 @@ export function eventDescription(
       return t("events.anchorPublishSucceeded");
     case "anchor_publish_failed":
       return t("events.anchorPublishFailed");
+    case "audit_bundle_generated":
+      return t("events.auditBundleGenerated", {
+        entryCount: String(p.entry_count ?? 0),
+      });
+    case "audit_bundle_publish_succeeded":
+      return t("events.auditBundlePublishSucceeded");
+    case "audit_bundle_publish_failed":
+      return t("events.auditBundlePublishFailed");
     case "dispute_metrics_recorded":
       return t("events.disputeMetrics");
     case "dispute_tuning_recommended":

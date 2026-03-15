@@ -345,15 +345,15 @@
 
 ---
 
-### D20 — External anchoring: required local Merkle roots + optional Witness publish
+### D20 — External anchoring: required local Merkle roots + optional external timestamping
 
-**Context rule**: Merkle root computation is required in v0; publishing to Witness.co is optional and config-driven.
+**Context rule**: Merkle root computation is required in v0; external timestamping/anchoring is optional and config-driven.
 
 **Rationale**: Daily local Merkle-root computation keeps tamper-evidence logic exercised from day one. Keeping only external publish optional avoids blocking v0 on third-party availability while preserving upgrade readiness.
 
 **Risk**: "Optional" tends to mean "never." Without anchoring, the operator-tamper-resistance benefit is lost.
 
-**Guardrail**: Implement Merkle root computation in v0 (trivial code). Make only the "publish to Witness.co" step optional. That way the code is tested; flipping the switch is a config change.
+**Guardrail**: Implement Merkle root computation in v0 (trivial code). Make only the external timestamping step optional. That way the code is tested; flipping the switch is a config change.
 
 **Verdict**: **Keep with guardrail**
 

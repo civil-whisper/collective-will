@@ -28,6 +28,52 @@ A public page (no auth required) with:
 5. **Search** — filters by entity_id, event_type, hash, or event description text
 6. **Entity filter** — `?entity=UUID` query param for deep linking from analytics pages
 7. **Paginated evidence list** — collapsible cards, 50 per page
+8. **Audit snapshot link** — entry point to `/{locale}/collective-concerns/audit-bundles` for daily bundle/manifest/proof downloads
+
+### Audit snapshot pages
+
+Public pages:
+- `/{locale}/collective-concerns/audit-bundles`
+- `/{locale}/collective-concerns/audit-bundles/{day}`
+- `/{locale}/independent-verification`
+
+Each day card/detail page shows:
+- entry count
+- daily Merkle root
+- timestamping status (`disabled` / `pending` / `stamped` / `verified` / `failed`)
+- links for bundle, manifest, and `.ots` proof downloads
+
+### Auditor verification flow
+
+For journalists, watchdogs, and developers:
+1. Open the audit snapshot index and choose a day.
+2. Download the bundle, manifest, and `.ots` proof from the detail page.
+3. Recompute the bundle SHA-256 locally and compare it to `manifest.bundle_sha256`.
+4. Use `GET /analytics/audit-bundles/{day}/proof?entry_hash=...` to check whether a specific public entry hash is present in that day's bundle.
+5. Inspect `manifest.timestamping.status`:
+   - `stamped` means a detached OpenTimestamps proof file exists
+   - `verified` means the proof has been checked against a Bitcoin-backed attestation
+6. If desired, independently verify the `.ots` file with the OpenTimestamps client.
+
+### Independent verification guide
+
+Public page:
+- `/{locale}/independent-verification`
+
+The guide is intentionally layered:
+- quick path for ordinary users and skeptical readers
+- file-level explanation for bundle / manifest / `.ots`
+- journalist/researcher workflow matching the public endpoints
+- optional CLI section inside a disclosure so shell steps stay secondary
+
+Key entry points:
+- Footer link: “How to Verify”
+- Receipt detail page link from “How independent verification works”
+- Audit snapshot detail page CTA to open the guide
+
+Guardrail:
+- Keep ordinary-user UX human-readable.
+- Keep shell/CLI verification optional and secondary even after the dedicated public guide page lands.
 
 ### Evidence entry cards
 
@@ -94,3 +140,8 @@ Tests in `web/tests/evidence-page.test.tsx` (17 tests) and `web/tests/evidence.t
 - Total entries count from API
 - `canonicalJson()` parity with Python `json.dumps`
 - `verifyChain()` detects tampered hash, prev_hash, metadata
+
+Related audit snapshot tests:
+- `tests/test_api/test_analytics.py` covers invalid day, missing day, missing `.ots`, inclusion-miss, and manifest mismatch responses
+- `tests/test_api/test_user.py` covers receipt verification state transitions including `timestamped` and `failed`
+- `web/tests/independent-verification-page.test.tsx` covers public guide rendering and the optional advanced-verification section

@@ -4,10 +4,21 @@ import contextlib
 from typing import Any, cast
 from uuid import UUID
 
+from anyio import to_thread
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import FileResponse
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.api.audit_artifacts import (
+    audit_download_urls,
+    bundle_contains_hash_sync,
+    day_artifact_paths,
+    parse_day,
+    read_json_file,
+    sha256_file_sync,
+)
+from src.config import get_settings
 from src.db.connection import get_db
 from src.db.evidence import VALID_EVENT_TYPES, EvidenceLogEntry, apply_visibility_tier, isoformat_z
 from src.db.evidence import verify_chain as db_verify_chain
@@ -18,6 +29,81 @@ from src.models.submission import PolicyCandidate, Submission
 from src.models.vote import Vote, VotingCycle
 
 router = APIRouter()
+
+
+async def _read_audit_index() -> dict[str, object]:
+    settings = get_settings()
+    artifacts = day_artifact_paths(
+        base_dir=settings.audit_bundle_output_dir,
+        day_iso="2000-01-01",
+    )
+    index_path = artifacts.day_dir.parent / "index.json"
+    index = await read_json_file(index_path)
+    if index is None:
+        return {
+            "schema_version": 1,
+            "updated_at": None,
+            "days": [],
+        }
+    return index
+
+
+def _normalize_day_or_400(day: str) -> str:
+    try:
+        return parse_day(day)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="invalid day") from exc
+
+
+async def _audit_bundle_day_response(day_iso: str) -> dict[str, object]:
+    settings = get_settings()
+    artifacts = day_artifact_paths(base_dir=settings.audit_bundle_output_dir, day_iso=day_iso)
+    manifest = await read_json_file(artifacts.manifest)
+    if manifest is None:
+        raise HTTPException(status_code=404, detail="audit bundle not found")
+
+    bundle_exists = await artifacts.bundle.exists()
+    bundle_sha256_actual = await to_thread.run_sync(sha256_file_sync, str(artifacts.bundle)) if bundle_exists else None
+    manifest_bundle_sha256 = manifest.get("bundle_sha256")
+    bundle_hash_matches_manifest = (
+        isinstance(manifest_bundle_sha256, str)
+        and bundle_sha256_actual is not None
+        and manifest_bundle_sha256 == bundle_sha256_actual
+    )
+
+    timestamping = manifest.get("timestamping")
+    timestamping_status = None
+    verified_before = None
+    bitcoin_block_height = None
+    ots_proof_present = await artifacts.ots_proof.exists()
+    if isinstance(timestamping, dict):
+        status_value = timestamping.get("status")
+        if isinstance(status_value, str):
+            timestamping_status = status_value
+        verified_before_value = timestamping.get("verified_before")
+        if isinstance(verified_before_value, str) and verified_before_value:
+            verified_before = verified_before_value
+        bitcoin_block_height_value = timestamping.get("bitcoin_block_height")
+        if isinstance(bitcoin_block_height_value, int):
+            bitcoin_block_height = bitcoin_block_height_value
+
+    return {
+        "day_utc": day_iso,
+        "entry_count": manifest.get("entry_count"),
+        "daily_merkle_root": manifest.get("daily_merkle_root"),
+        "bundle_sha256": manifest.get("bundle_sha256"),
+        "generated_at": manifest.get("generated_at"),
+        "visibility_policy_version": manifest.get("visibility_policy_version"),
+        "event_catalog_version": manifest.get("event_catalog_version"),
+        "timestamping": {
+            "status": timestamping_status,
+            "verified_before": verified_before,
+            "bitcoin_block_height": bitcoin_block_height,
+            "ots_proof_present": ots_proof_present,
+        },
+        "bundle_hash_matches_manifest": bundle_hash_matches_manifest,
+        "download_urls": audit_download_urls(day_iso),
+    }
 
 
 @router.get("/clusters")
@@ -120,7 +206,7 @@ async def candidate_location(
         raise HTTPException(status_code=404, detail="candidate_not_found")
 
     cluster_result = await session.execute(
-        select(Cluster).where(Cluster.candidate_ids.any(candidate_id))
+        select(Cluster).where(cast(Any, Cluster.candidate_ids).any(candidate_id))
     )
     cluster = cluster_result.scalar_one_or_none()
 
@@ -348,3 +434,102 @@ async def evidence(
 async def verify_evidence_chain(session: AsyncSession = Depends(get_db)) -> dict[str, object]:
     valid, entries_checked = await db_verify_chain(session)
     return {"valid": valid, "entries_checked": entries_checked}
+
+
+@router.get("/audit-bundles")
+async def list_audit_bundles() -> dict[str, object]:
+    index = await _read_audit_index()
+    days_raw = index.get("days")
+    days_out: list[dict[str, object]] = []
+    if isinstance(days_raw, list):
+        for row in days_raw:
+            if not isinstance(row, dict):
+                continue
+            day_raw = row.get("day_utc")
+            if not isinstance(day_raw, str):
+                continue
+            with contextlib.suppress(ValueError):
+                day_iso = parse_day(day_raw)
+                days_out.append({
+                    "day_utc": day_iso,
+                    "entry_count": row.get("entry_count"),
+                    "daily_merkle_root": row.get("daily_merkle_root"),
+                    "timestamping_status": row.get("timestamping_status"),
+                    "ots_proof_path": row.get("ots_proof_path"),
+                    "download_urls": audit_download_urls(day_iso),
+                    "detail_url": f"/analytics/audit-bundles/{day_iso}",
+                })
+    return {
+        "schema_version": index.get("schema_version", 1),
+        "updated_at": index.get("updated_at"),
+        "days": days_out,
+    }
+
+
+@router.get("/audit-bundles/{day}")
+async def audit_bundle_day(day: str) -> dict[str, object]:
+    day_iso = _normalize_day_or_400(day)
+    return await _audit_bundle_day_response(day_iso)
+
+
+@router.get("/audit-bundles/{day}/proof")
+async def audit_bundle_proof(day: str, entry_hash: str = Query(min_length=1)) -> dict[str, object]:
+    day_iso = _normalize_day_or_400(day)
+    settings = get_settings()
+    artifacts = day_artifact_paths(base_dir=settings.audit_bundle_output_dir, day_iso=day_iso)
+    manifest = await read_json_file(artifacts.manifest)
+    if manifest is None or not await artifacts.bundle.exists():
+        raise HTTPException(status_code=404, detail="audit bundle not found")
+
+    included_in_bundle = await to_thread.run_sync(bundle_contains_hash_sync, str(artifacts.bundle), entry_hash)
+    actual_bundle_sha256 = await to_thread.run_sync(sha256_file_sync, str(artifacts.bundle))
+    manifest_bundle_sha256 = manifest.get("bundle_sha256")
+    bundle_hash_matches_manifest = (
+        isinstance(manifest_bundle_sha256, str) and manifest_bundle_sha256 == actual_bundle_sha256
+    )
+    timestamping = manifest.get("timestamping")
+    timestamping_status = timestamping.get("status") if isinstance(timestamping, dict) else None
+    verified_before = timestamping.get("verified_before") if isinstance(timestamping, dict) else None
+
+    return {
+        "day_utc": day_iso,
+        "entry_hash": entry_hash,
+        "included_in_bundle": included_in_bundle,
+        "bundle_hash_matches_manifest": bundle_hash_matches_manifest,
+        "daily_merkle_root": manifest.get("daily_merkle_root"),
+        "bundle_sha256": manifest_bundle_sha256,
+        "timestamping_status": timestamping_status,
+        "verified_before": verified_before,
+        "download_urls": audit_download_urls(day_iso),
+    }
+
+
+@router.get("/audit-bundles/{day}/bundle")
+async def download_audit_bundle(day: str) -> FileResponse:
+    day_iso = _normalize_day_or_400(day)
+    artifacts = day_artifact_paths(base_dir=get_settings().audit_bundle_output_dir, day_iso=day_iso)
+    if not await artifacts.bundle.exists():
+        raise HTTPException(status_code=404, detail="audit bundle not found")
+    return FileResponse(str(artifacts.bundle), media_type="application/gzip", filename=artifacts.bundle.name)
+
+
+@router.get("/audit-bundles/{day}/manifest")
+async def download_audit_manifest(day: str) -> FileResponse:
+    day_iso = _normalize_day_or_400(day)
+    artifacts = day_artifact_paths(base_dir=get_settings().audit_bundle_output_dir, day_iso=day_iso)
+    if not await artifacts.manifest.exists():
+        raise HTTPException(status_code=404, detail="audit bundle not found")
+    return FileResponse(str(artifacts.manifest), media_type="application/json", filename=artifacts.manifest.name)
+
+
+@router.get("/audit-bundles/{day}/ots")
+async def download_audit_ots(day: str) -> FileResponse:
+    day_iso = _normalize_day_or_400(day)
+    artifacts = day_artifact_paths(base_dir=get_settings().audit_bundle_output_dir, day_iso=day_iso)
+    if not await artifacts.ots_proof.exists():
+        raise HTTPException(status_code=404, detail="audit proof not found")
+    return FileResponse(
+        str(artifacts.ots_proof),
+        media_type="application/octet-stream",
+        filename=artifacts.ots_proof.name,
+    )

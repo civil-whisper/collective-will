@@ -543,7 +543,7 @@ SHA-256({timestamp, event_type, entity_type, entity_id, payload, prev_hash})
 - **Serialization lock**: PostgreSQL advisory lock prevents concurrent writers from
   reusing the same `prev_hash`
 - **Verification**: `verify_chain()` replays the full chain and checks every hash
-- **Daily Merkle root**: Computed for external anchoring (Witness.co, config-driven)
+- **Daily Merkle root**: Computed for external timestamping/anchoring (OpenTimestamps-first, config-driven)
 
 ### Event Types
 

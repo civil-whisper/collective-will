@@ -1,16 +1,28 @@
 from __future__ import annotations
 
 import asyncio
+import gzip
+import json
 from datetime import UTC, datetime, timedelta
-from unittest.mock import AsyncMock, MagicMock, patch
+from pathlib import Path
+from typing import Any
+from unittest.mock import AsyncMock, patch
 from uuid import uuid4
 
 import pytest
+from anyio import Path as AsyncPath
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from src.config import Settings
-from src.db.anchoring import DailyAnchor, compute_daily_merkle_root, publish_daily_merkle_root
+from src.db.anchoring import (
+    DailyAnchor,
+    TimestampingResult,
+    compute_daily_merkle_root,
+    export_daily_audit_bundle,
+    publish_daily_audit_bundle_metadata,
+    publish_daily_merkle_root,
+)
 from src.db.evidence import (
     EVENT_CATALOG,
     GENESIS_PREV_HASH,
@@ -25,6 +37,7 @@ from src.db.evidence import (
     verify_chain,
     verify_receipt_token,
 )
+from src.models.vote import VotingCycle
 
 
 def _settings(**overrides: str) -> Settings:
@@ -194,9 +207,10 @@ async def test_merkle_root_computed_even_when_publish_disabled(db_session: Async
     anchor = (await db_session.execute(select(DailyAnchor))).scalar_one()
     assert anchor.merkle_root == root
 
-    settings = _settings()
-    assert settings.witness_publish_enabled is False
-    assert await publish_daily_merkle_root(root, today_utc, settings) is None
+    settings = _settings(audit_timestamp_provider="none")
+    result = await publish_daily_merkle_root(root, today_utc, settings)
+    assert result is not None
+    assert result.status == "disabled"
 
 
 @pytest.mark.asyncio
@@ -217,7 +231,9 @@ async def test_merkle_root_deterministic_for_fixed_entries(db_session: AsyncSess
 
 
 @pytest.mark.asyncio
-async def test_publish_stores_receipt_when_enabled(db_session: AsyncSession) -> None:
+async def test_publish_stores_opentimestamps_metadata_when_enabled(
+    tmp_path: Any, db_session: AsyncSession
+) -> None:
     now = datetime.now(UTC)
     today_utc = now.date()
     for idx in range(2):
@@ -229,25 +245,29 @@ async def test_publish_stores_receipt_when_enabled(db_session: AsyncSession) -> 
     assert root is not None
     await db_session.commit()
 
-    settings = _settings(witness_publish_enabled="true", witness_api_key="test-key")
+    settings = _settings(
+        audit_timestamp_provider="opentimestamps",
+        audit_bundle_output_dir=str(tmp_path),
+    )
 
-    mock_response = MagicMock()
-    mock_response.json.return_value = {"id": "receipt-123"}
-    mock_response.raise_for_status = MagicMock()
+    def _fake_create_timestamp(merkle_tip: Any, _calendar_urls: Any, _args: Any) -> None:
+        from opentimestamps.core.notary import PendingAttestation
 
-    with patch("src.db.anchoring.httpx.AsyncClient") as mock_client_cls:
-        mock_client = AsyncMock()
-        mock_client.post.return_value = mock_response
-        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-        mock_client.__aexit__ = AsyncMock(return_value=None)
-        mock_client_cls.return_value = mock_client
+        merkle_tip.attestations.add(PendingAttestation("https://calendar.example"))
 
-        receipt = await publish_daily_merkle_root(root, today_utc, settings, session=db_session)
-        assert receipt == "receipt-123"
+    with (
+        patch("src.db.anchoring.create_timestamp", side_effect=_fake_create_timestamp),
+        patch("src.db.anchoring.upgrade_timestamp", return_value=False),
+    ):
+        result = await publish_daily_merkle_root(root, today_utc, settings, session=db_session)
+        assert result is not None
+        assert result.status == "stamped"
+        assert result.ots_proof_path is not None
         await db_session.commit()
 
     anchor = (await db_session.execute(select(DailyAnchor).where(DailyAnchor.day == today_utc))).scalar_one()
-    assert anchor.published_receipt == "receipt-123"
+    assert anchor.anchor_metadata["timestamping_status"] == "stamped"
+    assert await AsyncPath(anchor.anchor_metadata["ots_proof_path"]).exists()
 
 
 def test_event_catalog_covers_all_valid_types() -> None:
@@ -338,18 +358,188 @@ async def test_publish_failure_does_not_erase_local_root(db_session: AsyncSessio
     assert root is not None
     await db_session.commit()
 
-    settings = _settings(witness_publish_enabled="true", witness_api_key="test-key")
+    settings = _settings(audit_timestamp_provider="opentimestamps")
 
-    with patch("src.db.anchoring.httpx.AsyncClient") as mock_client_cls:
-        mock_client = AsyncMock()
-        mock_client.post.side_effect = Exception("network failure")
-        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-        mock_client.__aexit__ = AsyncMock(return_value=None)
-        mock_client_cls.return_value = mock_client
-
-        with pytest.raises(Exception, match="network failure"):
-            await publish_daily_merkle_root(root, today_utc, settings, session=db_session)
+    with patch("src.db.anchoring.create_timestamp", side_effect=SystemExit(1)):
+        result = await publish_daily_merkle_root(root, today_utc, settings, session=db_session)
+        assert result is not None
+        assert result.status == "failed"
 
     anchor = (await db_session.execute(select(DailyAnchor).where(DailyAnchor.day == today_utc))).scalar_one()
     assert anchor.merkle_root == root
     assert anchor.published_receipt is None
+
+
+@pytest.mark.asyncio
+async def test_export_daily_audit_bundle_deterministic(tmp_path, db_session: AsyncSession) -> None:  # type: ignore[no-untyped-def]
+    now = datetime.now(UTC)
+    today_utc = now.date()
+    cycle_id = uuid4()
+    active_cycle = VotingCycle(
+        id=cycle_id,
+        started_at=now - timedelta(hours=1),
+        ends_at=now + timedelta(hours=1),
+        status="active",
+        cluster_ids=[],
+        total_voters=0,
+    )
+    db_session.add(active_cycle)
+
+    vote_payload = {
+        "user_id": str(uuid4()),
+        "cycle_id": str(cycle_id),
+        "approved_cluster_ids": [str(uuid4())],
+        "selections": [{"cluster_id": str(uuid4()), "option_id": str(uuid4())}],
+    }
+    vote_entry = await append_evidence(db_session, "vote_cast", "vote", uuid4(), vote_payload)
+    vote_entry.timestamp = now
+    await db_session.commit()
+
+    out1 = await export_daily_audit_bundle(db_session, today_utc, output_dir=tmp_path / "run1", emit_evidence=False)
+    out2 = await export_daily_audit_bundle(db_session, today_utc, output_dir=tmp_path / "run2", emit_evidence=False)
+    assert out1 is not None
+    assert out2 is not None
+    assert out1.bundle_sha256 == out2.bundle_sha256
+    assert out1.entry_count == out2.entry_count
+
+    with gzip.open(out1.storage_path, "rt", encoding="utf-8") as fh:
+        rows = [json.loads(line) for line in fh]
+    assert len(rows) == 1
+    # Active cycle -> delayed vote fields must remain hidden in exported public bundle.
+    assert "selections" not in rows[0]["payload"]
+    assert "approved_cluster_ids" not in rows[0]["payload"]
+    assert "user_id" not in rows[0]["payload"]
+
+
+@pytest.mark.asyncio
+async def test_export_daily_audit_bundle_emits_evidence_event(tmp_path, db_session: AsyncSession) -> None:  # type: ignore[no-untyped-def]
+    now = datetime.now(UTC)
+    today_utc = now.date()
+    entry = await append_evidence(db_session, "candidate_created", "candidate", uuid4(), {"i": 1})
+    entry.timestamp = now
+    await db_session.commit()
+
+    out = await export_daily_audit_bundle(db_session, today_utc, output_dir=tmp_path, emit_evidence=True)
+    assert out is not None
+    await db_session.commit()
+
+    result = await db_session.execute(
+        select(EvidenceLogEntry)
+        .where(EvidenceLogEntry.event_type == "audit_bundle_generated")
+        .order_by(EvidenceLogEntry.id.desc())
+        .limit(1)
+    )
+    evt = result.scalar_one_or_none()
+    assert evt is not None
+    assert evt.payload["day"] == today_utc.isoformat()
+    assert evt.payload["bundle_sha256"] == out.bundle_sha256
+    assert evt.payload["entry_count"] >= 1
+
+
+@pytest.mark.asyncio
+async def test_publish_daily_audit_bundle_metadata_writes_manifest_and_index(
+    tmp_path: Any, db_session: AsyncSession
+) -> None:
+    now = datetime.now(UTC)
+    today_utc = now.date()
+    entry = await append_evidence(db_session, "candidate_created", "candidate", uuid4(), {"i": 2})
+    entry.timestamp = now
+    await db_session.commit()
+
+    root = await compute_daily_merkle_root(db_session, today_utc)
+    assert root is not None
+    bundle = await export_daily_audit_bundle(db_session, today_utc, output_dir=tmp_path, emit_evidence=False)
+    assert bundle is not None
+    timestamping = TimestampingResult(
+        provider="opentimestamps",
+        status="stamped",
+        ots_proof_path=str(Path(tmp_path) / today_utc.isoformat() / f"audit-{today_utc.isoformat()}.ots"),
+        verified_before=None,
+        bitcoin_block_height=None,
+    )
+    manifest_path, index_path = await publish_daily_audit_bundle_metadata(
+        db_session,
+        day=today_utc,
+        merkle_root=root,
+        bundle=bundle,
+        output_dir=tmp_path,
+        timestamping=timestamping,
+        emit_evidence=True,
+    )
+    await db_session.commit()
+
+    manifest = json.loads(await AsyncPath(manifest_path).read_text(encoding="utf-8"))
+    assert manifest["day_utc"] == today_utc.isoformat()
+    assert manifest["bundle_sha256"] == bundle.bundle_sha256
+    assert manifest["daily_merkle_root"] == root
+    assert manifest["timestamping"]["provider"] == "opentimestamps"
+    assert manifest["timestamping"]["status"] == "stamped"
+    assert manifest["timestamping"]["ots_proof_path"] == timestamping.ots_proof_path
+
+    index = json.loads(await AsyncPath(index_path).read_text(encoding="utf-8"))
+    assert index["days"][0]["day_utc"] == today_utc.isoformat()
+    assert index["days"][0]["bundle_path"] == bundle.storage_path
+    assert index["days"][0]["timestamping_status"] == "stamped"
+    assert index["days"][0]["ots_proof_path"] == timestamping.ots_proof_path
+
+    result = await db_session.execute(
+        select(EvidenceLogEntry)
+        .where(EvidenceLogEntry.event_type == "audit_bundle_publish_succeeded")
+        .order_by(EvidenceLogEntry.id.desc())
+        .limit(1)
+    )
+    evt = result.scalar_one_or_none()
+    assert evt is not None
+    assert evt.payload["manifest_path"] == manifest_path
+    assert evt.payload["index_path"] == index_path
+
+
+@pytest.mark.asyncio
+async def test_publish_daily_audit_bundle_metadata_emits_failed_event_on_error(
+    tmp_path: Any, db_session: AsyncSession
+) -> None:
+    now = datetime.now(UTC)
+    today_utc = now.date()
+    entry = await append_evidence(db_session, "candidate_created", "candidate", uuid4(), {"i": 3})
+    entry.timestamp = now
+    await db_session.commit()
+
+    root = await compute_daily_merkle_root(db_session, today_utc)
+    assert root is not None
+    bundle = await export_daily_audit_bundle(db_session, today_utc, output_dir=tmp_path, emit_evidence=False)
+    assert bundle is not None
+
+    # Corrupt index file to force JSON decode failure in metadata publishing.
+    index_path = AsyncPath(str(tmp_path)) / "index.json"
+    await index_path.write_text("{not-json", encoding="utf-8")
+
+    with pytest.raises(json.JSONDecodeError):
+        await publish_daily_audit_bundle_metadata(
+            db_session,
+            day=today_utc,
+            merkle_root=root,
+            bundle=bundle,
+            output_dir=tmp_path,
+            timestamping=TimestampingResult(
+                provider="opentimestamps",
+                status="failed",
+                ots_proof_path=None,
+                verified_before=None,
+                bitcoin_block_height=None,
+                error_type="JSONDecodeError",
+            ),
+            emit_evidence=True,
+        )
+    await db_session.commit()
+
+    result = await db_session.execute(
+        select(EvidenceLogEntry)
+        .where(EvidenceLogEntry.event_type == "audit_bundle_publish_failed")
+        .order_by(EvidenceLogEntry.id.desc())
+        .limit(1)
+    )
+    evt = result.scalar_one_or_none()
+    assert evt is not None
+    assert evt.payload["day"] == today_utc.isoformat()
+    assert evt.payload["bundle_sha256"] == bundle.bundle_sha256
+    assert evt.payload["error_type"] == "JSONDecodeError"

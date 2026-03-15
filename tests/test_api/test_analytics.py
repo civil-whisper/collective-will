@@ -1,8 +1,12 @@
 from __future__ import annotations
 
+import gzip
+import json
 from datetime import UTC, datetime
+from hashlib import sha256
+from pathlib import Path
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
 from fastapi.testclient import TestClient
@@ -515,3 +519,198 @@ class TestVerifyChain:
             data = response.json()
             assert data["valid"] is False
             assert data["entries_checked"] == 3
+
+
+class TestAuditBundles:
+    def test_lists_audit_bundle_days(self, tmp_path: Path) -> None:
+        (tmp_path / "index.json").write_text(
+            json.dumps(
+                {
+                    "schema_version": 1,
+                    "updated_at": "2026-03-15T12:00:00Z",
+                    "days": [
+                        {
+                            "day_utc": "2026-03-15",
+                            "entry_count": 2,
+                            "daily_merkle_root": "root123",
+                            "timestamping_status": "pending",
+                            "ots_proof_path": "data/audit-bundles/2026-03-15/audit-2026-03-15.ots",
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        with patch("src.api.routes.analytics.get_settings") as mock_settings:
+            mock_settings.return_value.audit_bundle_output_dir = str(tmp_path)
+            client = TestClient(app)
+            response = client.get("/analytics/audit-bundles")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["schema_version"] == 1
+        assert len(data["days"]) == 1
+        assert data["days"][0]["day_utc"] == "2026-03-15"
+        assert data["days"][0]["download_urls"]["bundle"].endswith("/analytics/audit-bundles/2026-03-15/bundle")
+
+    def test_returns_day_summary(self, tmp_path: Path) -> None:
+        day = "2026-03-15"
+        day_dir = tmp_path / day
+        day_dir.mkdir(parents=True, exist_ok=True)
+        bundle_path = day_dir / f"audit-{day}.jsonl.gz"
+        with gzip.open(bundle_path, "wt", encoding="utf-8") as handle:
+            handle.write('{"hash":"entryhash1"}\n')
+        bundle_sha = sha256(bundle_path.read_bytes()).hexdigest()
+        (day_dir / f"manifest-{day}.json").write_text(
+            json.dumps(
+                {
+                    "entry_count": 1,
+                    "daily_merkle_root": "root123",
+                    "bundle_sha256": bundle_sha,
+                    "generated_at": "2026-03-15T12:00:00Z",
+                    "visibility_policy_version": 1,
+                    "event_catalog_version": "v1",
+                    "timestamping": {
+                        "status": "verified",
+                        "verified_before": "2026-03-15T13:00:00Z",
+                        "bitcoin_block_height": 123,
+                        "ots_proof_path": str(day_dir / f"audit-{day}.ots"),
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+        (day_dir / f"audit-{day}.ots").write_text("proof", encoding="utf-8")
+        with patch("src.api.routes.analytics.get_settings") as mock_settings:
+            mock_settings.return_value.audit_bundle_output_dir = str(tmp_path)
+            client = TestClient(app)
+            response = client.get(f"/analytics/audit-bundles/{day}")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["day_utc"] == day
+        assert data["bundle_hash_matches_manifest"] is True
+        assert data["timestamping"]["status"] == "verified"
+        assert data["timestamping"]["ots_proof_present"] is True
+
+    def test_returns_400_for_invalid_day(self, tmp_path: Path) -> None:
+        with patch("src.api.routes.analytics.get_settings") as mock_settings:
+            mock_settings.return_value.audit_bundle_output_dir = str(tmp_path)
+            client = TestClient(app)
+            response = client.get("/analytics/audit-bundles/not-a-day")
+        assert response.status_code == 400
+        assert response.json()["detail"] == "invalid day"
+
+    def test_returns_404_for_missing_day_bundle(self, tmp_path: Path) -> None:
+        with patch("src.api.routes.analytics.get_settings") as mock_settings:
+            mock_settings.return_value.audit_bundle_output_dir = str(tmp_path)
+            client = TestClient(app)
+            response = client.get("/analytics/audit-bundles/2026-03-15")
+        assert response.status_code == 404
+        assert response.json()["detail"] == "audit bundle not found"
+
+    def test_returns_inclusion_proof_metadata(self, tmp_path: Path) -> None:
+        day = "2026-03-15"
+        day_dir = tmp_path / day
+        day_dir.mkdir(parents=True, exist_ok=True)
+        bundle_path = day_dir / f"audit-{day}.jsonl.gz"
+        with gzip.open(bundle_path, "wt", encoding="utf-8") as handle:
+            handle.write(json.dumps({"hash": "entryhash1"}) + "\n")
+        bundle_sha = sha256(bundle_path.read_bytes()).hexdigest()
+        (day_dir / f"manifest-{day}.json").write_text(
+            json.dumps(
+                {
+                    "bundle_sha256": bundle_sha,
+                    "daily_merkle_root": "root123",
+                    "timestamping": {
+                        "status": "pending",
+                        "verified_before": None,
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+        with patch("src.api.routes.analytics.get_settings") as mock_settings:
+            mock_settings.return_value.audit_bundle_output_dir = str(tmp_path)
+            client = TestClient(app)
+            response = client.get(f"/analytics/audit-bundles/{day}/proof?entry_hash=entryhash1")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["included_in_bundle"] is True
+        assert data["bundle_hash_matches_manifest"] is True
+        assert data["daily_merkle_root"] == "root123"
+
+    def test_returns_false_inclusion_when_hash_missing(self, tmp_path: Path) -> None:
+        day = "2026-03-15"
+        day_dir = tmp_path / day
+        day_dir.mkdir(parents=True, exist_ok=True)
+        bundle_path = day_dir / f"audit-{day}.jsonl.gz"
+        with gzip.open(bundle_path, "wt", encoding="utf-8") as handle:
+            handle.write(json.dumps({"hash": "entryhash1"}) + "\n")
+        bundle_sha = sha256(bundle_path.read_bytes()).hexdigest()
+        (day_dir / f"manifest-{day}.json").write_text(
+            json.dumps(
+                {
+                    "bundle_sha256": bundle_sha,
+                    "daily_merkle_root": "root123",
+                    "timestamping": {"status": "stamped", "verified_before": None},
+                }
+            ),
+            encoding="utf-8",
+        )
+        with patch("src.api.routes.analytics.get_settings") as mock_settings:
+            mock_settings.return_value.audit_bundle_output_dir = str(tmp_path)
+            client = TestClient(app)
+            response = client.get(f"/analytics/audit-bundles/{day}/proof?entry_hash=missing-hash")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["included_in_bundle"] is False
+        assert data["bundle_hash_matches_manifest"] is True
+
+    def test_returns_false_manifest_match_when_bundle_hash_differs(self, tmp_path: Path) -> None:
+        day = "2026-03-15"
+        day_dir = tmp_path / day
+        day_dir.mkdir(parents=True, exist_ok=True)
+        bundle_path = day_dir / f"audit-{day}.jsonl.gz"
+        with gzip.open(bundle_path, "wt", encoding="utf-8") as handle:
+            handle.write(json.dumps({"hash": "entryhash1"}) + "\n")
+        (day_dir / f"manifest-{day}.json").write_text(
+            json.dumps(
+                {
+                    "bundle_sha256": "wrong-hash",
+                    "daily_merkle_root": "root123",
+                    "timestamping": {"status": "failed", "verified_before": None},
+                }
+            ),
+            encoding="utf-8",
+        )
+        with patch("src.api.routes.analytics.get_settings") as mock_settings:
+            mock_settings.return_value.audit_bundle_output_dir = str(tmp_path)
+            client = TestClient(app)
+            response = client.get(f"/analytics/audit-bundles/{day}/proof?entry_hash=entryhash1")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["included_in_bundle"] is True
+        assert data["bundle_hash_matches_manifest"] is False
+
+    def test_downloads_bundle_file(self, tmp_path: Path) -> None:
+        day = "2026-03-15"
+        day_dir = tmp_path / day
+        day_dir.mkdir(parents=True, exist_ok=True)
+        bundle_path = day_dir / f"audit-{day}.jsonl.gz"
+        bundle_path.write_bytes(b"bundle-bytes")
+        with patch("src.api.routes.analytics.get_settings") as mock_settings:
+            mock_settings.return_value.audit_bundle_output_dir = str(tmp_path)
+            client = TestClient(app)
+            response = client.get(f"/analytics/audit-bundles/{day}/bundle")
+        assert response.status_code == 200
+        assert response.content == b"bundle-bytes"
+
+    def test_returns_404_for_missing_ots_download(self, tmp_path: Path) -> None:
+        day = "2026-03-15"
+        day_dir = tmp_path / day
+        day_dir.mkdir(parents=True, exist_ok=True)
+        with patch("src.api.routes.analytics.get_settings") as mock_settings:
+            mock_settings.return_value.audit_bundle_output_dir = str(tmp_path)
+            client = TestClient(app)
+            response = client.get(f"/analytics/audit-bundles/{day}/ots")
+        assert response.status_code == 404
+        assert response.json()["detail"] == "audit proof not found"

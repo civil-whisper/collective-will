@@ -173,19 +173,34 @@ EVENT_CATALOG: dict[str, EventSpec] = {
         public_fields=frozenset({"day", "merkle_root", "entry_count"}),
     ),
     "anchor_publish_attempted": EventSpec(
-        description="Witness publication attempted",
+        description="External timestamping attempted",
         entity_type="daily_anchor",
-        public_fields=frozenset({"day", "merkle_root"}),
+        public_fields=frozenset({"day", "merkle_root", "provider"}),
     ),
     "anchor_publish_succeeded": EventSpec(
-        description="Witness publication succeeded",
+        description="External timestamping succeeded",
         entity_type="daily_anchor",
-        public_fields=frozenset({"day", "merkle_root", "receipt"}),
+        public_fields=frozenset({"day", "merkle_root", "provider", "status", "ots_proof_path"}),
     ),
     "anchor_publish_failed": EventSpec(
-        description="Witness publication failed",
+        description="External timestamping failed",
         entity_type="daily_anchor",
-        public_fields=frozenset({"day", "merkle_root", "error_type"}),
+        public_fields=frozenset({"day", "merkle_root", "provider", "status", "error_type"}),
+    ),
+    "audit_bundle_generated": EventSpec(
+        description="Daily redacted audit bundle generated",
+        entity_type="daily_anchor",
+        public_fields=frozenset({"day", "entry_count", "bundle_sha256", "storage_path"}),
+    ),
+    "audit_bundle_publish_succeeded": EventSpec(
+        description="Daily redacted audit bundle publish succeeded",
+        entity_type="daily_anchor",
+        public_fields=frozenset({"day", "bundle_sha256", "manifest_path", "index_path"}),
+    ),
+    "audit_bundle_publish_failed": EventSpec(
+        description="Daily redacted audit bundle publish failed",
+        entity_type="daily_anchor",
+        public_fields=frozenset({"day", "bundle_sha256", "error_type"}),
     ),
     # --- Voice ---
     "voice_enrolled": EventSpec(

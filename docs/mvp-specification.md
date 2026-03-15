@@ -73,7 +73,7 @@ Quarantined accounts are handled by policy-driven automated adjudication. Submis
 ### Evidence Store
 
 - **Implementation**: PostgreSQL append-only hash-chain table. No UPDATE/DELETE permissions. Insert trigger validates chain integrity.
-- **External anchoring**: Daily local Merkle-root computation is required in v0. External publication (Witness.co) is optional/config-driven.
+- **External anchoring**: Daily local Merkle-root computation is required in v0. External timestamping/anchoring is optional/config-driven (OpenTimestamps-first).
 - **Reproducibility metadata**: every evidence entry includes model version, prompt version, clustering parameters, run ID, and random seed where applicable.
 
 ### Dispute Handling
@@ -482,9 +482,9 @@ CREATE INDEX idx_evidence_hash ON evidence_log(hash);
 CREATE INDEX idx_evidence_entity ON evidence_log(entity_type, entity_id);
 ```
 
-**Witness.co Integration** (config-driven publication):
+**External timestamping integration** (config-driven publication):
 - Daily job must compute local Merkle root of day's evidence entries (required in v0)
-- If publishing is enabled, submit root to Witness.co for anchoring
+- If publishing is enabled, submit root to the configured timestamping/anchoring provider
 - Store publish attempt/result and anchor receipt in evidence metadata
 
 **Design Decisions**:
@@ -493,7 +493,7 @@ CREATE INDEX idx_evidence_entity ON evidence_log(entity_type, entity_id);
 |----------|--------|-----------|
 | Database | PostgreSQL | Mature, pgvector for embeddings, JSONB flexibility |
 | Evidence store | Embedded hash-chain table | Simpler than separate system; sufficient for v0 scale |
-| Blockchain anchoring | Required local roots; optional Witness publish | Keeps anchoring logic active while avoiding external dependency lock-in |
+| Blockchain anchoring | Required local roots; optional OpenTimestamps publish | Keeps anchoring logic active while avoiding external dependency lock-in |
 | Embedding storage | pgvector extension | Keep embeddings with data; similarity search built-in |
 
 ---

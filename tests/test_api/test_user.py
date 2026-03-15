@@ -1,6 +1,10 @@
 from __future__ import annotations
 
+import gzip
+import hashlib
+import json
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
@@ -41,6 +45,19 @@ def _make_vote(**overrides: Any) -> MagicMock:
     vote.user_id = overrides.get("user_id", uuid4())
     vote.created_at = overrides.get("created_at", datetime.now(UTC))
     return vote
+
+
+def _make_evidence_entry(**overrides: Any) -> MagicMock:
+    entry = MagicMock()
+    entry.id = overrides.get("id", 1)
+    entry.timestamp = overrides.get("timestamp", datetime.now(UTC))
+    entry.event_type = overrides.get("event_type", "policy_endorsed")
+    entry.entity_type = overrides.get("entity_type", "policy_endorsement")
+    entry.entity_id = overrides.get("entity_id", uuid4())
+    entry.payload = overrides.get("payload", {})
+    entry.hash = overrides.get("hash", "hash123")
+    entry.prev_hash = overrides.get("prev_hash", "prevhash")
+    return entry
 
 
 def _session_returning_user_then(user: MagicMock | None, second_scalars: list[Any]) -> AsyncMock:
@@ -182,6 +199,326 @@ class TestOpenDispute:
             client = TestClient(app)
             response = client.post(f"/user/dashboard/disputes/{uuid4()}")
             assert response.status_code == 401
+        finally:
+            app.dependency_overrides.pop(get_db, None)
+
+
+class TestVerifyReceipt:
+    def test_returns_404_for_missing_receipt(self, tmp_path: Path) -> None:
+        user = _make_user()
+        session = AsyncMock()
+        user_result = MagicMock()
+        user_result.scalar_one_or_none.return_value = user
+        entry_result = MagicMock()
+        entry_result.scalar_one_or_none.return_value = None
+        session.execute.side_effect = [user_result, entry_result]
+        app.dependency_overrides[get_db] = lambda: session
+        try:
+            with patch("src.api.routes.user.get_settings") as mock_settings:
+                mock_settings.return_value.audit_bundle_output_dir = str(tmp_path)
+                client = TestClient(app)
+                response = client.get(
+                    "/user/dashboard/receipts/hash123/verify",
+                    headers=_auth_headers(),
+                )
+                assert response.status_code == 404
+                assert response.json()["detail"] == "receipt not found"
+        finally:
+            app.dependency_overrides.pop(get_db, None)
+
+    def test_returns_recorded_when_not_yet_published(self, tmp_path: Path) -> None:
+        user = _make_user()
+        entry = _make_evidence_entry(
+            payload={"user_id": str(user.id), "cluster_id": str(uuid4())},
+            hash="hash-recorded",
+        )
+        session = AsyncMock()
+        user_result = MagicMock()
+        user_result.scalar_one_or_none.return_value = user
+        entry_result = MagicMock()
+        entry_result.scalar_one_or_none.return_value = entry
+        session.execute.side_effect = [user_result, entry_result]
+        app.dependency_overrides[get_db] = lambda: session
+        try:
+            with patch("src.api.routes.user.get_settings") as mock_settings:
+                mock_settings.return_value.audit_bundle_output_dir = str(tmp_path)
+                client = TestClient(app)
+                response = client.get(
+                    f"/user/dashboard/receipts/{entry.hash}/verify",
+                    headers=_auth_headers(),
+                )
+                assert response.status_code == 200
+                data = response.json()
+                assert data["status"] == "recorded"
+                assert data["receipt_valid"] is True
+                assert data["entry_found"] is True
+                assert data["included_in_public_bundle"] is False
+                assert data["bundle_hash_matches_manifest"] is False
+                assert data["ots_proof_present"] is False
+                expected_bundle_url = (
+                    f"/analytics/audit-bundles/{entry.timestamp.date().isoformat()}/bundle"
+                )
+                assert data["download_urls"]["bundle"].endswith(expected_bundle_url)
+        finally:
+            app.dependency_overrides.pop(get_db, None)
+
+    def test_returns_published_when_bundle_and_manifest_match(self, tmp_path: Path) -> None:
+        user = _make_user()
+        ts = datetime.now(UTC)
+        entry = _make_evidence_entry(
+            timestamp=ts,
+            payload={"user_id": str(user.id), "cluster_id": str(uuid4())},
+            hash="hash-published",
+        )
+        day = ts.date().isoformat()
+        day_dir = tmp_path / day
+        day_dir.mkdir(parents=True, exist_ok=True)
+        bundle_path = day_dir / f"audit-{day}.jsonl.gz"
+        bundle_row = {
+            "id": entry.id,
+            "timestamp": ts.isoformat(),
+            "event_type": entry.event_type,
+            "entity_type": entry.entity_type,
+            "entity_id": str(entry.entity_id),
+            "payload": {"cluster_id": entry.payload["cluster_id"]},
+            "hash": entry.hash,
+            "prev_hash": entry.prev_hash,
+        }
+        with gzip.open(bundle_path, "wt", encoding="utf-8") as handle:
+            handle.write(json.dumps(bundle_row, sort_keys=True, separators=(",", ":"), ensure_ascii=False))
+            handle.write("\n")
+        bundle_sha256 = hashlib.sha256(bundle_path.read_bytes()).hexdigest()
+        manifest_path = day_dir / f"manifest-{day}.json"
+        manifest_path.write_text(
+            json.dumps(
+                {
+                    "schema_version": 1,
+                    "day_utc": day,
+                    "bundle_sha256": bundle_sha256,
+                    "timestamping": {
+                        "provider": "opentimestamps",
+                        "status": "pending",
+                        "ots_proof_path": None,
+                        "verified_before": None,
+                        "bitcoin_block_height": None,
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        session = AsyncMock()
+        user_result = MagicMock()
+        user_result.scalar_one_or_none.return_value = user
+        entry_result = MagicMock()
+        entry_result.scalar_one_or_none.return_value = entry
+        session.execute.side_effect = [user_result, entry_result]
+        app.dependency_overrides[get_db] = lambda: session
+        try:
+            with patch("src.api.routes.user.get_settings") as mock_settings:
+                mock_settings.return_value.audit_bundle_output_dir = str(tmp_path)
+                client = TestClient(app)
+                response = client.get(
+                    f"/user/dashboard/receipts/{entry.hash}/verify",
+                    headers=_auth_headers(),
+                )
+                assert response.status_code == 200
+                data = response.json()
+                assert data["status"] == "published"
+                assert data["included_in_public_bundle"] is True
+                assert data["bundle_hash_matches_manifest"] is True
+                assert data["ots_proof_present"] is False
+                assert data["ots_verified"] is False
+                assert data["download_urls"]["manifest"].endswith(f"/analytics/audit-bundles/{day}/manifest")
+        finally:
+            app.dependency_overrides.pop(get_db, None)
+
+    def test_returns_verified_when_manifest_has_verified_ots(self, tmp_path: Path) -> None:
+        user = _make_user()
+        ts = datetime.now(UTC)
+        entry = _make_evidence_entry(
+            timestamp=ts,
+            payload={"user_id": str(user.id), "cluster_id": str(uuid4())},
+            hash="hash-verified",
+        )
+        day = ts.date().isoformat()
+        day_dir = tmp_path / day
+        day_dir.mkdir(parents=True, exist_ok=True)
+        bundle_path = day_dir / f"audit-{day}.jsonl.gz"
+        with gzip.open(bundle_path, "wt", encoding="utf-8") as handle:
+            handle.write(
+                json.dumps(
+                    {
+                        "id": entry.id,
+                        "timestamp": ts.isoformat(),
+                        "event_type": entry.event_type,
+                        "entity_type": entry.entity_type,
+                        "entity_id": str(entry.entity_id),
+                        "payload": {"cluster_id": entry.payload["cluster_id"]},
+                        "hash": entry.hash,
+                        "prev_hash": entry.prev_hash,
+                    },
+                    sort_keys=True,
+                    separators=(",", ":"),
+                    ensure_ascii=False,
+                )
+            )
+            handle.write("\n")
+        bundle_sha256 = hashlib.sha256(bundle_path.read_bytes()).hexdigest()
+        ots_path = day_dir / f"audit-{day}.ots"
+        ots_path.write_text("proof", encoding="utf-8")
+        manifest_path = day_dir / f"manifest-{day}.json"
+        manifest_path.write_text(
+            json.dumps(
+                {
+                    "schema_version": 1,
+                    "day_utc": day,
+                    "bundle_sha256": bundle_sha256,
+                    "timestamping": {
+                        "provider": "opentimestamps",
+                        "status": "verified",
+                        "ots_proof_path": str(ots_path),
+                        "verified_before": "2026-03-15T10:00:00.000Z",
+                        "bitcoin_block_height": 123,
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        session = AsyncMock()
+        user_result = MagicMock()
+        user_result.scalar_one_or_none.return_value = user
+        entry_result = MagicMock()
+        entry_result.scalar_one_or_none.return_value = entry
+        session.execute.side_effect = [user_result, entry_result]
+        app.dependency_overrides[get_db] = lambda: session
+        try:
+            with patch("src.api.routes.user.get_settings") as mock_settings:
+                mock_settings.return_value.audit_bundle_output_dir = str(tmp_path)
+                client = TestClient(app)
+                response = client.get(
+                    f"/user/dashboard/receipts/{entry.hash}/verify",
+                    headers=_auth_headers(),
+                )
+                assert response.status_code == 200
+                data = response.json()
+                assert data["status"] == "verified"
+                assert data["ots_proof_present"] is True
+                assert data["ots_verified"] is True
+                assert data["verified_before"] == "2026-03-15T10:00:00.000Z"
+                assert data["download_urls"]["ots_proof"].endswith(f"/analytics/audit-bundles/{day}/ots")
+        finally:
+            app.dependency_overrides.pop(get_db, None)
+
+    def test_returns_timestamped_when_ots_exists_but_is_not_verified(self, tmp_path: Path) -> None:
+        user = _make_user()
+        ts = datetime.now(UTC)
+        entry = _make_evidence_entry(
+            timestamp=ts,
+            payload={"user_id": str(user.id), "cluster_id": str(uuid4())},
+            hash="hash-timestamped",
+        )
+        day = ts.date().isoformat()
+        day_dir = tmp_path / day
+        day_dir.mkdir(parents=True, exist_ok=True)
+        bundle_path = day_dir / f"audit-{day}.jsonl.gz"
+        with gzip.open(bundle_path, "wt", encoding="utf-8") as handle:
+            handle.write(json.dumps({"hash": entry.hash}) + "\n")
+        bundle_sha256 = hashlib.sha256(bundle_path.read_bytes()).hexdigest()
+        ots_path = day_dir / f"audit-{day}.ots"
+        ots_path.write_text("proof", encoding="utf-8")
+        (day_dir / f"manifest-{day}.json").write_text(
+            json.dumps(
+                {
+                    "schema_version": 1,
+                    "day_utc": day,
+                    "bundle_sha256": bundle_sha256,
+                    "timestamping": {
+                        "provider": "opentimestamps",
+                        "status": "stamped",
+                        "ots_proof_path": str(ots_path),
+                        "verified_before": None,
+                        "bitcoin_block_height": None,
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+        session = AsyncMock()
+        user_result = MagicMock()
+        user_result.scalar_one_or_none.return_value = user
+        entry_result = MagicMock()
+        entry_result.scalar_one_or_none.return_value = entry
+        session.execute.side_effect = [user_result, entry_result]
+        app.dependency_overrides[get_db] = lambda: session
+        try:
+            with patch("src.api.routes.user.get_settings") as mock_settings:
+                mock_settings.return_value.audit_bundle_output_dir = str(tmp_path)
+                client = TestClient(app)
+                response = client.get(
+                    f"/user/dashboard/receipts/{entry.hash}/verify",
+                    headers=_auth_headers(),
+                )
+                assert response.status_code == 200
+                data = response.json()
+                assert data["status"] == "timestamped"
+                assert data["ots_proof_present"] is True
+                assert data["ots_verified"] is False
+        finally:
+            app.dependency_overrides.pop(get_db, None)
+
+    def test_returns_failed_when_bundle_hash_does_not_match_manifest(self, tmp_path: Path) -> None:
+        user = _make_user()
+        ts = datetime.now(UTC)
+        entry = _make_evidence_entry(
+            timestamp=ts,
+            payload={"user_id": str(user.id), "cluster_id": str(uuid4())},
+            hash="hash-failed",
+        )
+        day = ts.date().isoformat()
+        day_dir = tmp_path / day
+        day_dir.mkdir(parents=True, exist_ok=True)
+        bundle_path = day_dir / f"audit-{day}.jsonl.gz"
+        with gzip.open(bundle_path, "wt", encoding="utf-8") as handle:
+            handle.write(json.dumps({"hash": entry.hash}) + "\n")
+        (day_dir / f"manifest-{day}.json").write_text(
+            json.dumps(
+                {
+                    "schema_version": 1,
+                    "day_utc": day,
+                    "bundle_sha256": "wrong-hash",
+                    "timestamping": {
+                        "provider": "opentimestamps",
+                        "status": "failed",
+                        "ots_proof_path": None,
+                        "verified_before": None,
+                        "bitcoin_block_height": None,
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+        session = AsyncMock()
+        user_result = MagicMock()
+        user_result.scalar_one_or_none.return_value = user
+        entry_result = MagicMock()
+        entry_result.scalar_one_or_none.return_value = entry
+        session.execute.side_effect = [user_result, entry_result]
+        app.dependency_overrides[get_db] = lambda: session
+        try:
+            with patch("src.api.routes.user.get_settings") as mock_settings:
+                mock_settings.return_value.audit_bundle_output_dir = str(tmp_path)
+                client = TestClient(app)
+                response = client.get(
+                    f"/user/dashboard/receipts/{entry.hash}/verify",
+                    headers=_auth_headers(),
+                )
+                assert response.status_code == 200
+                data = response.json()
+                assert data["status"] == "failed"
+                assert data["included_in_public_bundle"] is True
+                assert data["bundle_hash_matches_manifest"] is False
         finally:
             app.dependency_overrides.pop(get_db, None)
 

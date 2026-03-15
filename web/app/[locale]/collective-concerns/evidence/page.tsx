@@ -137,6 +137,12 @@ export default function EvidencePage() {
       title={t("evidence")}
       actions={
         <div className="flex items-center gap-3">
+          <Link
+            href={`/${locale}/collective-concerns/audit-bundles`}
+            className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+          >
+            {t("auditSnapshotsTitle")}
+          </Link>
           <ChainStatusBadge status={chainStatus} />
           <button
             onClick={runVerify}

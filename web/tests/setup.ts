@@ -51,10 +51,18 @@ vi.mock("next-intl/server", () => ({
 }));
 
 const mockPush = vi.fn();
+const mockRedirect = vi.fn((url: string) => {
+  throw new Error(`redirect:${url}`);
+});
+const mockNotFound = vi.fn(() => {
+  throw new Error("notFound");
+});
 vi.mock("next/navigation", () => ({
   useRouter: () => ({push: mockPush, replace: vi.fn(), back: vi.fn()}),
   usePathname: () => "/en/collective-concerns",
   useSearchParams: () => new URLSearchParams(),
+  redirect: mockRedirect,
+  notFound: mockNotFound,
 }));
 
 vi.mock("next/headers", () => ({
@@ -70,4 +78,4 @@ vi.mock("next/link", () => ({
   },
 }));
 
-export {mockPush};
+export {mockNotFound, mockPush, mockRedirect};

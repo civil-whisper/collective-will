@@ -4,12 +4,12 @@
 - `database/02-db-connection` (engine, session, Base)
 
 ## Goal
-Implement the append-only evidence log with hash-chain integrity, an append function, chain verification, daily Merkle-root computation, and optional external root publishing.
+Implement the append-only evidence log with hash-chain integrity, an append function, chain verification, daily Merkle-root computation, and optional external root timestamping/publication.
 
 ## Files to create/modify
 
 - `src/db/evidence.py` — EvidenceLogEntry ORM model, append and verify functions
-- `src/db/anchoring.py` — daily Merkle-root computation and optional Witness publisher
+- `src/db/anchoring.py` — daily Merkle-root computation and optional OpenTimestamps publisher
 - SQL for the `evidence_log` table, trigger, and indexes (can be inline or in a separate `.sql` file referenced by migrations later)
 
 ## Specification
@@ -135,15 +135,15 @@ async def publish_daily_merkle_root(
     root: str,
     day: date,
     settings: Settings,
-) -> str | None:
-    """Publish root to Witness.co when enabled; return receipt/anchor id."""
+) -> TimestampingResult | None:
+    """Publish/timestamp root when enabled; return proof metadata."""
 ```
 
 Behavior:
-- If `settings.witness_publish_enabled` is `False`, do nothing and return `None`
-- If enabled, call Witness API with root + day metadata
-- Store returned receipt/anchor id in evidence (or anchors table metadata)
-- Failures in publish path must not skip daily root computation
+- If external timestamping is disabled, preserve any existing compatible `.ots` metadata and otherwise return a disabled placeholder
+- If enabled with `AUDIT_TIMESTAMP_PROVIDER=opentimestamps`, create or upgrade a detached timestamp for the UTF-8 bytes of `daily_merkle_root`
+- Store proof metadata (`status`, `ots_proof_path`, `verified_before`, `bitcoin_block_height`) in the anchors table metadata and the public manifest/index
+- Failures in publish path must not skip daily root computation or bundle generation; return `failed` metadata instead of aborting the local export flow
 
 ### Event types
 
@@ -171,7 +171,8 @@ Valid event types are defined by `EVENT_CATALOG` in `src/db/evidence.py`. Each e
 `dispute_escalated`, `dispute_resolved`, `dispute_metrics_recorded`, `dispute_tuning_recommended`
 
 **Anchoring:**
-`anchor_computed`, `anchor_publish_attempted`, `anchor_publish_succeeded`, `anchor_publish_failed`
+`anchor_computed`, `anchor_publish_attempted`, `anchor_publish_succeeded`, `anchor_publish_failed`,
+`audit_bundle_generated`, `audit_bundle_publish_succeeded`, `audit_bundle_publish_failed`
 
 **Voice:**
 `voice_enrolled`, `voice_enroll_phrase_rejected`, `voice_verified`
@@ -211,7 +212,7 @@ Receipt-eligible events (endorsements, votes) generate HMAC-SHA256 receipt token
 - Hash computation must be deterministic and reproducible by third parties using the canonical serialization format defined above.
 - Concurrent appends must not corrupt the chain. Use database-level locking.
 - Daily Merkle-root computation is mandatory in v0.
-- External publication is optional and config-driven (`WITNESS_PUBLISH_ENABLED`); this toggle must not disable local root computation.
+- External timestamping/publication is optional and config-driven; this toggle must not disable local root computation.
 - Anchor computation and publication metadata must be evidence-loggable for audit reproducibility.
 
 ## Tests
@@ -230,6 +231,6 @@ Write tests in `tests/test_db/test_evidence.py` covering:
 - Canonical serialization output is stable for equivalent dict ordering (sorted-key invariance)
 - `compute_daily_merkle_root()` returns deterministic root for a fixed day's entries
 - Merkle root is computed even when external publication is disabled
-- `publish_daily_merkle_root()` does not call Witness when `WITNESS_PUBLISH_ENABLED=false`
-- `publish_daily_merkle_root()` stores receipt metadata when enabled
+- `publish_daily_merkle_root()` returns disabled metadata when `AUDIT_TIMESTAMP_PROVIDER=none`
+- `publish_daily_merkle_root()` writes `.ots` proof metadata when OpenTimestamps is enabled
 - Publish failure does not erase or skip the already computed local root

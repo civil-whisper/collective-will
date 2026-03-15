@@ -41,7 +41,7 @@ These are locked. Do not deviate.
 | **Submission daily limit** | Config-backed via `MAX_SUBMISSIONS_PER_DAY` (default `5`). Staging can raise for testing. |
 | **Adjudication autonomy** | Individual votes, disputes, and quarantine outcomes are resolved by autonomous agentic workflows (primary model + fallback/ensemble as needed). Humans do not manually decide per-item outcomes; human actions are limited to architecture, policy tuning, and risk-management incidents. |
 | **Evidence store** | PostgreSQL append-only hash-chain. No UPDATE/DELETE. |
-| **External anchoring** | Merkle root computation is required in v0 (daily). Publishing that root to Witness.co is optional and config-driven. |
+| **External anchoring** | Merkle root computation is required in v0 (daily). External timestamping is optional and config-driven via `AUDIT_TIMESTAMP_PROVIDER` (`none` or `opentimestamps`). Current public-verifiability pattern: publish one **daily redacted audit bundle** + manifest + detached OpenTimestamps proof for the UTF-8 bytes of that day's `daily_merkle_root`. |
 | **Ops observability console** | Add a separate `/ops` diagnostics surface for runtime health/events. In dev/staging it may appear in top navigation; in production it must be admin-auth gated and feature-flagged. Show structured, redacted operational events (health checks, recent errors, job status, webhook/email transport status), not raw container logs. |
 | **Infrastructure** | Njalla domain is registered (WHOIS privacy). Primary hosting is 1984.is VPS. Cloudflare (Free plan) is **active** as the edge proxy — DNS, CDN, DDoS protection, and Bot Fight Mode enabled. Caddy `trusted_proxies static` is configured with all Cloudflare IP ranges + `trusted_proxies_strict` to preserve real client IPs. Production domain serves a static 503 maintenance page until the production stack is deployed (staging is the active environment). Deploy pipeline includes preflight checks, pull retries with backoff, and post-deploy health gates. Origin IP is private. Operator failover playbook + standby VPS must be documented. |
 | **Web dependency security** | Next.js ≥15.5.12, React ≥19.0.1 (patched for CVE-2025-66478). No wget/curl in web runtime image. Deploy SSH timeout 10m — do not lengthen to mask anomalies. Full incident context: `docs/agent-context/security/01-nextjs-rce-cryptomining-2025-03.md`. |
@@ -391,7 +391,8 @@ dispute_escalated, dispute_resolved, dispute_metrics_recorded,
 dispute_tuning_recommended,
 # Anchoring
 anchor_computed, anchor_publish_attempted, anchor_publish_succeeded,
-anchor_publish_failed,
+anchor_publish_failed, audit_bundle_generated, audit_bundle_publish_succeeded,
+audit_bundle_publish_failed,
 # Voice
 voice_enrolled, voice_enroll_phrase_rejected, voice_verified
 ```
@@ -432,9 +433,12 @@ All `append_evidence` payloads include human-readable context so the evidence ch
 | `user_verified` | `user_id`, `method` |
 | `dispute_resolved` | `submission_id`, `candidate_id`, `escalated`, `confidence`, `model_version`, `resolved_title`, `resolved_summary`, `resolution_seconds` |
 | `dispute_escalated` | `threshold`, `primary_model`, `primary_confidence`, `ensemble_models`, `selected_model`, `selected_confidence` |
-| `anchor_publish_attempted` | `day`, `merkle_root` |
-| `anchor_publish_succeeded` | `day`, `merkle_root`, `receipt` |
-| `anchor_publish_failed` | `day`, `merkle_root`, `error_type` |
+| `anchor_publish_attempted` | `day`, `merkle_root`, `provider` |
+| `anchor_publish_succeeded` | `day`, `merkle_root`, `provider`, `status`, `ots_proof_path` |
+| `anchor_publish_failed` | `day`, `merkle_root`, `provider`, `status`, `error_type` |
+| `audit_bundle_generated` | `day`, `entry_count`, `bundle_sha256`, `storage_path` |
+| `audit_bundle_publish_succeeded` | `day`, `bundle_sha256`, `manifest_path`, `index_path` |
+| `audit_bundle_publish_failed` | `day`, `bundle_sha256`, `error_type` |
 
 ### Evidence PII Stripping & Visibility Tiers
 
@@ -460,6 +464,17 @@ Receipt-eligible events (`policy_endorsed`, `vote_cast`) generate HMAC-SHA256 re
 - `GET /analytics/evidence` — paginated, with `entity_id`, `event_type`, `page`, `per_page` query params; returns `{total, page, per_page, entries}` with visibility-tier-aware payload redaction
 - `GET /analytics/evidence/verify` — server-side chain verification; returns `{valid, entries_checked}`
 - `GET /user/dashboard/receipts` — authenticated; returns user's receipt-eligible evidence entries with `receipt_token` HMAC
+- `GET /user/dashboard/receipts/{entry_hash}/verify` — authenticated; returns `{status, receipt_valid, entry_found, bundle_day, included_in_public_bundle, bundle_hash_matches_manifest, ots_proof_present, ots_verified, verified_before, download_urls}` for the user's receipt entry
+- `/{locale}/my-activity` now includes a receipts section with verification status chips and links to receipt detail pages
+- `/{locale}/my-activity/receipts/{entryHash}` shows plain-language verification status, trust-language guardrails, technical details, and live proof-download links
+- `GET /analytics/audit-bundles` — public; lists daily bundle summaries from `audit/index.json`
+- `GET /analytics/audit-bundles/{day}` — public; returns manifest summary, timestamping metadata, and download links
+- `GET /analytics/audit-bundles/{day}/proof?entry_hash=...` — public; returns inclusion result and proof metadata for a given entry hash
+- `GET /analytics/audit-bundles/{day}/bundle` — public raw bundle download
+- `GET /analytics/audit-bundles/{day}/manifest` — public raw manifest download
+- `GET /analytics/audit-bundles/{day}/ots` — public raw OpenTimestamps proof download when present
+- `/{locale}/collective-concerns/audit-bundles` lists public audit snapshots
+- `/{locale}/collective-concerns/audit-bundles/{day}` shows one day’s public audit snapshot details and artifact links
 - Frontend evidence explorer uses server-side verify (no client-side hash recomputation); deep links to analytics pages via `entityLink()`
 
 ---

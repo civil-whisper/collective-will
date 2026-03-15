@@ -1063,6 +1063,63 @@ user receipts, and full event coverage for every decision point.
      - Add to `.env.secrets`, re-register webhook with Telegram `setWebhook` API
      - Code already verifies `X-Telegram-Bot-Api-Secret-Token` in `src/api/routes/webhooks.py`
 
+### P1 — Public Audit Verification
+
+Design docs:
+- `docs/agent-context/database/05-public-audit-verification.md`
+- `docs/decision-rationale/database/05-public-audit-verification.md`
+
+133. [done] Daily redacted audit bundle export
+     - Generate `audit/{day}/audit-{day}.jsonl.gz` from visibility-tier-redacted evidence rows
+     - Deterministic ordering (`id ASC`) and deterministic gzip/hash output
+     - Emit `audit_bundle_generated` evidence event
+
+134. [done] Manifest + index publication
+     - Generate `manifest-{day}.json` with `daily_merkle_root`, `bundle_sha256`, counts, hash boundaries, schema versions
+     - Maintain `audit/index.json` for public discovery
+     - Emit `audit_bundle_publish_succeeded` / `audit_bundle_publish_failed`
+
+135. [done] OpenTimestamps proof generation + manifest binding
+     - Generate daily `.ots` proof for the daily Merkle root
+     - Store `ots_proof_path`, `timestamping_status`, and `verified_before` in manifest/index
+     - Keep external timestamping optional; local root/bundle generation remains mandatory
+
+136. [done] Public verification endpoints
+     - `GET /analytics/audit-bundles` (list days)
+     - `GET /analytics/audit-bundles/{day}` (manifest summary + links)
+     - `GET /analytics/audit-bundles/{day}/proof?entry_hash=...` (Merkle inclusion proof)
+
+137. [done] Verification test suite + docs
+     - Deterministic bundle/hash tests, redaction parity tests, proof verification tests
+     - Document auditor verification flow on website/docs
+     - Add rough cost runbook (OpenTimestamps public calendars vs self-hosted)
+
+### P1 — Receipt Verification UX
+
+Design docs:
+- `docs/agent-context/website/10-receipt-verification.md`
+- `docs/decision-rationale/website/10-receipt-verification.md`
+
+138. [done] Freeze receipt verification states + user-facing copy
+     - States: `recorded`, `published`, `timestamped`, `verified`, `failed`
+     - Add precise “what this proves / does not prove” copy in EN + FA
+
+139. [done] Receipt verification backend contract
+     - Add `GET /user/dashboard/receipts/{entry_hash}/verify`
+     - Return bundle inclusion, manifest match, `.ots` presence, verification status, and timestamps
+
+140. [done] Dashboard receipt cards + detail page
+     - Show status chips (`Recorded`, `Published`, `Timestamped`)
+     - Add receipt detail page with plain-language explanation and advanced downloads
+
+141. [done] Public audit snapshot pages
+     - List daily bundles/manifests/proofs
+     - Show timestamping status and download links
+
+142. [done] Independent verification guide
+     - Public “how to verify” page for journalists/researchers
+     - Keep shell/CLI instructions optional, not required for ordinary users
+
 ## Definition of Done (This Cycle)
 
 - No CI/CD job performs paid LLM API calls

@@ -17,7 +17,7 @@
 - Shared-context D15 burst soft-quarantine policy should be config-backed: trigger count (`BURST_QUARANTINE_THRESHOLD_COUNT`, default `3`) and window (`BURST_QUARANTINE_WINDOW_MINUTES`, default `5`).
 - Shared-context adjudication-autonomy policy should expose dispute-resolver model config (`DISPUTE_RESOLUTION_MODEL`, fallback, and optional ensemble list) so resolver quality can be tuned without code edits.
 - Shared-context adjudication guardrail should expose `DISPUTE_RESOLUTION_CONFIDENCE_THRESHOLD` as config so low-confidence escalation policy is explicit and tunable.
-- Shared-context anchoring guardrail should expose `WITNESS_PUBLISH_ENABLED` (+ Witness endpoint/key) so publication is optional while daily Merkle-root computation remains mandatory.
+- Shared-context anchoring guardrail should expose `AUDIT_TIMESTAMP_PROVIDER` (+ OpenTimestamps calendar/node settings) so external timestamping remains optional while daily Merkle-root computation stays mandatory.
 - Infrastructure/domain setup should expose `APP_PUBLIC_BASE_URL` so auth links and public callbacks are not hardcoded (production: `https://collectivewill.org`).
 - LLM tier->model mapping should be env-configured so model swaps do not require code edits in pipelines/handlers.
 - Embedding config should include both primary quality-first model and cost-effective fallback for later phases.
