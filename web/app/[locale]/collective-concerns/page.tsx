@@ -242,17 +242,19 @@ function ConcernList({
         <Link
           key={concern.id}
           href={`/${locale}/collective-concerns/clusters/${concern.id}`}
-          className="flex items-center justify-between rounded-lg border border-gray-200 bg-white px-5 py-4 transition-colors hover:bg-gray-50 dark:border-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700"
+          className="flex items-start justify-between rounded-lg border border-gray-200 bg-white px-5 py-4 transition-colors hover:bg-gray-50 dark:border-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700"
         >
           <div className="min-w-0 flex-1">
-            <p className="truncate font-medium">{concern.summary}</p>
-            <div className="mt-1 flex items-center gap-3">
+            <p className="font-medium">{concern.summary}</p>
+            <div className="mt-2 flex flex-wrap items-center gap-2">
               <TopicBadge topic={concern.policy_topic} />
               {concern.status === "archived" && (
                 <span className="rounded bg-gray-200 px-1.5 py-0.5 text-xs font-medium text-gray-600 dark:bg-slate-600 dark:text-slate-300">
                   {t("archived")}
                 </span>
               )}
+            </div>
+            <div className="mt-1.5 flex flex-col gap-0.5">
               <span className="text-xs text-gray-500 dark:text-slate-400">
                 {t("submissions")}: {concern.member_count}
               </span>
@@ -261,7 +263,7 @@ function ConcernList({
               </span>
             </div>
           </div>
-          <div className="ms-4 text-end">
+          <div className="ms-4 shrink-0 text-end">
             <p className="text-lg font-bold">
               {concern.endorsement_count + concern.member_count}
             </p>

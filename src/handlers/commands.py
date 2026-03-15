@@ -153,6 +153,7 @@ _MESSAGES: dict[str, dict[str, str]] = {
         "voice_verify_nudge": "🔒 لطفاً یک پیام صوتی ارسال کنید تا هویت شما تأیید شود.",
         "voice_audio_too_short": "⚠️ پیام صوتی خیلی کوتاه است. لطفاً حداقل ۱ ثانیه ضبط کنید.",
         "voice_audio_too_long": "⚠️ پیام صوتی خیلی طولانی است. لطفاً حداکثر ۱۰ ثانیه ضبط کنید.",
+        "voice_processing": "⏳ پیام صوتی شما دریافت شد. لطفاً تا ۱۵ ثانیه صبر کنید تا پردازش شود...",
     },
     "en": {
         "submission_prompt": "📝 Please type your concern or policy proposal:",
@@ -233,6 +234,7 @@ _MESSAGES: dict[str, dict[str, str]] = {
         "voice_verify_nudge": "🔒 Please send a voice message to verify your identity.",
         "voice_audio_too_short": "⚠️ Voice message too short. Please record at least 1 second.",
         "voice_audio_too_long": "⚠️ Voice message too long. Please keep it under 10 seconds.",
+        "voice_processing": "⏳ Voice message received. Please wait up to 15 seconds while it is processed...",
     },
 }
 
@@ -1164,6 +1166,11 @@ async def _handle_enrollment_voice(
     if not state.get("enrollment"):
         return await _start_voice_enrollment(user, message, channel, db)
 
+    await channel.send_message(OutboundMessage(
+        recipient_ref=message.sender_ref,
+        text=_msg(user.locale, "voice_processing"),
+    ))
+
     try:
         status, updated_state = await process_enrollment_audio(
             user=user,
@@ -1308,6 +1315,11 @@ async def _handle_verification_voice(
         phrase_id = int(phrase_id_raw)
     except (TypeError, ValueError):
         return await _start_voice_verification(user, message, channel, db)
+
+    await channel.send_message(OutboundMessage(
+        recipient_ref=message.sender_ref,
+        text=_msg(user.locale, "voice_processing"),
+    ))
 
     result, error_code = await verify_voice(
         user=user,

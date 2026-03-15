@@ -150,8 +150,9 @@ class TestVoiceGateNotEnrolled:
             result = await route_message(session=session, message=msg, channel=channel)
 
         assert result == "voice_service_error"
-        channel.send_message.assert_called_once()
-        sent_text = channel.send_message.call_args[0][0].text
+        # First call is the processing notice, second is the error message
+        assert channel.send_message.call_count == 2
+        sent_text = channel.send_message.call_args_list[-1][0][0].text
         assert "Error processing audio" in sent_text or "error" in sent_text.lower()
 
     @pytest.mark.asyncio

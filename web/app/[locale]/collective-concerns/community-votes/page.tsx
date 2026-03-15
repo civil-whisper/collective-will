@@ -221,26 +221,28 @@ export default async function CommunityVotesPage() {
                       className="absolute inset-y-0 start-0 bg-accent/5 dark:bg-accent/10"
                       style={{width: `${pct}%`}}
                     />
-                    <div className="relative flex items-center gap-4 px-5 py-4">
-                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gray-100 text-sm font-bold text-gray-600 dark:bg-slate-700 dark:text-slate-300">
-                        {index + 1}
-                      </span>
+                    <div className="relative flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center sm:gap-4">
+                      <div className="flex items-start gap-4 sm:contents">
+                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gray-100 text-sm font-bold text-gray-600 dark:bg-slate-700 dark:text-slate-300">
+                          {index + 1}
+                        </span>
 
-                      <div className="min-w-0 flex-1">
-                        <Link
-                          href={`/${locale}/collective-concerns/clusters/${item.cluster_id}`}
-                          className="block truncate font-medium text-gray-900 hover:text-accent dark:text-slate-100 dark:hover:text-indigo-300"
-                        >
-                          {item.summary ?? item.cluster_id}
-                        </Link>
-                        {item.policy_topic && (
-                          <div className="mt-1">
-                            <TopicBadge topic={item.policy_topic} />
-                          </div>
-                        )}
+                        <div className="min-w-0 flex-1">
+                          <Link
+                            href={`/${locale}/collective-concerns/clusters/${item.cluster_id}`}
+                            className="block font-medium text-gray-900 hover:text-accent dark:text-slate-100 dark:hover:text-indigo-300"
+                          >
+                            {item.summary ?? item.cluster_id}
+                          </Link>
+                          {item.policy_topic && (
+                            <div className="mt-1">
+                              <TopicBadge topic={item.policy_topic} />
+                            </div>
+                          )}
+                        </div>
                       </div>
 
-                      <div className="flex shrink-0 items-center gap-6 text-end">
+                      <div className="flex shrink-0 items-center gap-6 ps-12 text-end sm:ps-0">
                         <div>
                           <p className="text-lg font-bold">{pct}%</p>
                           <p className="text-xs text-gray-500 dark:text-slate-400">
