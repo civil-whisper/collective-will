@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 _SYSTEM_PROMPT = (
     "You are a nonpartisan policy analyst for a democratic deliberation platform. "
-    "Your job is to create a neutral ballot question that describes a policy issue "
+    "Your job is to create a neutral description of a policy issue "
     "without taking sides, so citizens can decide whether this topic should appear "
     "on the voting ballot."
 )
@@ -36,17 +36,22 @@ Number of submissions: {member_count}
 Citizen submissions on this issue (summaries):
 {submissions_block}
 
-Generate a stance-neutral ballot question that:
+Generate a stance-neutral policy description that:
 1. Describes the policy issue without taking sides
 2. Mentions the range of views expressed by citizens
 3. Is concise (1-2 sentences in English, 1-2 sentences in Farsi)
 4. Makes clear what voters would be deciding about
 5. Also provide a short neutral summary of the policy discussion
 
+IMPORTANT formatting rules for the Farsi version (ballot_question_fa):
+- Write as a STATEMENT, not a question. Do NOT start with «آیا» or end with «؟».
+- Use casual, plain Farsi suitable for people in their early 20s — direct and friendly, not formal or bureaucratic.
+- Example of the right tone: «این بحث درباره ... مطرح شده» or «شهروندان نگران ... هستن»
+
 Return ONLY raw JSON (no markdown):
 {{
-  "ballot_question": "English ballot question text",
-  "ballot_question_fa": "Farsi ballot question text",
+  "ballot_question": "English policy description (statement format)",
+  "ballot_question_fa": "Farsi policy description (statement, casual tone, no آیا, no ؟)",
   "summary": "Short neutral English summary of the policy discussion"
 }}
 """
