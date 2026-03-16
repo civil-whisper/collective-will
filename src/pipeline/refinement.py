@@ -13,9 +13,11 @@ from src.pipeline.llm import LLMRouter
 
 _SYSTEM_PROMPT = (
     "You are a nonpartisan democratic process analyst. "
-    "Your job is to help refine broad civic concerns into clearer proposition drafts "
-    "without changing the underlying intent. Produce a draft only when the citizen input "
-    "supports a plausible concrete proposition. Do not invent a different agenda."
+    "Your job is to help refine civic concerns into the narrowest faithful proposition draft "
+    "without changing the underlying intent. Produce a draft whenever the submissions imply "
+    "a real proposition, even if important details still need clarification. "
+    "Return null only when the submissions are purely exploratory or too underspecified to support "
+    "a trustworthy draft. Do not invent a different agenda."
 )
 
 _PROMPT_TEMPLATE = """\
@@ -39,9 +41,12 @@ Return JSON only:
 
 Rules:
 - Stay close to the actual submissions.
-- If the cluster is still too broad, set refinement_draft/refinement_draft_fa to null.
+- Draft the narrowest faithful proposition implied by the submissions.
+- If the core direction is identifiable, prefer a draft over null even when some details are still missing.
+- Set refinement_draft/refinement_draft_fa to null only when the submissions are purely exploratory, discussion-only, or too underspecified to support a trustworthy proposition.
 - Use requires_clarification=true when the submissions do not supply enough detail for a trustworthy draft.
 - Confidence reflects whether the draft captures a real plausible proposition implied by the submissions.
+- Keep notes short and concrete: say what is missing, or why the draft is still trustworthy.
 """
 
 
@@ -82,6 +87,18 @@ def _parse_refinement_payload(text: str) -> dict[str, object]:
     return payload
 
 
+def _cluster_has_refinable_direction(
+    cluster: Cluster,
+    candidates_by_id: Mapping[UUID, PolicyCandidate],
+) -> bool:
+    members = [
+        candidates_by_id[candidate_id]
+        for candidate_id in cluster.candidate_ids
+        if candidate_id in candidates_by_id
+    ]
+    return any(candidate.ballot_readiness == "needs-refinement" for candidate in members)
+
+
 async def generate_refinement_drafts(
     *,
     session: AsyncSession,
@@ -90,6 +107,13 @@ async def generate_refinement_drafts(
     llm_router: LLMRouter,
 ) -> None:
     for cluster in clusters:
+        if not _cluster_has_refinable_direction(cluster, candidates_by_id):
+            cluster.refinement_draft = None
+            cluster.refinement_draft_fa = None
+            cluster.refinement_confidence = 0.0
+            cluster.refinement_requires_clarification = True
+            cluster.refinement_notes = None
+            continue
         submissions_block = _build_submissions_block(cluster, candidates_by_id)
         prompt = _PROMPT_TEMPLATE.format(
             policy_key=cluster.policy_key,

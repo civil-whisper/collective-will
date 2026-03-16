@@ -39,8 +39,9 @@ Generate two pieces of neutral wording:
 1. ballot_question:
    - If the issue is concrete and ballot-ready, write neutral proposition language
      describing what voters would actually be deciding.
-   - If the issue is still broad or underspecified, write agenda-setting language
-     describing whether this concern should move forward for further public refinement.
+   - If the issue needs refinement but has a clear direction, write a concise public-facing
+     civic prompt around the concrete proposition under debate. Mention missing scope only briefly.
+   - If the issue is discussion-only, write a concise civic discussion prompt about the public issue itself.
 2. summary:
    - Write a short neutral summary suitable for a concerns/discussion list.
 
@@ -51,8 +52,13 @@ IMPORTANT formatting rules for the Farsi version (ballot_question_fa):
 
 Ballot-language requirements:
 - Use concise, impartial language.
-- Avoid "one citizen raised a concern" narration.
-- Make clear whether the item is a concrete proposition or still a broad concern under discussion.
+- Avoid "one citizen raised a concern" narration and avoid internal workflow language.
+- Avoid starting with "This concern" or "This topic" unless no cleaner wording is possible.
+- Do not say "move forward", "structured discussion", "public consideration", "further refinement",
+  "agenda-setting", or similar meta-process phrases.
+- For needs-refinement items, focus on the core policy dispute and keep the wording civic and public-facing.
+- For discussion-only items, frame the issue as a public discussion topic, not as an internal process decision.
+- Make clear whether the item is a concrete proposition, a draftable concern, or a broad discussion topic.
 - Do not invent an option set or political spectrum in this step.
 
 Return ONLY raw JSON (no markdown):

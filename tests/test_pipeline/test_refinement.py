@@ -68,3 +68,28 @@ async def test_generate_refinement_drafts_updates_cluster_and_logs_evidence() ->
     assert cluster.refinement_requires_clarification is False
     mock_evidence.assert_called_once()
     assert mock_evidence.call_args.kwargs["event_type"] == "refinement_draft_generated"
+
+
+@pytest.mark.asyncio
+async def test_generate_refinement_drafts_skips_discussion_only_clusters() -> None:
+    cluster = _make_cluster()
+    candidate = _make_candidate(cluster.candidate_ids[0])
+    candidate.ballot_readiness = "discussion-only"
+    router = MagicMock()
+    router.complete = AsyncMock()
+    session = AsyncMock()
+
+    from unittest.mock import patch
+
+    with patch("src.pipeline.refinement.append_evidence", new_callable=AsyncMock) as mock_evidence:
+        await generate_refinement_drafts(
+            session=session,
+            clusters=[cluster],
+            candidates_by_id={candidate.id: candidate},
+            llm_router=router,
+        )
+
+    router.complete.assert_not_called()
+    mock_evidence.assert_not_called()
+    assert cluster.refinement_draft is None
+    assert cluster.refinement_requires_clarification is True

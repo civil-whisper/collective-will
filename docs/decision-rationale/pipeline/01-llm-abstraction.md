@@ -11,8 +11,8 @@
 - **Claude-first strategy**: All primary tiers default to `claude-sonnet-4-6` for reliable throughput (no restrictive RPD limits). Gemini 3.1 Pro rate limits (25 RPD on Paid Tier 1) caused persistent 429 errors under normal workload.
 - All fallbacks default to `gpt-4o` for cross-provider resilience (switched from `gemini-3.1-pro-preview` due to Gemini rate limits).
 - Embeddings: `gemini-embedding-001` primary, `text-embedding-3-large` fallback (Gemini embedding quotas are generous — 3K RPM, unlimited RPD).
-- Policy option generation (`option_generation`) uses Claude Sonnet 4.6 as primary (no grounding). Fallback: Gemini 3.1 Pro (Google Search grounding activates automatically for Google models when `grounding=True`).
-- Dispute adjudication is autonomous via the `dispute_resolution` tier, with ensemble tie-break using Claude Sonnet 4.6 + Gemini 3.1 Pro.
+- Policy option generation (`option_generation`) uses Claude Sonnet 4.6 as primary and `gpt-4o` as explicit fallback. Grounding is conditional and disabled by default; it is only enabled for configured research-heavy topics. Wrapped prose / fenced JSON responses are salvaged before model fallback.
+- Dispute adjudication is autonomous via the `dispute_resolution` tier, with ensemble tie-break using Claude Sonnet 4.6 + `gpt-4o`.
 
 ## Decision: Claude-first tier routing by task
 
@@ -23,7 +23,7 @@
 - Avoids accidental model coupling between extraction quality and user-message generation.
 - Keeps routing simple and explicit: one tier per job category.
 - Enables model swaps via config/env (tier -> model mapping) without touching business logic.
-- Cross-provider fallback (Claude primary → Gemini fallback) provides resilience against single-provider outages.
+- Cross-provider fallback (Claude primary → GPT-4o fallback) provides resilience against single-provider outages.
 - Supports no-human per-item dispute handling by routing dispute resolution through explicit model policy instead of operator decisions.
 
 **Guardrail**
@@ -34,6 +34,9 @@
 - Keep dispute confidence thresholds config-backed so escalation policy can be tuned without code edits.
 - Require dispute adjudication traces to be emitted for full evidence logging of every adjudication action.
 - Forbid direct model-ID usage outside `llm.py`; all callers use task tiers.
-- Google Search grounding for `option_generation` is only active when the Gemini fallback is reached; if grounding is critical, consider overriding `option_generation_model` to a Gemini model via env.
+- Keep `option_generation` grounding conditional and opt-in. Always-on grounding inflated prompt size and cost during replay, and increased the chance of non-JSON wrapper output.
+- Cost telemetry must normalize provider-specific usage fields and distinguish input/output token pricing so replay spend is explainable.
+- Provider-side prompt caching is a router feature (`LLM_PROMPT_CACHING_ENABLED`), not a caller concern. Callers structure their prompts for cache-friendliness (stable prefix first, dynamic suffix last) but never reference caching APIs directly.
+- Cache telemetry (read/write tokens) is tracked in `LLMResponse` and replay stats for cost attribution; no schema changes were introduced.
 
 **Verdict**: **Keep with guardrail**

@@ -1126,6 +1126,38 @@ Design docs:
     - Ensemble models updated to `claude-sonnet-4-6,gpt-4o`
     - Embeddings unchanged (Gemini embedding quotas remain generous)
 
+144. [done] Harden option generation reliability and replay cost telemetry
+    - Made `option_generation` grounding conditional and disabled by default via `OPTION_GENERATION_GROUNDING_*`
+    - Added JSON salvage for wrapped/fenced option outputs before explicit model fallback
+    - Aligned replay with production by using the same explicit fallback-model retry path
+    - Fixed OpenAI usage normalization and added per-model/token replay cost breakdowns
+    - Replayed staging submissions: 19 submissions -> 15 candidates -> 12 clusters with only 1 degradation (`canonicalization:parse_repaired`) and no option fallback
+    - Reduced fresh replay estimated completion cost from ~$0.44 on always-on grounding to ~$0.35 with conditional grounding off by default
+
+145. [done] Slim canonicalization prompt and cap open-key context
+    - Removed the large illustrative example block from canonicalization prompt while preserving schema and actor/mechanism/target rules
+    - Added `CANONICALIZATION_CONTEXT_MAX_ENTRIES` and `CANONICALIZATION_CONTEXT_SUMMARY_CHARS` to stop open-cluster context from growing unbounded
+    - Expanded local malformed-JSON repair to handle additional wrapper/fence and adjacent-string cases, reducing avoidable repair calls
+    - Focused canonicalization + pipeline regression tests passed after the prompt/context reduction
+
+146. [done] Canonicalization caching refactor
+    - Split canonicalization user prompt into stable `_CANONICALIZATION_INSTRUCTIONS` prefix (rules + schema) plus dynamic context + input suffix — optimized for provider prefix caching
+    - Added `_INSTRUCTION_VERSION` (SHA-256 digest of stable instructions) for audit telemetry
+    - Added provider-side cache support in `LLMRouter`: Anthropic system blocks sent with `cache_control` + beta header; OpenAI `cached_tokens` captured; cost estimator adjusted for cache read discounts (90%) and write surcharges (25%)
+    - Added `cache_read_tokens` and `cache_write_tokens` to `LLMResponse`; replay stats expose `provider_cache_read_tokens`, `provider_cache_write_tokens`, `instruction_version`
+    - New config: `LLM_PROMPT_CACHING_ENABLED` (default `true`) — disables cache block formatting when false
+    - Fresh replay: 19 submissions → 15 candidates → 12 clusters, 4 rejected, 0 degradations, $0.305 estimated cost
+    - 78 focused pipeline tests pass; all new tests cover prompt structure, cache telemetry, and config gates
+
+147. [done] Public wording and refinement/readiness pass
+    - Tightened canonicalization guidance so `discussion-only` is reserved for exploratory inputs, `needs-refinement` captures implied propositions, and explicit proposition-style questions can be classified as `ballot-ready`
+    - Added compound-submission guidance so mixed actor/mechanism inputs carry `compound_submission` ambiguity flags instead of collapsing into vague keys
+    - Rewrote endorsement wording rules to avoid meta-process phrases and produce clearer public-facing text for `ballot-ready`, `needs-refinement`, and `discussion-only` clusters
+    - Narrowed refinement generation to clusters with at least one `needs-refinement` member; pure `discussion-only` clusters now remain discussion topics with no synthetic draft or options
+    - Tightened policy slug sanitization so UI metadata no longer preserves symbols like `&` or `/`
+    - Fresh replay after the pass: 19 submissions → 16 candidates → 11 clusters, 3 rejected, 0 degradations, $0.302 estimated cost
+    - Focused regression suite passed (`67 passed`) covering canonicalization, refinement, endorsement, replay, scheduler, and slug sanitization
+
 ## Definition of Done (This Cycle)
 
 - No CI/CD job performs paid LLM API calls

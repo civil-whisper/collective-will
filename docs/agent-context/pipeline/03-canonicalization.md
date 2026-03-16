@@ -58,7 +58,7 @@ Steps:
 1. Prepare the submission text (strip metadata/PII)
 2. Call `complete()` with `tier="canonicalization"` and the canonicalization prompt
 3. Parse LLM JSON response
-4. If parsing fails, attempt local repair for common malformed JSON patterns (for example key/value comma typos or trailing commas)
+4. If parsing fails, attempt local repair for common malformed JSON patterns (for example key/value comma typos, adjacent string literals, trailing commas, or fenced/wrapped JSON)
 5. If local repair still fails, make one JSON-repair pass through the `canonicalization` tier and parse that result
 6. If parsing still fails after repair: raise so the intake handler can fall back to pending/batch retry
 7. If `is_valid_policy` is false: return `CanonicalizationRejection(rejection_reason=...)`
@@ -100,6 +100,24 @@ Steps:
 10. Return list of created candidates
 
 ### Prompt template
+
+The prompt is split for provider-side caching:
+
+1. **`_SYSTEM_PROMPT`** — stable role/invariants (passed as `system_prompt` to `LLMRouter.complete()`). Kept short and unchanging; Anthropic caches it server-side across calls.
+2. **`_CANONICALIZATION_INSTRUCTIONS`** — stable rules, schema, allowed enum values. This is a module-level constant whose SHA-256 digest is exposed as `_INSTRUCTION_VERSION` for audit telemetry.
+3. **Dynamic `policy_context`** — open keys from the database (capped by `CANONICALIZATION_CONTEXT_MAX_ENTRIES` and `CANONICALIZATION_CONTEXT_SUMMARY_CHARS`).
+4. **`Input: {json}`** — the per-submission payload, always last.
+
+The user-message prompt is assembled as `_CANONICALIZATION_INSTRUCTIONS + context_block + Input`, keeping the stable prefix identical across calls so provider prefix caching maximizes reuse.
+
+Do not keep long illustrative example blocks unless they are empirically required to preserve quality.
+
+Readiness guidance is explicit:
+- `discussion-only` = broad, exploratory civic discussion with no implied proposition
+- `needs-refinement` = a real proposition or direction is implied, but scope / actor / mechanism / target still needs narrowing
+- `ballot-ready` may still apply when a submission is phrased as a question, as long as it already states a concrete constitutional, legal, or policy rule that citizens could support or oppose
+
+Compound submissions must not be silently blurred into broad keys. When a message mixes multiple mechanisms or actors, canonicalization should keep the dominant proposition, add `compound_submission` to `ambiguity_flags`, and usually classify it as `needs-refinement`.
 
 ```
 You are processing civic submissions for a democratic deliberation platform.
@@ -156,7 +174,7 @@ Store this with every candidate for reproducibility.
 
 ### Error handling
 
-- If LLM returns malformed JSON: first try local parser repair, then one strict JSON-repair LLM pass. Both repair methods emit a `candidate_parse_repaired` evidence event with the repair method (`regex` or `llm`).
+- If LLM returns malformed JSON: first try local parser repair, then one strict JSON-repair LLM pass. Both repair methods emit a `candidate_parse_repaired` evidence event with the repair method (`regex` or `llm`). Treat LLM repair as exceptional and optimize the local-repair path first.
 - If the repaired payload is still unparseable: flag submission as `"flagged"` in batch mode, or raise in `canonicalize_single()` so intake can fall back to pending processing
 - If LLM returns empty result: flag submission, log
 - Do not let one bad response stop the entire batch
@@ -168,7 +186,7 @@ Store this with every candidate for reproducibility.
 - NEVER send user IDs or metadata to the LLM. Only the anonymous text from `prepare_batch_for_llm()`.
 - The prompt must NOT editorialize. It structures user input, it does not rewrite or reframe.
 - Reuse an existing `policy_key` only when actor, mechanism, and target materially match.
-- `policy_topic` is display metadata only. Do not rely on it for algorithmic identity.
+- `policy_topic` is display metadata only. Do not rely on it for algorithmic identity. Sanitize it to simple lowercase-with-hyphens for UI consistency.
 - Every candidate must have `model_version` and `prompt_version` set. These are required for audit reproducibility.
 - Candidates with `confidence < 0.7` must be flagged. Do not silently accept low-confidence results.
 - Validate output against a strict JSON schema before creating candidates; schema failures are treated as flagged responses.
@@ -186,6 +204,8 @@ Write tests in `tests/test_pipeline/test_canonicalize.py` covering:
 - LLM returning empty result: submission flagged
 - `model_version` and `prompt_version` are set on every candidate
 - `prompt_version` changes when prompt template changes
+- prompt builder remains concise (no large illustrative example block)
+- open-key context is capped by entry count and summary length
 - Evidence logged for each `candidate_created` / `candidate_classified` event
 - Privacy: verify that the text sent to LLM (mock) contains no UUIDs or user references
 - `policy_topic`, `policy_key`, semantic fields, and ballot readiness are assigned from LLM output

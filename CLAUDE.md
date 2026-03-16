@@ -137,7 +137,7 @@ Caddy reverse proxy splits `/api/auth/*` between the backend and NextAuth: use `
 
 ### LLM Routing
 
-All LLM calls go through `LLMRouter` in `src/pipeline/llm.py`. Task tiers are config-backed via env vars — no model IDs outside `llm.py`. Default primary: `claude-sonnet-4-6`. Default fallback: `gpt-4o`. Embeddings: `gemini-embedding-001` (primary), `text-embedding-3-large` (fallback). Web search grounding is supported for Anthropic (`web_search_20250305`), Google (`google_search`), and OpenAI (Responses API `web_search_preview`).
+All LLM calls go through `LLMRouter` in `src/pipeline/llm.py`. Task tiers are config-backed via env vars — no model IDs outside `llm.py`. Default primary: `claude-sonnet-4-6`. Default fallback: `gpt-4o`. Embeddings: `gemini-embedding-001` (primary), `text-embedding-3-large` (fallback). Web search grounding is supported for Anthropic (`web_search_20250305`), Google (`google_search`), and OpenAI (Responses API `web_search_preview`). Provider-side prompt caching is enabled by default (`LLM_PROMPT_CACHING_ENABLED=true`): Anthropic system prompts are sent as block arrays with `cache_control`, OpenAI automatic cache hits are captured. Cache telemetry (`cache_read_tokens`, `cache_write_tokens`) is tracked in `LLMResponse`.
 
 ### Evidence Hash-Chain
 

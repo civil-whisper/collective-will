@@ -40,6 +40,10 @@ class TestSanitizePolicySlug:
     def test_leading_trailing_stripped(self) -> None:
         assert _sanitize_policy_slug("-internet-censorship-") == "internet-censorship"
 
+    def test_symbols_are_removed(self) -> None:
+        assert _sanitize_policy_slug("foreign-policy-&-intervention") == "foreign-policy-intervention"
+        assert _sanitize_policy_slug("environment-/-public-health") == "environment-public-health"
+
     def test_empty_returns_unassigned(self) -> None:
         assert _sanitize_policy_slug("") == "unassigned"
 

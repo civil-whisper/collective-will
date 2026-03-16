@@ -61,7 +61,7 @@ def _is_candidate_ballot_ready(candidate: PolicyCandidate) -> bool:
 
 def _cluster_needs_refinement(cluster: Cluster, candidates_by_id: dict[UUID, PolicyCandidate]) -> bool:
     members = [candidates_by_id[cid] for cid in cluster.candidate_ids if cid in candidates_by_id]
-    return bool(members) and any(candidate.ballot_readiness != "ballot-ready" for candidate in members)
+    return bool(members) and any(candidate.ballot_readiness == "needs-refinement" for candidate in members)
 
 
 async def run_pipeline(*, session: AsyncSession, llm_router: LLMRouter | None = None) -> PipelineResult:

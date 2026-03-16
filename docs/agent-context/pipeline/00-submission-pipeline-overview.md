@@ -183,14 +183,17 @@ just had members merged in), the LLM generates a stance-neutral ballot question.
 
 **Output:** English + Farsi ballot question, and a neutral summary.
 
-### Step 6 — Policy Option Generation (LLM + web grounding)
+### Step 6 — Policy Option Generation (LLM, conditional grounding)
 
 For each cluster that has a ballot question but no options yet, the LLM generates
 2-4 distinct stance options (e.g., "Full support", "Partial reform",
 "Status quo", "Oppose").
 
-The `option_generation` LLM tier can use Google Search grounding (via Gemini) to
-incorporate real-world policy context.
+The `option_generation` tier defaults to a non-grounded pass using the ballot
+question, cluster summary, and member submissions. Grounding is conditional and
+disabled by default; it can be enabled only for configured research-heavy
+topics. Wrapped prose / fenced JSON responses are salvaged before the pipeline
+escalates to the explicit fallback model.
 
 ### Step 7 — Agenda Builder (no LLM)
 

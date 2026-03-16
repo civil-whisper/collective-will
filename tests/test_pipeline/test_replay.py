@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from types import SimpleNamespace
 
 import pytest
 
@@ -10,6 +11,10 @@ from src.pipeline.replay import ReplaySubmissionInput, replay_submissions
 
 class FakeReplayRouter:
     def __init__(self) -> None:
+        self.settings = SimpleNamespace(
+            option_generation_grounding_enabled=False,
+            option_generation_grounding_topics="digital-rights",
+        )
         self._canonical_by_text = {
             "Workers should organize coordinated strikes to economically pressure the regime.": {
                 "is_valid_policy": True,
@@ -63,6 +68,7 @@ class FakeReplayRouter:
                 "ambiguity_flags": [],
             },
         }
+        self.option_generation_grounding_calls: list[bool] = []
 
     async def complete(self, *, tier: str, prompt: str, **kwargs: object) -> LLMResponse:
         if tier == "canonicalization":
@@ -118,6 +124,7 @@ class FakeReplayRouter:
                 )
 
         if tier == "option_generation":
+            self.option_generation_grounding_calls.append(bool(kwargs.get("grounding", False)))
             return LLMResponse(
                 text=json.dumps(
                     [
@@ -142,6 +149,9 @@ class FakeReplayRouter:
             )
 
         raise AssertionError(f"Unexpected tier={tier} prompt={prompt[:120]}")
+
+    async def complete_with_model(self, *, model: str, prompt: str, **kwargs: object) -> LLMResponse:
+        return await self.complete(tier="option_generation", prompt=prompt, **kwargs)
 
     async def embed(self, texts: list[str], timeout_s: float | None = None) -> EmbeddingResult:
         vectors: list[list[float]] = []
@@ -175,7 +185,8 @@ async def test_replay_submissions_generates_cluster_artifacts() -> None:
         ),
     ]
 
-    report = await replay_submissions(submissions=submissions, llm_router=FakeReplayRouter())  # type: ignore[arg-type]
+    router = FakeReplayRouter()
+    report = await replay_submissions(submissions=submissions, llm_router=router)  # type: ignore[arg-type]
 
     assert report["submission_count"] == 3
     assert report["candidate_count"] == 3
@@ -195,3 +206,4 @@ async def test_replay_submissions_generates_cluster_artifacts() -> None:
     assert sanctions_cluster["refinement_requires_clarification"] is True
     assert sanctions_cluster["refinement_draft"] is not None
     assert sanctions_cluster["options"] == []
+    assert router.option_generation_grounding_calls == [False]

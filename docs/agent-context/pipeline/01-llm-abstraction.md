@@ -19,7 +19,7 @@ Create a unified LLM interface with task-based routing to quality-first models i
 | `canonicalization` | Claude Sonnet 4.6 (v0 default) | Canonicalization (Farsi→English), structured extraction | Anthropic Messages API |
 | `farsi_messages` | Claude Sonnet 4.6 (v0 default) | User-facing Farsi messages (notifications/prompts) | Anthropic Messages API |
 | `english_reasoning` | Claude Sonnet 4.6 (v0 default) | Cluster summaries, complex English reasoning | Anthropic Messages API |
-| `option_generation` | Claude Sonnet 4.6 (v0 default) | Per-policy stance option generation (grounding on Gemini fallback only) | Anthropic Messages API (fallback: Gemini with `grounding=True`) |
+| `option_generation` | Claude Sonnet 4.6 (v0 default) | Per-policy stance option generation (conditional grounding; JSON salvage before fallback) | Anthropic Messages API (fallback: OpenAI Responses / Chat via `gpt-4o`) |
 | `dispute_resolution` | Claude Sonnet 4.6 (v0 default) | Autonomous dispute adjudication and resolution rationale | Anthropic Messages API (+ optional ensemble tie-break) |
 | `embedding` | Gemini `gemini-embedding-001` (v0 default) | Compute vectors for clustering | Gemini batchEmbedContents API |
 
@@ -52,8 +52,8 @@ Routing behavior:
 - On retry exhaustion for farsi_messages, mandatory fallback -> `settings.farsi_messages_fallback_model`
 - `tier="english_reasoning"` -> `settings.english_reasoning_model`
 - On retry exhaustion for english_reasoning, mandatory fallback -> `settings.english_reasoning_fallback_model`
-- `tier="option_generation"` -> `settings.option_generation_model` (Claude Sonnet 4.6 primary; grounding only activates for Google models)
-- On retry exhaustion for option_generation, mandatory fallback -> `settings.option_generation_fallback_model` (Gemini 3.1 Pro with Google Search grounding when `grounding=True`)
+- `tier="option_generation"` -> `settings.option_generation_model` (Claude Sonnet 4.6 primary; grounding is conditional and disabled by default)
+- On retry exhaustion or explicit parse-retry path for option_generation -> `settings.option_generation_fallback_model` (`gpt-4o`, preserving the same grounding decision when explicitly enabled)
 - `tier="dispute_resolution"` -> `settings.dispute_resolution_model`
 - On retry exhaustion for dispute_resolution, mandatory fallback -> `settings.dispute_resolution_fallback_model`
 - If dispute confidence is below `settings.dispute_resolution_confidence_threshold`, escalate via fallback/ensemble tie-break path
@@ -76,7 +76,8 @@ async def complete(
 
 - Routes to the correct API based on tier
 - Uses httpx async client
-- When `grounding=True` and provider is Google, adds `"tools": [{"google_search": {}}]` to the Gemini request for web search grounding. Non-Google providers silently ignore this parameter.
+- When `grounding=True`, the router enables provider-native search tools only for supported providers (Anthropic, Google, OpenAI).
+- Tests should keep grounding disabled by default; grounding-specific behavior is verified only through explicit mocked tests.
 - Returns structured response
 
 ```python
@@ -129,7 +130,17 @@ Use httpx async for all APIs:
 
 ### Cost tracking
 
-Estimate cost per call based on token counts and known pricing. Log to stdout or a cost tracking table (simple for v0).
+Estimate cost per call based on normalized input/output token counts and model-specific input/output pricing. Replay metadata should expose per-model token/cost breakdowns and largest calls so prompt inflation is visible.
+
+### Provider-side prompt caching
+
+When `LLM_PROMPT_CACHING_ENABLED=true` (default), the router enables provider-specific caching optimizations:
+
+- **Anthropic**: system prompt is sent as a block array with `cache_control: {"type": "ephemeral"}` and the `prompt-caching-2024-07-31` beta header. Cache usage fields (`cache_read_input_tokens`, `cache_creation_input_tokens`) are normalized into `LLMResponse.cache_read_tokens` and `cache_write_tokens`.
+- **OpenAI**: automatic caching is captured from `prompt_tokens_details.cached_tokens` into `LLMResponse.cache_read_tokens`.
+- **Google**: no explicit cache support; fields default to 0.
+
+The cost estimator adjusts for Anthropic cached reads (90% discount) and cache writes (25% surcharge). Replay stats expose `provider_cache_read_tokens`, `provider_cache_write_tokens`, and `instruction_version`.
 
 ### Error handling
 

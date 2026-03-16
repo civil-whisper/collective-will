@@ -31,6 +31,8 @@ class LLMResponse(BaseModel):
     input_tokens: int
     output_tokens: int
     cost_usd: float
+    cache_read_tokens: int = 0
+    cache_write_tokens: int = 0
     primary_model_failed: bool = False
     fallback_from: str | None = None
 
@@ -121,14 +123,24 @@ class LLMRouter:
                     "max_tokens": max_tokens,
                     "temperature": temperature,
                 }
+                headers: dict[str, str] = {
+                    "x-api-key": self.settings.anthropic_api_key,
+                    "anthropic-version": "2023-06-01",
+                }
                 if system_prompt:
-                    body["system"] = system_prompt
+                    if self.settings.llm_prompt_caching_enabled:
+                        body["system"] = [
+                            {"type": "text", "text": system_prompt, "cache_control": {"type": "ephemeral"}},
+                        ]
+                        headers["anthropic-beta"] = "prompt-caching-2024-07-31"
+                    else:
+                        body["system"] = system_prompt
                 if grounding:
                     body["tools"] = [{"type": "web_search_20250305", "name": "web_search"}]
                 response = await client.post(
                     "https://api.anthropic.com/v1/messages",
                     json=body,
-                    headers={"x-api-key": self.settings.anthropic_api_key, "anthropic-version": "2023-06-01"},
+                    headers=headers,
                 )
                 response.raise_for_status()
                 payload = response.json()
@@ -141,7 +153,13 @@ class LLMRouter:
                     raise RuntimeError(
                         f"Anthropic model {model} returned no text content"
                     )
-                usage = payload.get("usage", {})
+                raw_usage = payload.get("usage", {})
+                usage = {
+                    "input_tokens": raw_usage.get("input_tokens", 0),
+                    "output_tokens": raw_usage.get("output_tokens", 0),
+                    "cache_read_tokens": raw_usage.get("cache_read_input_tokens", 0),
+                    "cache_write_tokens": raw_usage.get("cache_creation_input_tokens", 0),
+                }
                 return {"text": text, "usage": usage}
 
             if provider == "google":
@@ -205,7 +223,7 @@ class LLMRouter:
                 raw_usage = payload.get("usage", {})
                 usage = {
                     "input_tokens": raw_usage.get("input_tokens", 0),
-                    "output_tokens": raw_usage.get("output_tokens", 0),
+                    "output_tokens": raw_usage.get("output_tokens", raw_usage.get("completion_tokens", 0)),
                 }
                 return {"text": text, "usage": usage}
 
@@ -229,7 +247,14 @@ class LLMRouter:
             response.raise_for_status()
             payload = response.json()
             text = payload["choices"][0]["message"]["content"]
-            usage = payload.get("usage", {})
+            raw_usage = payload.get("usage", {})
+            details = raw_usage.get("prompt_tokens_details")
+            cached_tokens = details.get("cached_tokens", 0) if isinstance(details, dict) else 0
+            usage = {
+                "input_tokens": raw_usage.get("input_tokens", raw_usage.get("prompt_tokens", 0)),
+                "output_tokens": raw_usage.get("output_tokens", raw_usage.get("completion_tokens", 0)),
+                "cache_read_tokens": cached_tokens,
+            }
             return {"text": text, "usage": usage}
 
     async def _call_with_retries(
@@ -312,6 +337,8 @@ class LLMRouter:
                     input_tokens=int(usage.get("input_tokens", 0)),
                     output_tokens=int(usage.get("output_tokens", 0)),
                     cost_usd=cost,
+                    cache_read_tokens=int(usage.get("cache_read_tokens", 0)),
+                    cache_write_tokens=int(usage.get("cache_write_tokens", 0)),
                     primary_model_failed=is_fallback,
                     fallback_from=primary if is_fallback else None,
                 )
@@ -331,13 +358,16 @@ class LLMRouter:
     async def complete_with_model(
         self,
         *,
+        tier: str | None = None,
         model: str,
         prompt: str,
         system_prompt: str | None = None,
         max_tokens: int | None = None,
         temperature: float | None = None,
         timeout_s: float | None = None,
+        grounding: bool = False,
     ) -> LLMResponse:
+        use_grounding = grounding and self._provider_for_model(model) in ("google", "anthropic", "openai")
         payload = await self._call_with_retries(
             model=model,
             prompt=prompt,
@@ -345,6 +375,7 @@ class LLMRouter:
             max_tokens=max_tokens,
             temperature=temperature,
             timeout_s=timeout_s,
+            grounding=use_grounding,
         )
         usage = payload.get("usage", {})
         cost = self._estimate_completion_cost(model=model, usage=usage)
@@ -355,6 +386,8 @@ class LLMRouter:
             input_tokens=int(usage.get("input_tokens", 0)),
             output_tokens=int(usage.get("output_tokens", 0)),
             cost_usd=cost,
+            cache_read_tokens=int(usage.get("cache_read_tokens", 0)),
+            cache_write_tokens=int(usage.get("cache_write_tokens", 0)),
         )
 
     async def _call_embedding_api(
@@ -505,24 +538,32 @@ class LLMRouter:
             },
         })
 
+    def _completion_token_rates(self, model: str) -> tuple[float, float]:
+        lowered = model.lower()
+        if "opus" in lowered:
+            return (0.000015, 0.000075)
+        if "haiku" in lowered:
+            return (0.0000008, 0.000004)
+        if "sonnet" in lowered:
+            return (0.000003, 0.000015)
+        if "deepseek" in lowered:
+            return (0.0000014, 0.0000028)
+        if "gemini" in lowered and "flash" in lowered:
+            return (0.0000003, 0.0000025)
+        if "gemini" in lowered:
+            return (0.00000125, 0.000005)
+        if "gpt-4o" in lowered:
+            return (0.0000025, 0.00001)
+        return (0.000003, 0.000015)
+
     def _estimate_completion_cost(self, *, model: str, usage: dict[str, Any]) -> float:
         in_tok = float(usage.get("input_tokens", 0))
         out_tok = float(usage.get("output_tokens", 0))
-        lowered = model.lower()
-        if "opus" in lowered:
-            rate = 0.000015
-        elif "haiku" in lowered:
-            rate = 0.000001
-        elif "sonnet" in lowered:
-            rate = 0.000003
-        elif "deepseek" in lowered:
-            rate = 0.0000014
-        elif "gemini" in lowered and "flash" in lowered:
-            rate = 0.0000003
-        elif "gemini" in lowered:
-            rate = 0.000002
-        elif "gpt-4o" in lowered:
-            rate = 0.0000025
-        else:
-            rate = 0.000003
-        return (in_tok + out_tok) * rate
+        cache_read = float(usage.get("cache_read_tokens", 0))
+        cache_write = float(usage.get("cache_write_tokens", 0))
+        input_rate, output_rate = self._completion_token_rates(model)
+        base = (in_tok * input_rate) + (out_tok * output_rate)
+        if self._provider_for_model(model) == "anthropic":
+            base += cache_write * input_rate * 1.25
+            base -= cache_read * input_rate * 0.9
+        return max(0.0, base)

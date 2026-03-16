@@ -10,11 +10,15 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from collections.abc import Mapping
+from dataclasses import dataclass, field
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.config import Settings, get_settings
 from src.db.evidence import append_evidence
 from src.models.cluster import Cluster
 from src.models.policy_option import PolicyOption, PolicyOptionCreate
@@ -68,6 +72,50 @@ Generate distinct ballot options that answer this proposition. Return a JSON arr
 """
 
 
+@dataclass(slots=True)
+class OptionGenerationDebugEvent:
+    event_type: str
+    detail: str
+    model: str | None = None
+    fallback_from: str | None = None
+
+
+@dataclass(slots=True)
+class OptionGenerationResult:
+    options: list[dict[str, str]]
+    model_version: str
+    debug_events: list[OptionGenerationDebugEvent] = field(default_factory=list)
+
+
+def _normalize_topic_list(raw: str) -> set[str]:
+    return {item.strip().lower() for item in raw.split(",") if item.strip()}
+
+
+def should_ground_option_generation(
+    *,
+    policy_topic: str | None,
+    policy_key: str | None,
+    settings: Settings | None = None,
+) -> bool:
+    settings = settings or get_settings()
+    if not settings.option_generation_grounding_enabled:
+        return False
+
+    normalized_topic = (policy_topic or "").strip().lower()
+    normalized_key = (policy_key or "").strip().lower()
+    allowed_topics = _normalize_topic_list(settings.option_generation_grounding_topics)
+
+    return normalized_topic in allowed_topics or normalized_key.startswith("constitutional-")
+
+
+def _build_options_prompt(*, proposition: str, summary: str, submissions_block: str) -> str:
+    return _USER_PROMPT_TEMPLATE.format(
+        proposition=proposition,
+        summary=summary,
+        submissions_block=submissions_block,
+    )
+
+
 def _build_submissions_block(
     cluster: Cluster,
     candidates_by_id: Mapping[UUID, PolicyCandidate],
@@ -86,15 +134,7 @@ def _build_submissions_block(
     return "\n".join(lines) if lines else "(no submissions available)"
 
 
-def _parse_options_json(raw: str) -> list[dict[str, str]]:
-    """Best-effort parse of the LLM JSON output."""
-    text = raw.strip()
-    if text.startswith("```"):
-        first_newline = text.index("\n")
-        last_fence = text.rfind("```")
-        text = text[first_newline + 1 : last_fence].strip()
-
-    parsed = json.loads(text)
+def _coerce_options(parsed: Any) -> list[dict[str, str]]:
     if not isinstance(parsed, list) or len(parsed) < 2:
         n = len(parsed) if isinstance(parsed, list) else "N/A"
         raise ValueError(
@@ -112,21 +152,70 @@ def _parse_options_json(raw: str) -> list[dict[str, str]]:
     return options
 
 
+def _extract_first_json_array(text: str) -> str | None:
+    decoder = json.JSONDecoder()
+    for match in re.finditer(r"\[", text):
+        try:
+            parsed, end_idx = decoder.raw_decode(text[match.start() :])
+        except json.JSONDecodeError:
+            continue
+        if isinstance(parsed, list):
+            return text[match.start() : match.start() + end_idx]
+    return None
+
+
+def _parse_options_json(raw: str) -> list[dict[str, str]]:
+    """Best-effort parse of the LLM JSON output."""
+    text = raw.strip()
+    candidate_texts = [text]
+
+    for match in re.finditer(r"```(?:json)?\s*(.*?)```", text, flags=re.IGNORECASE | re.DOTALL):
+        block = match.group(1).strip()
+        if block:
+            candidate_texts.append(block)
+
+    extracted = _extract_first_json_array(text)
+    if extracted:
+        candidate_texts.append(extracted)
+
+    seen: set[str] = set()
+    last_error: Exception | None = None
+    for candidate in candidate_texts:
+        normalized = candidate.strip()
+        if not normalized or normalized in seen:
+            continue
+        seen.add(normalized)
+        try:
+            return _coerce_options(json.loads(normalized))
+        except (json.JSONDecodeError, ValueError) as exc:
+            last_error = exc
+
+    if last_error is not None:
+        raise last_error
+    raise ValueError("No JSON array found in option generation response")
+
+
 async def _generate_options_for_cluster(
     cluster: Cluster,
     candidates_by_id: Mapping[UUID, PolicyCandidate],
     llm_router: LLMRouter,
-) -> tuple[list[dict[str, str]], str]:
-    """Try primary model, then fallback on parse failure, then generic options.
+) -> OptionGenerationResult:
+    """Try primary model, salvage wrapped JSON, then explicit fallback model.
 
-    Returns (parsed_options, model_version).
+    Returns parsed options, model version, and debug events.
     """
     submissions_block = _build_submissions_block(cluster, candidates_by_id)
-    prompt = _USER_PROMPT_TEMPLATE.format(
+    prompt = _build_options_prompt(
         proposition=cluster.ballot_question or cluster.summary,
         summary=cluster.summary,
         submissions_block=submissions_block,
     )
+    grounding = should_ground_option_generation(
+        policy_topic=getattr(cluster, "policy_topic", None),
+        policy_key=getattr(cluster, "policy_key", None),
+        settings=llm_router.settings,
+    )
+    debug_events: list[OptionGenerationDebugEvent] = []
 
     completion = await llm_router.complete(
         tier="option_generation",
@@ -134,11 +223,27 @@ async def _generate_options_for_cluster(
         system_prompt=_SYSTEM_PROMPT,
         max_tokens=2048,
         temperature=0.3,
-        grounding=True,
+        grounding=grounding,
     )
+    if completion.primary_model_failed:
+        debug_events.append(OptionGenerationDebugEvent(
+            event_type="model_fallback",
+            detail=f"Primary model failed, used {completion.model}",
+            model=completion.model,
+            fallback_from=completion.fallback_from,
+        ))
     try:
-        return _parse_options_json(completion.text), completion.model
+        return OptionGenerationResult(
+            options=_parse_options_json(completion.text),
+            model_version=completion.model,
+            debug_events=debug_events,
+        )
     except (json.JSONDecodeError, ValueError) as parse_exc:
+        debug_events.append(OptionGenerationDebugEvent(
+            event_type="parse_retry",
+            detail=f"Primary returned unparseable JSON ({parse_exc}), retrying with explicit fallback model",
+            model=completion.model,
+        ))
         logger.warning(
             "Primary model %s returned unparseable options for cluster %s (%s), retrying with explicit fallback model",
             completion.model, cluster.id, parse_exc,
@@ -146,13 +251,19 @@ async def _generate_options_for_cluster(
         _, fallback_model = llm_router._resolve_tier_models("option_generation")
         retry_model = fallback_model if fallback_model and fallback_model != completion.model else completion.model
         retry = await llm_router.complete_with_model(
+            tier="option_generation",
             model=retry_model,
             prompt=prompt,
             system_prompt=_SYSTEM_PROMPT,
             max_tokens=2048,
             temperature=0.2,
+            grounding=grounding,
         )
-        return _parse_options_json(retry.text), retry.model
+        return OptionGenerationResult(
+            options=_parse_options_json(retry.text),
+            model_version=retry.model,
+            debug_events=debug_events,
+        )
 
 
 async def generate_policy_options(
@@ -171,9 +282,11 @@ async def generate_policy_options(
     for cluster in clusters:
         model_version = "fallback"
         try:
-            parsed, model_version = await _generate_options_for_cluster(
+            result = await _generate_options_for_cluster(
                 cluster, candidates_by_id, llm_router,
             )
+            parsed = result.options
+            model_version = result.model_version
         except Exception as exc:
             logger.exception("Failed to generate options for cluster %s", cluster.id)
             parsed = _fallback_options(cluster)

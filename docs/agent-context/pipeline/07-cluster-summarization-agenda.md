@@ -90,6 +90,8 @@ For clusters that are not yet `ballot-ready`, the scheduler may generate a clust
 
 These drafts are website-visible and evidence-logged, but they do not automatically change candidate readiness or allow voting. They are a refinement aid, not a silent promotion to ballot status.
 
+Only clusters with at least one `needs-refinement` member should trigger refinement draft generation. Pure `discussion-only` clusters remain visible as open civic discussion topics, but the scheduler should not manufacture proposition drafts for them.
+
 ### Auto-open voting cycles
 
 After the agenda is built, `_maybe_open_cycle()` in `scheduler/main.py` automatically opens a `VotingCycle` when all conditions are met:
@@ -121,6 +123,16 @@ When a voting cycle is active:
 
 After neutral wording generation, `src/pipeline/options.py` generates 2–4 distinct stance options per cluster using the LLM. This only runs for ballot-ready clusters.
 
+### Public wording contract
+
+Cluster wording must sound like public-facing civic text, not internal workflow text.
+
+- `ballot-ready`: write direct proposition language describing what voters would decide
+- `needs-refinement`: write a concise draftable civic prompt around the core proposition, with only brief mention of unresolved scope
+- `discussion-only`: write a public discussion topic, not meta-process language
+
+Avoid phrases like `move forward`, `structured discussion`, `public consideration`, `further refinement`, or `agenda-setting`.
+
 ```python
 async def generate_policy_options(
     session: AsyncSession,
@@ -132,11 +144,12 @@ async def generate_policy_options(
 
 Steps:
 1. For each cluster, build a submissions block from ALL member candidates — full title, summary, stance, and semantic fields with no truncation
-2. Call LLM with `tier="option_generation"` and `grounding=True` to generate 2–4 stance options with bilingual labels and descriptions. The primary model (Gemini Flash) uses Google Search to research real-world policy positions.
-3. Parse JSON output, validate 2–4 options with required fields (label, label_en, description, description_en)
-4. Create `PolicyOption` records linked to the cluster
-5. Log `policy_options_generated` evidence event
-6. On LLM failure: fall back to generic Support/Oppose binary options with `model_version="fallback"`. The fallback model (Claude Sonnet) runs without web search.
+2. Call LLM with `tier="option_generation"` and a **conditional grounding decision**. Default is `grounding=False`; enable search only for configured research-heavy topics.
+3. Parse JSON output, including salvage of fenced/wrapped JSON before escalating to another model.
+4. If parsing still fails, explicitly retry the fallback model (`gpt-4o`) with the same grounding decision.
+5. Create `PolicyOption` records linked to the cluster
+6. Log `policy_options_generated` evidence event
+7. On final LLM failure: fall back to generic Support/Oppose binary options with `model_version="fallback"`.
 
 The options are used in the per-policy voting flow (see `messaging/08-message-commands`).
 
@@ -146,10 +159,12 @@ The options are used in the per-policy voting flow (see `messaging/08-message-co
 - Full candidate summaries are passed without truncation — the LLM sees the complete citizen input.
 - Ballot inclusion uses combined support plus ballot-readiness. Broad concerns must not be silently upgraded into ballot items.
 - Autonomous refinement drafts may be generated for broad concerns, but they remain advisory until the cluster itself becomes `ballot-ready`.
+- Do not generate policy options for `discussion-only` or `needs-refinement` clusters.
 - Small clusters (below threshold) are NOT deleted. They remain visible on the analytics dashboard but don't appear in the voting ballot.
 - Summary generation must always have a fallback path configured for risk management (`english_reasoning_fallback_model`).
 - Policy option generation must have a fallback path (generic support/oppose) so voting is never blocked by LLM failures.
-- Web search grounding (`grounding=True`) is only applied when the provider supports it (currently Gemini). Non-Google fallback models run without grounding automatically.
+- Web search grounding is conditional and config-backed; it is off by default to avoid prompt inflation and wrapper-heavy responses.
+- Parser salvage should happen before model fallback so wrapper prose or fenced JSON does not trigger generic support/oppose output.
 - Keep provider/model choice behind config-backed tiers only; these modules must not hardcode provider model IDs.
 
 ## Tests
@@ -175,10 +190,11 @@ Tests in `tests/test_pipeline/test_endorsement.py`, `tests/test_pipeline/test_ag
 - Skips when policy options not generated
 
 **Options (tests/test_pipeline/test_options.py):**
-- `_parse_options_json()` handles valid JSON, markdown fences, truncation to 4, rejects < 2 options
+- `_parse_options_json()` handles valid JSON, markdown fences, leading prose + fenced JSON, truncation to 4, rejects < 2 options
 - `_build_submissions_block()` formats candidates with stance + semantic labels, includes full summaries, includes all candidates
 - `_fallback_options()` produces 2 generic support/oppose options
-- `generate_policy_options()` calls with `tier="option_generation"` and `grounding=True`
+- `generate_policy_options()` defaults to `grounding=False` in tests
+- `generate_policy_options()` retries explicit fallback model on parse failure while preserving the grounding decision
 - `generate_policy_options()` creates PolicyOption records via LLM
 - `generate_policy_options()` uses fallback on LLM error
 - `PolicyOptionCreate` schema validation (rejects empty label, zero position)

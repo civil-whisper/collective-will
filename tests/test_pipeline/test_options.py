@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
@@ -22,7 +23,10 @@ def _make_cluster(n_candidates: int = 3) -> MagicMock:
     cluster.id = uuid4()
     cluster.summary = "Public healthcare"
     cluster.ballot_question = "Should the government expand public healthcare coverage?"
+    cluster.ballot_question_fa = "آیا دولت باید پوشش بهداشت عمومی را گسترش دهد؟"
     cluster.candidate_ids = [uuid4() for _ in range(n_candidates)]
+    cluster.policy_topic = "healthcare"
+    cluster.policy_key = "public-healthcare"
     return cluster
 
 
@@ -108,6 +112,16 @@ def test_parse_json_with_markdown_fences() -> None:
         {"label": "B", "label_en": "B", "description": "d", "description_en": "d"},
     ])
     raw = f"```json\n{items}\n```"
+    result = _parse_options_json(raw)
+    assert len(result) == 2
+
+
+def test_parse_json_with_leading_prose_and_fences() -> None:
+    items = json.dumps([
+        {"label": "A", "label_en": "A", "description": "d", "description_en": "d"},
+        {"label": "B", "label_en": "B", "description": "d", "description_en": "d"},
+    ])
+    raw = f"Here is the grounded analysis first.\n\n```json\n{items}\n```\n"
     result = _parse_options_json(raw)
     assert len(result) == 2
 
@@ -220,6 +234,10 @@ async def test_generate_policy_options_creates_records(mock_evidence: AsyncMock)
         {"label": "مخالفت", "label_en": "Oppose", "description": "توضیح", "description_en": "Desc"},
     ])
     router = MagicMock()
+    router.settings = SimpleNamespace(
+        option_generation_grounding_enabled=False,
+        option_generation_grounding_topics="digital-rights",
+    )
     router.complete = AsyncMock(return_value=LLMResponse(
         text=llm_output, model="test-model", input_tokens=10, output_tokens=20, cost_usd=0.001,
     ))
@@ -245,7 +263,7 @@ async def test_generate_policy_options_creates_records(mock_evidence: AsyncMock)
 
     call_kwargs = router.complete.call_args.kwargs
     assert call_kwargs["tier"] == "option_generation"
-    assert call_kwargs["grounding"] is True
+    assert call_kwargs["grounding"] is False
 
 
 @pytest.mark.asyncio
@@ -257,6 +275,10 @@ async def test_generate_policy_options_uses_fallback_on_error(mock_evidence: Asy
     candidates_by_id = {c1.id: c1}
 
     router = MagicMock()
+    router.settings = SimpleNamespace(
+        option_generation_grounding_enabled=False,
+        option_generation_grounding_topics="digital-rights",
+    )
     router.complete = AsyncMock(side_effect=RuntimeError("LLM down"))
 
     session = AsyncMock()
@@ -278,6 +300,55 @@ async def test_generate_policy_options_uses_fallback_on_error(mock_evidence: Asy
     assert len(fallback_calls) == 1
     assert fallback_calls[0].kwargs["payload"]["error_type"] == "RuntimeError"
 
+    generated_calls = [
+        c for c in mock_evidence.call_args_list
+        if c.kwargs.get("event_type") == "policy_options_generated"
+    ]
+    assert len(generated_calls) == 1
+
+
+@pytest.mark.asyncio
+@patch("src.pipeline.options.append_evidence", new_callable=AsyncMock)
+async def test_generate_policy_options_retries_with_explicit_fallback_model(mock_evidence: AsyncMock) -> None:
+    cluster = _make_cluster(1)
+    cluster.policy_topic = "digital-rights"
+    cluster.policy_key = "constitutional-internet-free-expression"
+    candidate = _make_candidate(cluster.candidate_ids[0])
+    candidates_by_id = {candidate.id: candidate}
+
+    router = MagicMock()
+    router.settings = SimpleNamespace(
+        option_generation_grounding_enabled=False,
+        option_generation_grounding_topics="digital-rights",
+    )
+    router._resolve_tier_models.return_value = ("claude-sonnet-4-6", "gpt-4o")
+    router.complete = AsyncMock(return_value=LLMResponse(
+        text="not valid json at all", model="claude-sonnet-4-6", input_tokens=10, output_tokens=20, cost_usd=0.001,
+    ))
+    router.complete_with_model = AsyncMock(return_value=LLMResponse(
+        text=json.dumps([
+            {"label": "حمایت", "label_en": "Support", "description": "توضیح", "description_en": "Desc"},
+            {"label": "مخالفت", "label_en": "Oppose", "description": "توضیح", "description_en": "Desc"},
+        ]),
+        model="gpt-4o",
+        input_tokens=5,
+        output_tokens=10,
+        cost_usd=0.001,
+    ))
+
+    session = AsyncMock()
+    session.add = MagicMock()
+    options = await generate_policy_options(
+        session=session,
+        clusters=[cluster],
+        candidates_by_id=candidates_by_id,
+        llm_router=router,
+    )
+
+    assert len(options) == 2
+    retry_kwargs = router.complete_with_model.call_args.kwargs
+    assert retry_kwargs["model"] == "gpt-4o"
+    assert retry_kwargs["grounding"] is False
     generated_calls = [
         c for c in mock_evidence.call_args_list
         if c.kwargs.get("event_type") == "policy_options_generated"

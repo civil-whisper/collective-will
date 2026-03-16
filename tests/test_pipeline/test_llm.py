@@ -26,6 +26,8 @@ def _settings(**overrides: str) -> Settings:
         "english_reasoning_fallback_model": "gpt-4o",
         "option_generation_model": "claude-sonnet-4-6",
         "option_generation_fallback_model": "gpt-4o",
+        "option_generation_grounding_enabled": False,
+        "option_generation_grounding_topics": "digital-rights",
         "dispute_resolution_model": "claude-sonnet-4-6",
         "dispute_resolution_fallback_model": "gpt-4o",
         "embedding_model": "gemini-embedding-001",
@@ -414,6 +416,36 @@ async def test_grounding_false_no_tools() -> None:
     assert calls[0][1] is False
 
 
+@pytest.mark.asyncio
+async def test_complete_with_model_preserves_grounding_for_openai() -> None:
+    router = LLMRouter(settings=_settings())
+    calls: list[tuple[str, bool]] = []
+
+    async def _fake(*, model: str, grounding: bool = False, **kw: object) -> dict[str, object]:
+        calls.append((model, grounding))
+        return _make_completion_payload()
+
+    router._call_with_retries = _fake  # type: ignore[method-assign]
+    result = await router.complete_with_model(model="gpt-4o", prompt="x", grounding=True)
+    assert calls == [("gpt-4o", True)]
+    assert result.model == "gpt-4o"
+
+
+@pytest.mark.asyncio
+async def test_complete_with_model_disables_grounding_for_unsupported_provider() -> None:
+    router = LLMRouter(settings=_settings())
+    calls: list[tuple[str, bool]] = []
+
+    async def _fake(*, model: str, grounding: bool = False, **kw: object) -> dict[str, object]:
+        calls.append((model, grounding))
+        return _make_completion_payload()
+
+    router._call_with_retries = _fake  # type: ignore[method-assign]
+    result = await router.complete_with_model(model="deepseek-chat", prompt="x", grounding=True)
+    assert calls == [("deepseek-chat", False)]
+    assert result.model == "deepseek-chat"
+
+
 # --- 26. Gemini embedding routes correctly ---
 @pytest.mark.asyncio
 async def test_embed_routes_to_gemini_when_configured() -> None:
@@ -432,6 +464,171 @@ async def test_embed_routes_to_gemini_when_configured() -> None:
     assert calls[0] == "gemini-embedding-001"
     assert result.provider == "google"
     assert len(result.vectors) == 2
+
+
+@pytest.mark.asyncio
+async def test_openai_chat_completion_usage_is_normalized(monkeypatch: pytest.MonkeyPatch) -> None:
+    router = LLMRouter(settings=_settings())
+
+    class _FakeResponse:
+        def raise_for_status(self) -> None:
+            return None
+
+        def json(self) -> dict[str, object]:
+            return {
+                "choices": [{"message": {"content": "ok"}}],
+                "usage": {"prompt_tokens": 123, "completion_tokens": 45},
+            }
+
+    class _FakeClient:
+        def __init__(self, *args: object, **kwargs: object) -> None:
+            pass
+
+        async def __aenter__(self) -> _FakeClient:
+            return self
+
+        async def __aexit__(self, exc_type: object, exc: object, tb: object) -> None:
+            return None
+
+        async def post(self, url: str, json: dict[str, object], headers: dict[str, str]) -> _FakeResponse:
+            return _FakeResponse()
+
+    monkeypatch.setattr(httpx, "AsyncClient", _FakeClient)
+    payload = await router._call_completion_api(model="gpt-4o", prompt="x")
+    assert payload["usage"]["input_tokens"] == 123
+    assert payload["usage"]["output_tokens"] == 45
+    assert payload["usage"]["cache_read_tokens"] == 0
+
+
+@pytest.mark.asyncio
+async def test_openai_cache_read_tokens_captured(monkeypatch: pytest.MonkeyPatch) -> None:
+    router = LLMRouter(settings=_settings())
+
+    class _FakeResponse:
+        def raise_for_status(self) -> None:
+            return None
+
+        def json(self) -> dict[str, object]:
+            return {
+                "choices": [{"message": {"content": "ok"}}],
+                "usage": {
+                    "prompt_tokens": 200,
+                    "completion_tokens": 30,
+                    "prompt_tokens_details": {"cached_tokens": 80},
+                },
+            }
+
+    class _FakeClient:
+        def __init__(self, *a: object, **kw: object) -> None:
+            pass
+        async def __aenter__(self) -> _FakeClient:
+            return self
+        async def __aexit__(self, *a: object) -> None:
+            return None
+        async def post(self, url: str, json: dict[str, object], headers: dict[str, str]) -> _FakeResponse:
+            return _FakeResponse()
+
+    monkeypatch.setattr(httpx, "AsyncClient", _FakeClient)
+    payload = await router._call_completion_api(model="gpt-4o", prompt="x")
+    assert payload["usage"]["cache_read_tokens"] == 80
+
+
+@pytest.mark.asyncio
+async def test_anthropic_cache_telemetry_and_block_system(monkeypatch: pytest.MonkeyPatch) -> None:
+    router = LLMRouter(settings=_settings())
+    captured_body: dict[str, object] = {}
+    captured_headers: dict[str, str] = {}
+
+    class _FakeResponse:
+        def raise_for_status(self) -> None:
+            return None
+        def json(self) -> dict[str, object]:
+            return {
+                "content": [{"type": "text", "text": "ok"}],
+                "usage": {
+                    "input_tokens": 300,
+                    "output_tokens": 50,
+                    "cache_read_input_tokens": 250,
+                    "cache_creation_input_tokens": 50,
+                },
+            }
+
+    class _FakeClient:
+        def __init__(self, *a: object, **kw: object) -> None:
+            pass
+        async def __aenter__(self) -> _FakeClient:
+            return self
+        async def __aexit__(self, *a: object) -> None:
+            return None
+        async def post(
+            self, url: str, json: dict[str, object], headers: dict[str, str],
+        ) -> _FakeResponse:
+            captured_body.update(json)
+            captured_headers.update(headers)
+            return _FakeResponse()
+
+    monkeypatch.setattr(httpx, "AsyncClient", _FakeClient)
+    payload = await router._call_completion_api(
+        model="claude-sonnet-4-6", prompt="hello", system_prompt="You are helpful."
+    )
+    assert payload["usage"]["cache_read_tokens"] == 250
+    assert payload["usage"]["cache_write_tokens"] == 50
+    assert isinstance(captured_body["system"], list)
+    assert captured_body["system"][0]["cache_control"] == {"type": "ephemeral"}
+    assert "prompt-caching" in captured_headers.get("anthropic-beta", "")
+
+
+@pytest.mark.asyncio
+async def test_anthropic_no_cache_when_disabled(monkeypatch: pytest.MonkeyPatch) -> None:
+    router = LLMRouter(settings=_settings(llm_prompt_caching_enabled="false"))
+    captured_body: dict[str, object] = {}
+
+    class _FakeResponse:
+        def raise_for_status(self) -> None:
+            return None
+        def json(self) -> dict[str, object]:
+            return {
+                "content": [{"type": "text", "text": "ok"}],
+                "usage": {"input_tokens": 100, "output_tokens": 20},
+            }
+
+    class _FakeClient:
+        def __init__(self, *a: object, **kw: object) -> None:
+            pass
+        async def __aenter__(self) -> _FakeClient:
+            return self
+        async def __aexit__(self, *a: object) -> None:
+            return None
+        async def post(
+            self, url: str, json: dict[str, object], headers: dict[str, str],
+        ) -> _FakeResponse:
+            captured_body.update(json)
+            return _FakeResponse()
+
+    monkeypatch.setattr(httpx, "AsyncClient", _FakeClient)
+    await router._call_completion_api(
+        model="claude-sonnet-4-6", prompt="hello", system_prompt="You are helpful."
+    )
+    assert isinstance(captured_body["system"], str)
+
+
+def test_cache_tokens_propagated_to_llm_response() -> None:
+    resp = LLMResponse(
+        text="ok", model="claude-sonnet-4-6",
+        input_tokens=100, output_tokens=50, cost_usd=0.001,
+        cache_read_tokens=80, cache_write_tokens=20,
+    )
+    assert resp.cache_read_tokens == 80
+    assert resp.cache_write_tokens == 20
+
+
+def test_cache_tokens_default_zero() -> None:
+    resp = LLMResponse(
+        text="ok", model="gpt-4o",
+        input_tokens=100, output_tokens=50, cost_usd=0.001,
+    )
+    assert resp.cache_read_tokens == 0
+    assert resp.cache_write_tokens == 0
 
 
 # --- 27. Fallback metadata on LLMResponse ---

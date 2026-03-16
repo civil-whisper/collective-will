@@ -10,6 +10,7 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.config import get_settings
 from src.db.evidence import append_evidence
 from src.models.submission import PolicyCandidateCreate
 from src.pipeline.llm import LLMRouter
@@ -52,6 +53,7 @@ def _sanitize_policy_slug(value: str) -> str:
     """Normalize a policy_topic or policy_key to lowercase-with-hyphens."""
     slug = value.strip().lower()
     slug = slug.replace("_", "-").replace(" ", "-")
+    slug = re.sub(r"[^a-z0-9-]+", "-", slug)
     while "--" in slug:
         slug = slug.replace("--", "-")
     return slug.strip("-") or "unassigned"
@@ -60,6 +62,7 @@ def _sanitize_policy_slug(value: str) -> str:
 async def load_existing_policy_context(session: AsyncSession) -> str:
     """Load open policy keys from clusters, formatted for the LLM prompt."""
     from src.models.cluster import Cluster
+    settings = get_settings()
 
     result = await session.execute(
         select(
@@ -85,8 +88,13 @@ async def load_existing_policy_context(session: AsyncSession) -> str:
         return ""
 
     lines: list[str] = []
-    for key, count, desc in entries:
-        lines.append(f'  - "{key}" ({count} submissions) — {desc}')
+    summary_chars = max(40, settings.canonicalization_context_summary_chars)
+    max_entries = max(1, settings.canonicalization_context_max_entries)
+    for key, count, desc in entries[:max_entries]:
+        short_desc = desc[:summary_chars].rstrip()
+        if len(desc) > summary_chars:
+            short_desc += "..."
+        lines.append(f'  - "{key}" ({count}) — {short_desc}')
     return "\n".join(lines)
 
 
@@ -113,81 +121,66 @@ def _sanitize_semantic_value(value: str, *, allowed: set[str], default: str) -> 
     return slug if slug in allowed else default
 
 
+_CANONICALIZATION_INSTRUCTIONS = (
+    "Canonicalize this civic submission into JSON.\n\n"
+    "Rules:\n"
+    "- Detect input language automatically.\n"
+    "- title, summary, entities, policy_topic, policy_key, actor_scope, action_mechanism, "
+    "target_scope, ballot_readiness, and ballot_readiness_reason must be in English.\n"
+    "- rejection_reason must be in the input language.\n"
+    "- Valid submissions include policy positions, policy questions, concerns, or interest "
+    "about governance, rights, economy, foreign policy, or public affairs.\n"
+    "- Broad but real civic concerns are still valid if they identify a public issue; use "
+    "discussion-only or needs-refinement instead of rejecting them.\n"
+    "- Use discussion-only only for broad, exploratory, or open-ended civic discussion with no implied proposition.\n"
+    "- Use needs-refinement when the submission implies a real proposition or direction but still needs narrower scope, "
+    "actor, mechanism, or target clarification.\n"
+    "- If the submission already states a specific constitutional, legal, or policy rule that citizens could support "
+    "or oppose, it can still be ballot-ready even when phrased as a question.\n"
+    "- Invalid submissions include greetings, spam, personal/off-topic text, and platform/how-to questions.\n"
+    "- policy_topic is UI metadata only.\n"
+    "- policy_key must be stance-neutral, lowercase-with-hyphens, and specific enough for one ballot-level issue.\n"
+    "- Keep labor strikes, sanctions, diplomatic pressure, military action, and governance design separate "
+    "unless they are truly the same proposition.\n"
+    "- Keep general economic concerns, environmental/public-health concerns, "
+    "governance-transition questions, election-design questions, and election-integrity "
+    "safeguards separate when the underlying public issue differs.\n\n"
+    "- If a submission mixes multiple mechanisms or actors, do not collapse them into a vague merged issue. "
+    "Choose the dominant proposition, add ambiguity flag compound_submission, and usually classify it as "
+    "needs-refinement unless one concrete proposition clearly dominates.\n"
+    "- For compound submissions, policy_key/title/summary must describe only the dominant proposition. "
+    "Keep secondary ideas in ambiguity_flags or ballot_readiness_reason, not in the canonical identity.\n"
+    "Return JSON only with fields:\n"
+    f"is_valid_policy, rejection_reason, title, summary, stance ({_STANCES}), policy_topic, "
+    "policy_key, actor_scope, action_mechanism, target_scope, ballot_readiness, "
+    "ballot_readiness_reason, entities, confidence, ambiguity_flags.\n"
+    "Allowed actor_scope: domestic-citizens, foreign-state, international-organization, "
+    "civil-society, public-governance, unclear.\n"
+    "Allowed action_mechanism: labor-strike, economic-sanctions, economic-pressure, "
+    "military-action, diplomatic-pressure, civil-society-support, governance-design, "
+    "discussion-only, unclear.\n"
+    "Allowed target_scope: iranian-regime, iranian-economy, public-governance, civil-rights, unclear.\n"
+    "Allowed ballot_readiness: ballot-ready, needs-refinement, discussion-only.\n"
+    "If invalid, set policy_topic=policy_key=unassigned, actor_scope/action_mechanism/target_scope=unclear, "
+    "ballot_readiness=discussion-only, confidence=0.\n"
+)
+
+_INSTRUCTION_VERSION = hashlib.sha256(_CANONICALIZATION_INSTRUCTIONS.encode("utf-8")).hexdigest()[:16]
+
+
 def _prompt_for_item(item: dict[str, Any], policy_context: str = "") -> str:
     context_block = ""
     if policy_context:
         context_block = (
-            "\nEXISTING OPEN POLICY KEYS (reuse one only if actor, mechanism, and target materially match):\n"
+            "\nExisting open policy keys (reuse only if actor, mechanism, and target materially match):\n"
             f"{policy_context}\n"
-            "ASSIGNMENT RULES:\n"
-            "- Reuse an EXISTING policy_key only when the actor, mechanism, and target "
-            "all materially match.\n"
-            "- Do NOT reuse a key based only on a shared political goal or shared mention "
-            "of regime change.\n"
-            "- Domestic labor strikes, foreign sanctions, diplomatic pressure, and "
-            "military intervention must remain separate policy_keys unless they are "
-            "truly the same proposition.\n"
-            "- If actor or mechanism differs, create a NEW policy_key.\n\n"
+            "Reuse only on a true actor/mechanism/target match. "
+            "If actor or mechanism differs, create a new policy_key.\n\n"
         )
     return (
-        "Evaluate and canonicalize this civic submission into structured JSON.\n\n"
-        "LANGUAGE RULES:\n"
-        "- Detect the input language automatically.\n"
-        "- title, summary, entities, policy_topic, policy_key, actor_scope, "
-        "action_mechanism, target_scope, ballot_readiness, and ballot_readiness_reason "
-        "MUST always be in "
-        "English (translate if the input is in another language).\n"
-        "- rejection_reason MUST be in the SAME LANGUAGE as the input "
-        "(so the user can understand it).\n\n"
-        "VALIDITY: A valid submission is anything that relates to governance, laws, "
-        "rights, economy, foreign policy, or public affairs. This includes:\n"
-        "- Direct positions, suggestions, or demands ('We should do X')\n"
-        "- Questions or concerns about a policy topic ('What should happen with X?')\n"
-        "- Expressions of worry or interest in a public issue ('I'm concerned about X')\n"
-        "All of these are valid because they identify a policy topic citizens care about. "
-        "Invalid inputs include: random text, greetings, purely personal matters unrelated "
-        "to public policy, spam, platform questions ('how does this bot work?'), "
-        "or completely off-topic content.\n\n"
+        _CANONICALIZATION_INSTRUCTIONS
         + context_block
-        + "Required JSON fields:\n"
-        "  is_valid_policy (bool): true if valid civic/policy proposal, false otherwise,\n"
-        "  rejection_reason (str or null): if invalid, explain in the INPUT language,\n"
-        "  title (str, ENGLISH),\n"
-        "  summary (str, ENGLISH — concise but accurate description of the submission),\n"
-        f"  stance (one of: {_STANCES}),\n"
-        "  policy_topic (str, ENGLISH): optional browsing label for the UI, lowercase-with-hyphens, "
-        "1-4 words. This is display metadata, not the main semantic identity.\n"
-        "    Examples: \"economic-resistance\", \"dress-code-policy\", \"healthcare-access\"\n"
-        "  policy_key (str, ENGLISH): specific ballot-level discussion, "
-        "lowercase-with-hyphens, 2-6 words. MUST be stance-neutral (no support/oppose "
-        "language). Specific enough that 2-4 ballot options can cover the full discussion.\n"
-        "    GOOD: \"political-internet-censorship\", \"mandatory-hijab-policy\", "
-        "\"death-penalty\"\n"
-        "    BAD: \"abolish-mandatory-hijab\" (has a stance), \"women-rights\" (too broad)\n"
-        "  actor_scope (str, ENGLISH): who would primarily act or apply pressure. "
-        "Use lowercase-with-hyphens. Prefer one of: domestic-citizens, foreign-state, "
-        "international-organization, civil-society, unclear.\n"
-        "  action_mechanism (str, ENGLISH): how the action works. Prefer one of: "
-        "labor-strike, economic-sanctions, economic-pressure, military-action, "
-        "diplomatic-pressure, civil-society-support, governance-design, discussion-only, unclear.\n"
-        "  target_scope (str, ENGLISH): what the action primarily targets. Prefer one of: "
-        "iranian-regime, iranian-economy, public-governance, civil-rights, unclear.\n"
-        "  ballot_readiness (str, ENGLISH): one of ballot-ready, needs-refinement, discussion-only.\n"
-        "  ballot_readiness_reason (str, ENGLISH): short reason explaining why the issue is "
-        "or is not specific enough for a ballot proposition.\n"
-        "  entities (list of strings, ENGLISH), confidence (float 0-1), "
-        "ambiguity_flags (list of strings).\n\n"
-        "Examples of distinctions you MUST preserve:\n"
-        "- 'Workers should strike to weaken the regime economically' => actor_scope domestic-citizens, "
-        "action_mechanism labor-strike. Do NOT map this to foreign sanctions or military intervention.\n"
-        "- 'The US should sanction Iran harder' => actor_scope foreign-state, action_mechanism economic-sanctions.\n"
-        "- 'What political system should come after regime change?' => action_mechanism governance-design, "
-        "not sanctions, strikes, or intervention.\n\n"
-        "If is_valid_policy is false, set policy_topic and policy_key to \"unassigned\" "
-        "and set actor_scope/action_mechanism/target_scope to \"unclear\", "
-        "ballot_readiness to \"discussion-only\", and confidence to 0.\n"
-        "Return ONLY the raw JSON object, no markdown wrapping.\n\n"
-        f"Input: {json.dumps(item, ensure_ascii=False)}"
+        + f"\nInput: {json.dumps(item, ensure_ascii=False)}"
     )
 
 
@@ -206,12 +199,10 @@ def _parse_candidate_payload(payload: str) -> tuple[dict[str, Any], str | None]:
     """Parse LLM output JSON. Returns (data, repair_method) where repair_method
     is None for clean parse or ``"regex"`` when local regex repair was applied."""
     text = payload.strip()
-    if text.startswith("```"):
-        nl = text.find("\n")
-        if nl != -1:
-            text = text[nl + 1 :]
-        if text.endswith("```"):
-            text = text[:-3].rstrip()
+    if "```" in text:
+        fence_match = re.search(r"```(?:json)?\s*(.*?)```", text, flags=re.IGNORECASE | re.DOTALL)
+        if fence_match:
+            text = fence_match.group(1).strip()
     if text and text[0] not in ("{", "["):
         start = text.find("{")
         if start != -1:
@@ -236,6 +227,7 @@ def _parse_candidate_payload(payload: str) -> tuple[dict[str, Any], str | None]:
             r'\g<prefix>"\g<key>":',
             text,
         )
+        repaired = re.sub(r'(?<=")\s+(?=")', ", ", repaired)
         repaired = re.sub(r",(\s*[}\]])", r"\1", repaired)
         data = json.loads(repaired)
         repair_method = "regex"

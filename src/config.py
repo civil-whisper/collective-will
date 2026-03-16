@@ -88,6 +88,8 @@ class Settings(BaseSettings):
     english_reasoning_fallback_model: str = "gpt-4o"
     option_generation_model: str = "claude-sonnet-4-6"
     option_generation_fallback_model: str = "gpt-4o"
+    option_generation_grounding_enabled: bool = False
+    option_generation_grounding_topics: str = "digital-rights"
     dispute_resolution_model: str = "claude-sonnet-4-6"
     dispute_resolution_fallback_model: str = "gpt-4o"
     dispute_resolution_ensemble_models: str = (
@@ -121,6 +123,9 @@ class Settings(BaseSettings):
     llm_embedding_dimensions: int = 1024
     llm_transient_status_codes: str = "429,500,502,503"
     llm_non_retriable_status_codes: str = "400,401"
+    canonicalization_context_max_entries: int = 8
+    canonicalization_context_summary_chars: int = 120
+    llm_prompt_caching_enabled: bool = True
     dispute_ensemble_temperature: float = 0.1
 
     db_pool_size: int = 5

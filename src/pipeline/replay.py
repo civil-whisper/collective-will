@@ -18,13 +18,14 @@ from sqlalchemy.orm import load_only
 from src.config import Settings, get_settings
 from src.models.submission import Submission
 from src.pipeline.canonicalize import (
-    _SYSTEM_PROMPT as CANONICALIZATION_SYSTEM_PROMPT,
-)
-from src.pipeline.canonicalize import (
+    _INSTRUCTION_VERSION,
     _build_candidate_create,
     _parse_candidate_payload_with_repair,
     _prompt_for_item,
     _prompt_version,
+)
+from src.pipeline.canonicalize import (
+    _SYSTEM_PROMPT as CANONICALIZATION_SYSTEM_PROMPT,
 )
 from src.pipeline.embeddings import prepare_text_for_embedding
 from src.pipeline.endorsement import (
@@ -39,20 +40,18 @@ from src.pipeline.llm import EmbeddingResult, LLMResponse, LLMRouter
 from src.pipeline.normalize import (
     _REMAP_PROMPT_TEMPLATE,
     _REMAP_SYSTEM_PROMPT,
-    _build_submissions_block as _build_normalization_submissions_block,
     _cluster_by_embedding,
     _entries_are_merge_compatible,
     _extract_merges_from_mapping,
     _parse_remap_response,
 )
-from src.pipeline.options import (
-    _SYSTEM_PROMPT as OPTIONS_SYSTEM_PROMPT,
+from src.pipeline.normalize import (
+    _build_submissions_block as _build_normalization_submissions_block,
 )
 from src.pipeline.options import (
-    _USER_PROMPT_TEMPLATE as OPTIONS_USER_PROMPT_TEMPLATE,
+    _fallback_options,
+    _generate_options_for_cluster,
 )
-from src.pipeline.options import _build_submissions_block as _build_options_submissions_block
-from src.pipeline.options import _fallback_options, _parse_options_json
 from src.pipeline.privacy import prepare_batch_for_llm, validate_no_metadata
 from src.pipeline.refinement import (
     _PROMPT_TEMPLATE as REFINEMENT_PROMPT_TEMPLATE,
@@ -146,7 +145,7 @@ def dataset_fingerprint(submissions: list[ReplaySubmissionInput]) -> str:
 
 
 def _cache_key(prefix: str, payload: str) -> str:
-    return hashlib.sha256(f"{prefix}::{payload}".encode("utf-8")).hexdigest()
+    return hashlib.sha256(f"{prefix}::{payload}".encode()).hexdigest()
 
 
 class ReplayCachingLLMRouter(LLMRouter):
@@ -204,7 +203,12 @@ class ReplayCachingLLMRouter(LLMRouter):
         cached = self._cache["completions"].get(key)
         if cached is not None:
             self.cache_hits += 1
-            return LLMResponse(**cached)
+            payload = {
+                field_name: cached[field_name]
+                for field_name in LLMResponse.model_fields
+                if field_name in cached
+            }
+            return LLMResponse(**payload)
 
         self.cache_misses += 1
         response = await super().complete(
@@ -216,7 +220,11 @@ class ReplayCachingLLMRouter(LLMRouter):
             timeout_s=timeout_s,
             grounding=grounding,
         )
-        self._cache["completions"][key] = response.model_dump()
+        self._cache["completions"][key] = {
+            "tier": tier,
+            "grounding": grounding,
+            **response.model_dump(),
+        }
         self.save()
         return response
 
@@ -244,11 +252,118 @@ class ReplayCachingLLMRouter(LLMRouter):
 
         return EmbeddingResult(vectors=vectors, model="replay-cache", provider="cache")
 
+    async def complete_with_model(
+        self,
+        *,
+        tier: str | None = None,
+        model: str,
+        prompt: str,
+        system_prompt: str | None = None,
+        max_tokens: int | None = None,
+        temperature: float | None = None,
+        timeout_s: float | None = None,
+        grounding: bool = False,
+    ) -> LLMResponse:
+        cache_payload = json.dumps(
+            {
+                "tier": tier,
+                "model": model,
+                "prompt": prompt,
+                "system_prompt": system_prompt,
+                "max_tokens": max_tokens,
+                "temperature": temperature,
+                "grounding": grounding,
+            },
+            ensure_ascii=False,
+            sort_keys=True,
+        )
+        key = _cache_key("completion_with_model", cache_payload)
+        cached = self._cache["completions"].get(key)
+        if cached is not None:
+            self.cache_hits += 1
+            payload = {
+                field_name: cached[field_name]
+                for field_name in LLMResponse.model_fields
+                if field_name in cached
+            }
+            return LLMResponse(**payload)
+
+        self.cache_misses += 1
+        response = await super().complete_with_model(
+            tier=tier,
+            model=model,
+            prompt=prompt,
+            system_prompt=system_prompt,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            timeout_s=timeout_s,
+            grounding=grounding,
+        )
+        self._cache["completions"][key] = {
+            "tier": tier,
+            "grounding": grounding,
+            **response.model_dump(),
+        }
+        self.save()
+        return response
+
     def stats(self) -> dict[str, Any]:
+        completions = list(self._cache["completions"].values())
+        by_model: dict[str, dict[str, int | float]] = {}
+        largest_calls = sorted(
+            (
+                {
+                    "tier": item.get("tier"),
+                    "model": item.get("model"),
+                    "grounding": bool(item.get("grounding", False)),
+                    "input_tokens": int(item.get("input_tokens", 0)),
+                    "output_tokens": int(item.get("output_tokens", 0)),
+                    "cost_usd": round(float(item.get("cost_usd", 0.0)), 6),
+                    "fallback_from": item.get("fallback_from"),
+                }
+                for item in completions
+            ),
+            key=lambda item: (item["cost_usd"], item["input_tokens"] + item["output_tokens"]),
+            reverse=True,
+        )[:5]
+        for item in completions:
+            model = str(item.get("model", "unknown"))
+            bucket = by_model.setdefault(
+                model,
+                {"calls": 0, "input_tokens": 0, "output_tokens": 0, "cost_usd": 0.0},
+            )
+            bucket["calls"] = int(bucket["calls"]) + 1
+            bucket["input_tokens"] = int(bucket["input_tokens"]) + int(item.get("input_tokens", 0))
+            bucket["output_tokens"] = int(bucket["output_tokens"]) + int(item.get("output_tokens", 0))
+            bucket["cost_usd"] = float(bucket["cost_usd"]) + float(item.get("cost_usd", 0.0))
+
+        total_cache_read = sum(int(item.get("cache_read_tokens", 0)) for item in completions)
+        total_cache_write = sum(int(item.get("cache_write_tokens", 0)) for item in completions)
         return {
             "cache_hits": self.cache_hits,
             "cache_misses": self.cache_misses,
-            "total_cost_usd": round(self.total_cost_usd, 6),
+            "live_cost_usd": round(self.total_cost_usd, 6),
+            "total_cost_usd": round(sum(float(item.get("cost_usd", 0.0)) for item in completions), 6),
+            "completion_call_count": len(completions),
+            "embedding_call_count": len(self._cache["embeddings"]),
+            "grounded_call_count": sum(1 for item in completions if item.get("grounding")),
+            "provider_cache_read_tokens": total_cache_read,
+            "provider_cache_write_tokens": total_cache_write,
+            "instruction_version": _INSTRUCTION_VERSION,
+            "cost_by_model_usd": {
+                model: round(float(bucket["cost_usd"]), 6)
+                for model, bucket in sorted(by_model.items())
+            },
+            "tokens_by_model": {
+                model: {
+                    "calls": int(bucket["calls"]),
+                    "input_tokens": int(bucket["input_tokens"]),
+                    "output_tokens": int(bucket["output_tokens"]),
+                    "total_tokens": int(bucket["input_tokens"]) + int(bucket["output_tokens"]),
+                }
+                for model, bucket in sorted(by_model.items())
+            },
+            "largest_calls": largest_calls,
             "dataset_fingerprint": self._cache.get("dataset_fingerprint", ""),
         }
 
@@ -705,7 +820,7 @@ async def _populate_cluster_artifacts(
     cluster.summary = ballot_payload.get("summary", cluster.summary)
 
     members = [candidates_by_id[candidate_id] for candidate_id in cluster.candidate_ids if candidate_id in candidates_by_id]
-    if members and any(candidate.ballot_readiness != "ballot-ready" for candidate in members):
+    if members and any(candidate.ballot_readiness == "needs-refinement" for candidate in members):
         refinement_prompt = REFINEMENT_PROMPT_TEMPLATE.format(
             policy_key=cluster.policy_key,
             policy_topic=cluster.policy_topic,
@@ -742,48 +857,21 @@ async def _populate_cluster_artifacts(
         cluster.refinement_notes = str(refinement_payload.get("notes", "")).strip() or None
         return
 
-    options_prompt = OPTIONS_USER_PROMPT_TEMPLATE.format(
-        proposition=cluster.ballot_question or cluster.summary,
-        summary=cluster.summary,
-        submissions_block=_build_options_submissions_block(cluster, candidates_by_id),
-    )
+    if members and not all(candidate.ballot_readiness == "ballot-ready" for candidate in members):
+        return
+
     try:
-        options_response = await llm_router.complete(
-            tier="option_generation",
-            prompt=options_prompt,
-            system_prompt=OPTIONS_SYSTEM_PROMPT,
-            max_tokens=2048,
-            temperature=0.3,
-            grounding=True,
-        )
-        if options_response.primary_model_failed:
+        result = await _generate_options_for_cluster(cluster, candidates_by_id, llm_router)
+        cluster.options = result.options
+        for event in result.debug_events:
             degradations.append(ReplayDegradationEvent(
                 step="option_generation",
                 entity_id=cluster.policy_key,
-                event_type="model_fallback",
-                detail=f"Primary model failed, used {options_response.model}",
-                model=options_response.model,
-                fallback_from=options_response.fallback_from,
+                event_type=event.event_type,
+                detail=event.detail,
+                model=event.model,
+                fallback_from=event.fallback_from,
             ))
-        try:
-            cluster.options = _parse_options_json(options_response.text)
-        except (json.JSONDecodeError, ValueError) as parse_exc:
-            degradations.append(ReplayDegradationEvent(
-                step="option_generation",
-                entity_id=cluster.policy_key,
-                event_type="parse_retry",
-                detail=f"Primary returned unparseable JSON ({parse_exc}), retrying",
-                model=options_response.model,
-            ))
-            retry_response = await llm_router.complete(
-                tier="option_generation",
-                prompt=options_prompt,
-                system_prompt=OPTIONS_SYSTEM_PROMPT,
-                max_tokens=2048,
-                temperature=0.2,
-                grounding=True,
-            )
-            cluster.options = _parse_options_json(retry_response.text)
     except Exception as exc:
         degradations.append(ReplayDegradationEvent(
             step="option_generation",

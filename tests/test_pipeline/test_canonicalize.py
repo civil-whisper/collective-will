@@ -9,11 +9,15 @@ from uuid import uuid4
 import pytest
 
 from src.pipeline.canonicalize import (
+    _CANONICALIZATION_INSTRUCTIONS,
+    _INSTRUCTION_VERSION,
     CanonicalizationRejection,
     _parse_candidate_payload,
+    _prompt_for_item,
     _prompt_version,
     canonicalize_batch,
     canonicalize_single,
+    load_existing_policy_context,
 )
 from src.pipeline.llm import LLMResponse
 
@@ -163,6 +167,68 @@ def test_parse_candidate_payload_repairs_key_value_comma_typo() -> None:
     assert repair == "regex"
 
 
+def test_parse_candidate_payload_repairs_adjacent_strings() -> None:
+    text = '{"is_valid_policy": true, "title": "Broken", "entities": ["x" "y"]}'
+    result, repair = _parse_candidate_payload(text)
+    assert result["entities"] == ["x", "y"]
+    assert repair == "regex"
+
+
+def test_prompt_for_item_is_concise_and_has_no_examples_block() -> None:
+    prompt = _prompt_for_item({"raw_text": "text", "language": "en"})
+    assert "Examples of distinctions" not in prompt
+    assert "Canonicalize this civic submission into JSON." in prompt
+    assert "Input:" in prompt
+
+
+def test_prompt_starts_with_stable_instructions() -> None:
+    prompt = _prompt_for_item({"raw_text": "test", "language": "en"})
+    assert prompt.startswith(_CANONICALIZATION_INSTRUCTIONS)
+
+
+def test_prompt_with_context_keeps_stable_prefix() -> None:
+    ctx = '  - "my-key" (3) — Some summary'
+    prompt_with = _prompt_for_item({"raw_text": "test", "language": "en"}, policy_context=ctx)
+    assert prompt_with.startswith(_CANONICALIZATION_INSTRUCTIONS)
+    assert "my-key" in prompt_with
+
+
+def test_instruction_version_is_stable_hash() -> None:
+    assert len(_INSTRUCTION_VERSION) == 16
+    import hashlib
+    expected = hashlib.sha256(_CANONICALIZATION_INSTRUCTIONS.encode("utf-8")).hexdigest()[:16]
+    assert expected == _INSTRUCTION_VERSION
+
+
+def test_prompt_includes_readiness_and_compound_guidance() -> None:
+    prompt = _prompt_for_item({"raw_text": "text", "language": "en"})
+    assert "Use discussion-only only for broad, exploratory, or open-ended civic discussion" in prompt
+    assert "it can still be ballot-ready even when phrased as a question" in prompt
+    assert "ambiguity flag compound_submission" in prompt
+    assert "policy_key/title/summary must describe only the dominant proposition" in prompt
+
+
+@pytest.mark.asyncio
+async def test_load_existing_policy_context_caps_entries_and_summary_length(monkeypatch: pytest.MonkeyPatch) -> None:
+    session = _make_mock_session()
+    rows = [
+        ("key-one", 9, "A" * 200),
+        ("key-two", 8, "B" * 200),
+        ("key-three", 7, "C" * 200),
+    ]
+    session.execute = AsyncMock(return_value=MagicMock(all=MagicMock(return_value=rows)))
+    monkeypatch.setenv("CANONICALIZATION_CONTEXT_MAX_ENTRIES", "2")
+    monkeypatch.setenv("CANONICALIZATION_CONTEXT_SUMMARY_CHARS", "20")
+
+    context = await load_existing_policy_context(session)
+
+    assert context.count("\n") == 1
+    assert '"key-one" (9)' in context
+    assert '"key-two" (8)' in context
+    assert "key-three" not in context
+    assert "AAAAAAAAAAAAAAAAAAAA..." in context
+
+
 # --- canonicalize_single tests ---
 
 
@@ -234,7 +300,7 @@ async def test_canonicalize_single_garbage_rejected() -> None:
 
 
 @pytest.mark.asyncio
-async def test_canonicalize_single_repairs_malformed_json_via_llm() -> None:
+async def test_canonicalize_single_repairs_malformed_json_locally() -> None:
     malformed = '{"is_valid_policy", true, "title": "Broken", "entities": ["x" "y"]}'
     repaired = json.dumps({
         "is_valid_policy": True,
@@ -265,7 +331,7 @@ async def test_canonicalize_single_repairs_malformed_json_via_llm() -> None:
     assert not isinstance(result, CanonicalizationRejection)
     assert result.title == "Broken"
     assert result.entities == ["x", "y"]
-    assert len(router.calls) == 2
+    assert len(router.calls) == 1
 
 
 @pytest.mark.asyncio
