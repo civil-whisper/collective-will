@@ -1,14 +1,16 @@
-# Decision Rationale — pipeline/05-hdbscan-clustering.md
+# Decision Rationale — pipeline/05-policy-key-grouping.md
 
-> **Corresponds to**: [`docs/agent-context/pipeline/05-hdbscan-clustering.md`](../../agent-context/pipeline/05-hdbscan-clustering.md)
+> **Corresponds to**: [`docs/agent-context/pipeline/05-policy-key-grouping.md`](../../agent-context/pipeline/05-policy-key-grouping.md)
 >
 > When a decision changes in either file, update the other.
+
+> **Note (superseded):** The original v0 design proposed HDBSCAN clustering. The implementation evolved to LLM-assigned `policy_key` grouping with hybrid normalization (embedding cosine similarity + LLM merge). The rationale below is retained for historical context; the current approach is documented in the agent-context contract.
 
 ---
 
 ## Decision Alignment
 
-- Keep HDBSCAN as primary clustering algorithm in v0.
+- Clustering uses LLM-assigned `policy_key` grouping with hybrid normalization.
 - Apply cold-start guardrail via config-backed `min_cluster_size` per cycle.
 - Keep unclustered/noise candidates visible in analytics rather than suppressing them.
 

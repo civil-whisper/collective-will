@@ -287,6 +287,42 @@ def test_ops_event_handler_captures_traceback() -> None:
     assert latest["payload"]["context"] == "unit-test"
 
 
+def test_ops_pipeline_health_returns_degradation_summary() -> None:
+    entry = _make_evidence_entry(
+        event_type="policy_options_fallback_used",
+        payload={"cluster_id": str(uuid4()), "policy_key": "test-key", "error_type": "RuntimeError"},
+    )
+    session = _mock_session([entry])
+    app.dependency_overrides[get_settings] = lambda: _settings(enabled=True, require_admin=False)
+    app.dependency_overrides[get_db] = lambda: session
+    try:
+        client = TestClient(app)
+        response = client.get("/ops/pipeline-health?hours=24", headers=_auth_headers())
+        assert response.status_code == 200
+        data = response.json()
+        assert "total_degradation_events" in data
+        assert "by_step" in data
+        assert "model_fallback_count" in data
+        assert isinstance(data["by_step"], list)
+        assert len(data["by_step"]) > 0
+    finally:
+        app.dependency_overrides.pop(get_settings, None)
+        app.dependency_overrides.pop(get_db, None)
+
+
+def test_ops_pipeline_health_requires_auth() -> None:
+    session = _mock_session()
+    app.dependency_overrides[get_settings] = lambda: _settings(enabled=True, require_admin=False)
+    app.dependency_overrides[get_db] = lambda: session
+    try:
+        client = TestClient(app)
+        response = client.get("/ops/pipeline-health")
+        assert response.status_code == 401
+    finally:
+        app.dependency_overrides.pop(get_settings, None)
+        app.dependency_overrides.pop(get_db, None)
+
+
 def test_ops_status_scheduler_error_when_heartbeat_error(monkeypatch: pytest.MonkeyPatch) -> None:
     async def _db_ok() -> bool:
         return True

@@ -10,7 +10,7 @@ These are non-negotiable unless you intentionally revise `agent-context` and `de
 
 ## Identity and Privacy
 
-- Identity path: email magic-link + WhatsApp linking only.
+- Identity path: email magic-link + Telegram linking (WhatsApp deferred post-MVP).
 - No phone verification, no OAuth, no vouching in v0.
 - Store only opaque messaging account refs in core tables; raw IDs only in sealed mapping.
 - Reject-and-resend on high-risk PII before persistence.
@@ -19,7 +19,7 @@ These are non-negotiable unless you intentionally revise `agent-context` and `de
 
 - LLM usage goes through centralized abstraction with config-backed task tiers.
 - v0 defaults are quality-first; fallback models are mandatory.
-- Clustering uses HDBSCAN with config-backed `min_cluster_size`; show noise publicly.
+- Clustering uses LLM-assigned `policy_key` grouping with hybrid normalization (embedding similarity + LLM merge).
 
 ## Evidence and Auditability
 

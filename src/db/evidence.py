@@ -62,7 +62,30 @@ EVENT_CATALOG: dict[str, EventSpec] = {
         entity_type="submission",
         public_fields=frozenset({
             "submission_id", "title", "summary", "stance",
-            "policy_topic", "policy_key", "confidence", "model_version", "prompt_version",
+            "policy_topic", "policy_key", "actor_scope", "action_mechanism",
+            "target_scope", "ballot_readiness", "ballot_readiness_reason",
+            "confidence", "model_version", "prompt_version",
+        }),
+    ),
+    "candidate_classified": EventSpec(
+        description="Candidate classified with semantic identity",
+        entity_type="candidate",
+        public_fields=frozenset({
+            "candidate_id", "submission_id", "policy_key", "policy_topic",
+            "actor_scope", "action_mechanism", "target_scope",
+            "ballot_readiness", "ballot_readiness_reason", "confidence",
+            "model_version", "prompt_version",
+        }),
+    ),
+    "candidate_rekeyed": EventSpec(
+        description="Candidate key or semantic identity changed",
+        entity_type="candidate",
+        public_fields=frozenset({
+            "candidate_id", "submission_id", "stage",
+            "old_policy_key", "new_policy_key",
+            "old_policy_topic", "new_policy_topic",
+            "old_ballot_readiness", "new_ballot_readiness",
+            "reason_code",
         }),
     ),
     # --- Cluster lifecycle ---
@@ -90,6 +113,14 @@ EVENT_CATALOG: dict[str, EventSpec] = {
         description="Stance options generated for cluster",
         entity_type="cluster",
         public_fields=frozenset({"cluster_id", "option_count", "labels", "model_version"}),
+    ),
+    "refinement_draft_generated": EventSpec(
+        description="Refinement draft generated for cluster",
+        entity_type="cluster",
+        public_fields=frozenset({
+            "cluster_id", "policy_key", "refinement_draft", "refinement_confidence",
+            "requires_clarification", "notes", "model_version",
+        }),
     ),
     # --- Endorsement lifecycle ---
     "policy_endorsed": EventSpec(
@@ -201,6 +232,37 @@ EVENT_CATALOG: dict[str, EventSpec] = {
         description="Daily redacted audit bundle publish failed",
         entity_type="daily_anchor",
         public_fields=frozenset({"day", "bundle_sha256", "error_type"}),
+    ),
+    # --- Pipeline degradation / fallback ---
+    "submission_deferred_to_batch": EventSpec(
+        description="Inline processing failed; submission deferred to batch",
+        entity_type="submission",
+        public_fields=frozenset({"submission_id", "error_type", "step"}),
+    ),
+    "candidate_parse_repaired": EventSpec(
+        description="Malformed LLM output was repaired before use",
+        entity_type="submission",
+        public_fields=frozenset({"submission_id", "repair_method", "model_version"}),
+    ),
+    "normalization_step_failed": EventSpec(
+        description="Normalization LLM call failed for an embedding cluster",
+        entity_type="cluster",
+        public_fields=frozenset({"policy_keys", "error_type", "step"}),
+    ),
+    "ballot_generation_failed": EventSpec(
+        description="Ballot question generation failed for a cluster",
+        entity_type="cluster",
+        public_fields=frozenset({"cluster_id", "policy_key", "error_type"}),
+    ),
+    "policy_options_fallback_used": EventSpec(
+        description="Generic fallback options used instead of LLM-generated options",
+        entity_type="cluster",
+        public_fields=frozenset({"cluster_id", "policy_key", "error_type"}),
+    ),
+    "dispute_ensemble_member_failed": EventSpec(
+        description="A dispute ensemble model failed during resolution",
+        entity_type="submission",
+        public_fields=frozenset({"model", "error_type"}),
     ),
     # --- Voice ---
     "voice_enrolled": EventSpec(

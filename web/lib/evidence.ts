@@ -67,11 +67,14 @@ const DELIBERATION_EVENT_TYPES = new Set([
   "submission_rate_limited",
   "submission_rejected_not_policy",
   "candidate_created",
+  "candidate_classified",
+  "candidate_rekeyed",
   "cluster_created",
   "cluster_updated",
   "cluster_merged",
   "ballot_question_generated",
   "policy_options_generated",
+  "refinement_draft_generated",
   "vote_cast",
   "vote_not_eligible",
   "vote_change_limit_reached",
@@ -91,7 +94,7 @@ export type FilterCategory = "submissions" | "policies" | "votes" | "disputes" |
 
 export const EVENT_CATEGORIES: Record<FilterCategory, string[]> = {
   submissions: ["submission_received", "submission_not_eligible", "submission_rate_limited", "submission_rejected_not_policy"],
-  policies: ["candidate_created", "cluster_created", "cluster_updated", "cluster_merged", "ballot_question_generated", "policy_options_generated"],
+  policies: ["candidate_created", "candidate_classified", "candidate_rekeyed", "cluster_created", "cluster_updated", "cluster_merged", "ballot_question_generated", "policy_options_generated", "refinement_draft_generated"],
   votes: ["vote_cast", "vote_not_eligible", "vote_change_limit_reached", "policy_endorsed", "endorsement_not_eligible", "cycle_opened", "cycle_closed"],
   disputes: ["dispute_escalated", "dispute_resolved"],
   users: ["user_verified"],
@@ -105,6 +108,12 @@ export const EVENT_CATEGORIES: Record<FilterCategory, string[]> = {
     "audit_bundle_publish_failed",
     "dispute_metrics_recorded",
     "dispute_tuning_recommended",
+    "submission_deferred_to_batch",
+    "candidate_parse_repaired",
+    "normalization_step_failed",
+    "ballot_generation_failed",
+    "policy_options_fallback_used",
+    "dispute_ensemble_member_failed",
   ],
 };
 
@@ -142,6 +151,16 @@ export function eventDescription(
         topic: str(p.policy_topic),
         confidence: String(Math.round(Number(p.confidence ?? 0) * 100)),
       });
+    case "candidate_classified":
+      return t("events.candidateClassified", {
+        policyKey: str(p.policy_key),
+        stage: str(p.ballot_readiness),
+      });
+    case "candidate_rekeyed":
+      return t("events.candidateRekeyed", {
+        oldPolicyKey: str(p.old_policy_key),
+        newPolicyKey: str(p.new_policy_key),
+      });
     case "cluster_created":
       return t("events.clusterCreated", {
         summary: truncate(str(p.summary ?? p.policy_key ?? ""), 60),
@@ -164,6 +183,10 @@ export function eventDescription(
     case "policy_options_generated":
       return t("events.policyOptionsGenerated", {
         optionCount: String(p.option_count ?? "?"),
+      });
+    case "refinement_draft_generated":
+      return t("events.refinementDraftGenerated", {
+        confidence: String(Math.round(Number(p.refinement_confidence ?? 0) * 100)),
       });
     case "vote_cast":
       return t("events.voteCast", {
@@ -215,6 +238,18 @@ export function eventDescription(
       return t("events.disputeMetrics");
     case "dispute_tuning_recommended":
       return t("events.disputeTuning");
+    case "submission_deferred_to_batch":
+      return t("events.submissionDeferredToBatch");
+    case "candidate_parse_repaired":
+      return t("events.candidateParseRepaired", {method: str(p.repair_method)});
+    case "normalization_step_failed":
+      return t("events.normalizationStepFailed");
+    case "ballot_generation_failed":
+      return t("events.ballotGenerationFailed", {policyKey: str(p.policy_key)});
+    case "policy_options_fallback_used":
+      return t("events.policyOptionsFallbackUsed", {policyKey: str(p.policy_key)});
+    case "dispute_ensemble_member_failed":
+      return t("events.disputeEnsembleMemberFailed", {model: str(p.model)});
     default:
       return entry.event_type;
   }

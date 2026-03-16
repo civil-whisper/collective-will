@@ -31,12 +31,16 @@ class LLMResponse(BaseModel):
     input_tokens: int
     output_tokens: int
     cost_usd: float
+    primary_model_failed: bool = False
+    fallback_from: str | None = None
 
 
 class EmbeddingResult(BaseModel):
     vectors: list[list[float]]
     model: str
     provider: str
+    primary_model_failed: bool = False
+    fallback_from: str | None = None
 
 
 class LLMRouter:
@@ -119,6 +123,8 @@ class LLMRouter:
                 }
                 if system_prompt:
                     body["system"] = system_prompt
+                if grounding:
+                    body["tools"] = [{"type": "web_search_20250305", "name": "web_search"}]
                 response = await client.post(
                     "https://api.anthropic.com/v1/messages",
                     json=body,
@@ -126,7 +132,15 @@ class LLMRouter:
                 )
                 response.raise_for_status()
                 payload = response.json()
-                text = payload.get("content", [{}])[0].get("text", "")
+                text = "".join(
+                    block.get("text", "")
+                    for block in payload.get("content", [])
+                    if block.get("type") == "text"
+                )
+                if not text:
+                    raise RuntimeError(
+                        f"Anthropic model {model} returned no text content"
+                    )
                 usage = payload.get("usage", {})
                 return {"text": text, "usage": usage}
 
@@ -162,6 +176,36 @@ class LLMRouter:
                         usage_meta.get("candidatesTokenCount", 0)
                         + usage_meta.get("thoughtsTokenCount", 0)
                     ),
+                }
+                return {"text": text, "usage": usage}
+
+            if provider == "openai" and grounding:
+                responses_body: dict[str, Any] = {
+                    "model": model,
+                    "input": prompt,
+                    "tools": [{"type": "web_search_preview"}],
+                    "temperature": temperature,
+                    "max_output_tokens": max_tokens,
+                }
+                if system_prompt:
+                    responses_body["instructions"] = system_prompt
+                response = await client.post(
+                    "https://api.openai.com/v1/responses",
+                    json=responses_body,
+                    headers={"Authorization": f"Bearer {self.settings.openai_api_key}"},
+                )
+                response.raise_for_status()
+                payload = response.json()
+                text = ""
+                for item in payload.get("output", []):
+                    if item.get("type") == "message":
+                        for block in item.get("content", []):
+                            if block.get("type") == "output_text":
+                                text += block.get("text", "")
+                raw_usage = payload.get("usage", {})
+                usage = {
+                    "input_tokens": raw_usage.get("input_tokens", 0),
+                    "output_tokens": raw_usage.get("output_tokens", 0),
                 }
                 return {"text": text, "usage": usage}
 
@@ -246,8 +290,8 @@ class LLMRouter:
         primary, fallback = self._resolve_tier_models(tier)
         models = [primary] + ([fallback] if fallback else [])
         errors: list[Exception] = []
-        for model in models:
-            use_grounding = grounding and self._provider_for_model(model) == "google"
+        for idx, model in enumerate(models):
+            use_grounding = grounding and self._provider_for_model(model) in ("google", "anthropic", "openai")
             try:
                 payload = await self._call_with_retries(
                     model=model,
@@ -261,13 +305,24 @@ class LLMRouter:
                 usage = payload.get("usage", {})
                 cost = self._estimate_completion_cost(model=model, usage=usage)
                 self.total_cost_usd += cost
-                return LLMResponse(
+                is_fallback = idx > 0
+                response = LLMResponse(
                     text=payload["text"],
                     model=model,
                     input_tokens=int(usage.get("input_tokens", 0)),
                     output_tokens=int(usage.get("output_tokens", 0)),
                     cost_usd=cost,
+                    primary_model_failed=is_fallback,
+                    fallback_from=primary if is_fallback else None,
                 )
+                if is_fallback:
+                    self._emit_fallback_ops_event(
+                        tier=tier,
+                        failed_model=primary,
+                        used_model=model,
+                        errors=errors,
+                    )
+                return response
             except Exception as exc:
                 errors.append(exc)
                 logger.warning("Model %s failed for tier=%s: %s", model, tier, exc)
@@ -361,10 +416,11 @@ class LLMRouter:
             return [item["embedding"] for item in data]
 
     async def embed(self, texts: list[str], timeout_s: float | None = None) -> EmbeddingResult:
-        models = [self.settings.embedding_model, self.settings.embedding_fallback_model]
+        primary = self.settings.embedding_model
+        models = [primary, self.settings.embedding_fallback_model]
         batch_size = max(1, self.settings.llm_embed_batch_size)
         errors: list[Exception] = []
-        for model in models:
+        for idx, model in enumerate(models):
             try:
                 all_vectors: list[list[float]] = []
                 for i in range(0, len(texts), batch_size):
@@ -373,11 +429,22 @@ class LLMRouter:
                         model=model, texts=batch, timeout_s=timeout_s
                     )
                     all_vectors.extend(vectors)
-                return EmbeddingResult(
+                is_fallback = idx > 0
+                result = EmbeddingResult(
                     vectors=all_vectors,
                     model=model,
                     provider=self._provider_for_model(model),
+                    primary_model_failed=is_fallback,
+                    fallback_from=primary if is_fallback else None,
                 )
+                if is_fallback:
+                    self._emit_fallback_ops_event(
+                        tier="embedding",
+                        failed_model=primary,
+                        used_model=model,
+                        errors=errors,
+                    )
+                return result
             except Exception as exc:
                 errors.append(exc)
                 logger.warning("Embedding model %s failed: %s", model, exc)
@@ -410,6 +477,34 @@ class LLMRouter:
                 break
         raise last_exc or RuntimeError(f"Embedding retries exhausted for model={model}")
 
+    def _emit_fallback_ops_event(
+        self,
+        *,
+        tier: str,
+        failed_model: str,
+        used_model: str,
+        errors: list[Exception],
+    ) -> None:
+        from src.ops.events import iso_now, ops_event_buffer
+        error_summaries = [
+            {"type": type(exc).__name__, "message": str(exc)[:200]}
+            for exc in errors
+        ]
+        ops_event_buffer.add({
+            "timestamp": iso_now(),
+            "level": "warning",
+            "component": "src.pipeline.llm",
+            "event_type": "llm_fallback_used",
+            "message": f"Primary model {failed_model} failed for tier={tier}; fell back to {used_model}",
+            "correlation_id": None,
+            "payload": {
+                "tier": tier,
+                "failed_model": failed_model,
+                "used_model": used_model,
+                "errors": error_summaries,
+            },
+        })
+
     def _estimate_completion_cost(self, *, model: str, usage: dict[str, Any]) -> float:
         in_tok = float(usage.get("input_tokens", 0))
         out_tok = float(usage.get("output_tokens", 0))
@@ -426,6 +521,8 @@ class LLMRouter:
             rate = 0.0000003
         elif "gemini" in lowered:
             rate = 0.000002
+        elif "gpt-4o" in lowered:
+            rate = 0.0000025
         else:
             rate = 0.000003
         return (in_tok + out_tok) * rate

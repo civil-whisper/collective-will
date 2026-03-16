@@ -31,6 +31,61 @@ from src.models.vote import Vote, VotingCycle
 router = APIRouter()
 
 
+def _normalize_ballot_stage(readiness_values: list[str]) -> str:
+    if not readiness_values:
+        return "unknown"
+    unique = set(readiness_values)
+    if unique == {"ballot-ready"}:
+        return "ballot-ready"
+    if unique == {"discussion-only"}:
+        return "discussion-only"
+    return "needs-refinement"
+
+
+def _readiness_counts(candidates: list[PolicyCandidate]) -> dict[str, int]:
+    counts: dict[str, int] = {"ballot-ready": 0, "needs-refinement": 0, "discussion-only": 0}
+    for candidate in candidates:
+        bucket = candidate.ballot_readiness
+        if bucket not in counts:
+            bucket = "discussion-only"
+        counts[bucket] += 1
+    return counts
+
+
+async def _build_submission_pipeline_history(
+    *,
+    session: AsyncSession,
+    submission: Submission,
+    candidates: list[PolicyCandidate],
+) -> dict[str, object]:
+    candidate_ids = {str(candidate.id) for candidate in candidates}
+    all_entity_ids = {submission.id} | {candidate.id for candidate in candidates}
+    evidence_result = await session.execute(
+        select(EvidenceLogEntry)
+        .where(EvidenceLogEntry.entity_id.in_(all_entity_ids))
+        .order_by(EvidenceLogEntry.id.asc())
+    )
+    matching_entries: list[dict[str, object]] = []
+    for row in evidence_result.scalars().all():
+        payload = row.payload if isinstance(row.payload, dict) else {}
+        matching_entries.append({
+            "id": row.id,
+            "timestamp": isoformat_z(row.timestamp),
+            "event_type": row.event_type,
+            "entity_type": row.entity_type,
+            "entity_id": str(row.entity_id),
+            "payload": apply_visibility_tier(row.event_type, payload, cycle_closed=True),
+        })
+
+    return {
+        "submission_id": str(submission.id),
+        "raw_text": submission.raw_text,
+        "status": submission.status,
+        "candidate_ids": list(candidate_ids),
+        "entries": matching_entries,
+    }
+
+
 async def _read_audit_index() -> dict[str, object]:
     settings = get_settings()
     artifacts = day_artifact_paths(
@@ -119,6 +174,17 @@ async def clusters(session: AsyncSession = Depends(get_db)) -> list[dict[str, ob
     )
     result = await session.execute(stmt)
     rows = result.all()
+    cluster_candidate_ids = [
+        candidate_id
+        for row in rows
+        for candidate_id in row.Cluster.candidate_ids
+    ]
+    candidates_by_id: dict[UUID, PolicyCandidate] = {}
+    if cluster_candidate_ids:
+        candidates_result = await session.execute(
+            select(PolicyCandidate).where(PolicyCandidate.id.in_(cluster_candidate_ids))
+        )
+        candidates_by_id = {candidate.id: candidate for candidate in candidates_result.scalars().all()}
     return [
         {
             "id": str(row.Cluster.id),
@@ -129,6 +195,11 @@ async def clusters(session: AsyncSession = Depends(get_db)) -> list[dict[str, ob
             "member_count": row.Cluster.member_count,
             "approval_count": row.Cluster.approval_count,
             "endorsement_count": row.endorsement_count,
+            "ballot_stage": _normalize_ballot_stage([
+                candidates_by_id[candidate_id].ballot_readiness
+                for candidate_id in row.Cluster.candidate_ids
+                if candidate_id in candidates_by_id
+            ]),
         }
         for row in rows
     ]
@@ -176,6 +247,13 @@ async def cluster_detail(
         "member_count": cluster.member_count,
         "approval_count": cluster.approval_count,
         "endorsement_count": endorsement_count,
+        "ballot_stage": _normalize_ballot_stage([candidate.ballot_readiness for candidate in ordered_candidates]),
+        "readiness_counts": _readiness_counts(ordered_candidates),
+        "refinement_draft": cluster.refinement_draft,
+        "refinement_draft_fa": cluster.refinement_draft_fa,
+        "refinement_confidence": cluster.refinement_confidence,
+        "refinement_requires_clarification": cluster.refinement_requires_clarification,
+        "refinement_notes": cluster.refinement_notes,
         "candidates": [
             {
                 "id": str(candidate.id),
@@ -183,7 +261,13 @@ async def cluster_detail(
                 "summary": candidate.summary,
                 "policy_topic": candidate.policy_topic,
                 "policy_key": candidate.policy_key,
+                "actor_scope": candidate.actor_scope,
+                "action_mechanism": candidate.action_mechanism,
+                "target_scope": candidate.target_scope,
+                "ballot_readiness": candidate.ballot_readiness,
+                "ballot_readiness_reason": candidate.ballot_readiness_reason,
                 "confidence": candidate.confidence,
+                "submission_id": str(candidate.submission_id),
                 "raw_text": candidate.submission.raw_text if candidate.submission else None,
                 "language": candidate.submission.language if candidate.submission else None,
             }
@@ -213,6 +297,90 @@ async def candidate_location(
     if cluster is not None:
         return {"status": "clustered", "cluster_id": str(cluster.id)}
     return {"status": "unclustered"}
+
+
+@router.get("/candidate/{candidate_id}/pipeline-history")
+async def candidate_pipeline_history(
+    candidate_id: UUID,
+    session: AsyncSession = Depends(get_db),
+) -> dict[str, object]:
+    from sqlalchemy.orm import selectinload
+
+    candidate_result = await session.execute(
+        select(PolicyCandidate)
+        .options(selectinload(PolicyCandidate.submission))
+        .where(PolicyCandidate.id == candidate_id)
+    )
+    candidate = candidate_result.scalar_one_or_none()
+    if candidate is None:
+        raise HTTPException(status_code=404, detail="candidate_not_found")
+
+    submission = candidate.submission
+    if submission is None:
+        submission_result = await session.execute(
+            select(Submission).where(Submission.id == candidate.submission_id)
+        )
+        submission = submission_result.scalar_one()
+
+    submission_candidates_result = await session.execute(
+        select(PolicyCandidate).where(PolicyCandidate.submission_id == submission.id)
+    )
+    submission_candidates = list(submission_candidates_result.scalars().all())
+    history = await _build_submission_pipeline_history(
+        session=session,
+        submission=submission,
+        candidates=submission_candidates,
+    )
+
+    cluster_result = await session.execute(
+        select(Cluster).where(cast(Any, Cluster.candidate_ids).any(candidate_id))
+    )
+    cluster = cluster_result.scalar_one_or_none()
+    history["candidate"] = {
+        "id": str(candidate.id),
+        "submission_id": str(candidate.submission_id),
+        "title": candidate.title,
+        "summary": candidate.summary,
+        "policy_topic": candidate.policy_topic,
+        "policy_key": candidate.policy_key,
+        "actor_scope": candidate.actor_scope,
+        "action_mechanism": candidate.action_mechanism,
+        "target_scope": candidate.target_scope,
+        "ballot_readiness": candidate.ballot_readiness,
+        "ballot_readiness_reason": candidate.ballot_readiness_reason,
+        "confidence": candidate.confidence,
+        "raw_text": submission.raw_text,
+        "language": submission.language,
+    }
+    history["location"] = (
+        {"status": "clustered", "cluster_id": str(cluster.id)}
+        if cluster is not None
+        else {"status": "unclustered"}
+    )
+    return history
+
+
+@router.get("/submissions/{submission_id}/pipeline-history")
+async def submission_pipeline_history(
+    submission_id: UUID,
+    session: AsyncSession = Depends(get_db),
+) -> dict[str, object]:
+    submission_result = await session.execute(
+        select(Submission).where(Submission.id == submission_id)
+    )
+    submission = submission_result.scalar_one_or_none()
+    if submission is None:
+        raise HTTPException(status_code=404, detail="submission_not_found")
+
+    candidates_result = await session.execute(
+        select(PolicyCandidate).where(PolicyCandidate.submission_id == submission_id)
+    )
+    candidates = list(candidates_result.scalars().all())
+    return await _build_submission_pipeline_history(
+        session=session,
+        submission=submission,
+        candidates=candidates,
+    )
 
 
 @router.get("/stats")
@@ -285,7 +453,13 @@ async def unclustered(session: AsyncSession = Depends(get_db)) -> dict[str, obje
                 "summary": item.summary,
                 "policy_topic": item.policy_topic,
                 "policy_key": item.policy_key,
+                "actor_scope": item.actor_scope,
+                "action_mechanism": item.action_mechanism,
+                "target_scope": item.target_scope,
+                "ballot_readiness": item.ballot_readiness,
+                "ballot_readiness_reason": item.ballot_readiness_reason,
                 "confidence": item.confidence,
+                "submission_id": str(item.submission_id),
                 "raw_text": item.submission.raw_text if item.submission else None,
                 "language": item.submission.language if item.submission else None,
             }

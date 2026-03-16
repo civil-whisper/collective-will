@@ -16,6 +16,7 @@ def _required_env() -> dict[str, str]:
         "OPENAI_API_KEY": "x",
         "DEEPSEEK_API_KEY": "x",
         "EVOLUTION_API_KEY": "x",
+        "WEB_ACCESS_TOKEN_SECRET": "test-secret-for-config-tests",
     }
 
 
@@ -185,7 +186,7 @@ def test_tier_models_config_backed(monkeypatch: pytest.MonkeyPatch) -> None:
 # --- 16. farsi_messages_fallback_model is set ---
 def test_farsi_messages_fallback_model_set(monkeypatch: pytest.MonkeyPatch) -> None:
     settings = _make_settings(monkeypatch)
-    assert settings.farsi_messages_fallback_model == "gemini-3.1-pro-preview"
+    assert settings.farsi_messages_fallback_model == "gpt-4o"
 
     overridden = _make_settings(monkeypatch, FARSI_MESSAGES_FALLBACK_MODEL="other")
     assert overridden.farsi_messages_fallback_model == "other"
@@ -194,14 +195,14 @@ def test_farsi_messages_fallback_model_set(monkeypatch: pytest.MonkeyPatch) -> N
 # --- 17. english_reasoning_fallback_model is set ---
 def test_english_reasoning_fallback_model_set(monkeypatch: pytest.MonkeyPatch) -> None:
     settings = _make_settings(monkeypatch)
-    assert settings.english_reasoning_fallback_model == "gemini-3.1-pro-preview"
+    assert settings.english_reasoning_fallback_model == "gpt-4o"
 
 
 # --- 18. dispute_resolution_model and fallback configurable ---
 def test_dispute_resolution_model_configurable(monkeypatch: pytest.MonkeyPatch) -> None:
     settings = _make_settings(monkeypatch)
     assert settings.dispute_resolution_model == "claude-sonnet-4-6"
-    assert settings.dispute_resolution_fallback_model == "gemini-3.1-pro-preview"
+    assert settings.dispute_resolution_fallback_model == "gpt-4o"
 
     overridden = _make_settings(
         monkeypatch,

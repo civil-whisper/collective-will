@@ -12,7 +12,7 @@ If users don't believe the pipeline is fair, transparent, and resistant to manip
 
 ### What's in v0
 
-- **Issue submission via WhatsApp** — users submit policy concerns in plain text (WhatsApp is the only channel for v0)
+- **Issue submission via Telegram** — users submit policy concerns in plain text (Telegram is the active channel for MVP; WhatsApp deferred post-MVP)
 - **Agent-based canonicalization and clustering** — AI structures and groups submissions without editorializing
 - **Approval voting** — users vote on which clusters represent shared priorities
 - **Public analytics dashboard** — a transparent, auditable view of what people care about (no login wall)
@@ -23,8 +23,8 @@ If users don't believe the pipeline is fair, transparent, and resistant to manip
 ### What's deliberately excluded from v0
 
 - **Action drafting and execution** — v0 is about consensus visibility, not action. Deferred to v1.
-- **Telegram and Signal** — prove the trust loop with one channel first
-- **Phone verification, OAuth, vouching** — identity model is email magic-link + WhatsApp linking only
+- **Signal** — prove the trust loop with one channel first
+- **Phone verification, OAuth, vouching** — identity model is email magic-link + Telegram linking only
 - **Autonomous posting** — no actions fire, period
 - **On-chain execution / required external publication** — local Merkle-root anchoring is already required in v0; mandatory external publication is deferred
 - **Global-scale guarantees** — v0 targets one community (Iran pilot) to keep things tractable
@@ -41,8 +41,8 @@ See [MVP Specification — v0 Frozen Decisions](mvp-specification.md#v0-frozen-d
 Once the trust loop is proven and pilot gates are passed:
 
 - **Action drafting and execution** — map voted items to action templates (email to officials, public submissions), require explicit user consent before sending
-- **Official WhatsApp Business API** — migrate from Evolution API to official Meta API for stability and compliance at scale
-- **Additional channels** — Telegram, then Signal, based on demand
+- **WhatsApp channel** — activate WhatsApp via Evolution API or official Business API
+- **Additional channels** — Signal and others, based on demand
 - **Stronger identity signals** — improve risk scoring and anomaly detection without adding mandatory phone/OAuth identity gates
 - **Required external anchoring publication** — make daily root publication mandatory once v0 publication reliability is proven
 - **Embedding tier evolution** — migrate from v0 cloud default to local embeddings if privacy/cost requires it

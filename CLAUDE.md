@@ -137,7 +137,7 @@ Caddy reverse proxy splits `/api/auth/*` between the backend and NextAuth: use `
 
 ### LLM Routing
 
-All LLM calls go through `LLMRouter` in `src/pipeline/llm.py`. Task tiers are config-backed via env vars — no model IDs outside `llm.py`. Default primary: `claude-sonnet-4-6`. Default fallback: `gemini-3.1-pro-preview`. Embeddings: `gemini-embedding-001` (primary), `text-embedding-3-large` (fallback).
+All LLM calls go through `LLMRouter` in `src/pipeline/llm.py`. Task tiers are config-backed via env vars — no model IDs outside `llm.py`. Default primary: `claude-sonnet-4-6`. Default fallback: `gpt-4o`. Embeddings: `gemini-embedding-001` (primary), `text-embedding-3-large` (fallback). Web search grounding is supported for Anthropic (`web_search_20250305`), Google (`google_search`), and OpenAI (Responses API `web_search_preview`).
 
 ### Evidence Hash-Chain
 
@@ -149,7 +149,7 @@ Business logic uses `UnifiedMessage` / `OutboundMessage` — never platform-spec
 
 ---
 
-## Hard Constraints (from AGENTS.md and docs/DECISION_LOCKS.md)
+## Hard Constraints (from AGENTS.md and docs/decision-rationale/DECISION_LOCKS.md)
 
 - **No per-item human adjudication** for votes, disputes, or quarantine outcomes — autonomous only.
 - **All LLM calls through `LLMRouter`** — no direct model IDs in business logic or handlers.

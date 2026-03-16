@@ -24,36 +24,38 @@ from src.pipeline.llm import LLMRouter
 logger = logging.getLogger(__name__)
 
 _SYSTEM_PROMPT = """\
-You are a nonpartisan policy analyst. Given a policy topic and real citizen \
-submissions, generate distinct stance options that cover the realistic \
-spectrum of approaches. Each option should be a genuine, defensible position \
-with clear reasoning.
+You are a nonpartisan policy analyst. Given a specific civic proposition and \
+real citizen submissions, generate distinct stance options that answer the \
+same underlying ballot question. Each option should be a genuine, defensible \
+position with clear reasoning.
 
-You have access to web search. Use it to research how similar policies are \
-debated globally, what real-world implementations exist, and what common \
-political/policy positions apply. Ground your options in both the citizen \
-submissions AND real-world context.
+Draw on real-world policy precedents, existing implementations, and \
+established frameworks from around the world. Ground your options in both \
+the citizen submissions AND real-world context.
 
 Rules:
 - Generate 2-4 options (never fewer than 2).
 - Each option must represent a meaningfully different approach, not just \
 different wording of the same idea.
+- Every option must address the SAME proposition. Do not broaden the issue \
+into unrelated geopolitical or ideological debates.
 - Incorporate real-world examples, precedents, or established policy \
 frameworks where relevant.
 - Describe concrete trade-offs: what you gain AND what you give up.
 - Use accessible language — avoid jargon.
 - Be balanced: do NOT editorialize or favor one option.
 - Output valid JSON only — no markdown fences, no commentary.
+- Do NOT attempt to call tools, functions, or APIs. Produce the JSON array directly.
 """
 
 _USER_PROMPT_TEMPLATE = """\
-Policy topic: {policy_topic}
-Summary: {summary}
+Proposition: {proposition}
+Concern summary: {summary}
 
-Citizen submissions on this topic (sample):
+Citizen submissions related to this proposition:
 {submissions_block}
 
-Generate distinct stance options. Return a JSON array:
+Generate distinct ballot options that answer this proposition. Return a JSON array:
 [
   {{
     "label": "<short Farsi label, max 60 chars>",
@@ -75,7 +77,12 @@ def _build_submissions_block(
         candidate = candidates_by_id.get(cid)
         if candidate is None:
             continue
-        lines.append(f"- [{candidate.stance}] {candidate.title}: {candidate.summary}")
+        lines.append(
+            "- "
+            f"[{candidate.stance}; actor={candidate.actor_scope}; mechanism={candidate.action_mechanism}; "
+            f"target={candidate.target_scope}; readiness={candidate.ballot_readiness}] "
+            f"{candidate.title}: {candidate.summary}"
+        )
     return "\n".join(lines) if lines else "(no submissions available)"
 
 
@@ -105,6 +112,49 @@ def _parse_options_json(raw: str) -> list[dict[str, str]]:
     return options
 
 
+async def _generate_options_for_cluster(
+    cluster: Cluster,
+    candidates_by_id: Mapping[UUID, PolicyCandidate],
+    llm_router: LLMRouter,
+) -> tuple[list[dict[str, str]], str]:
+    """Try primary model, then fallback on parse failure, then generic options.
+
+    Returns (parsed_options, model_version).
+    """
+    submissions_block = _build_submissions_block(cluster, candidates_by_id)
+    prompt = _USER_PROMPT_TEMPLATE.format(
+        proposition=cluster.ballot_question or cluster.summary,
+        summary=cluster.summary,
+        submissions_block=submissions_block,
+    )
+
+    completion = await llm_router.complete(
+        tier="option_generation",
+        prompt=prompt,
+        system_prompt=_SYSTEM_PROMPT,
+        max_tokens=2048,
+        temperature=0.3,
+        grounding=True,
+    )
+    try:
+        return _parse_options_json(completion.text), completion.model
+    except (json.JSONDecodeError, ValueError) as parse_exc:
+        logger.warning(
+            "Primary model %s returned unparseable options for cluster %s (%s), retrying with explicit fallback model",
+            completion.model, cluster.id, parse_exc,
+        )
+        _, fallback_model = llm_router._resolve_tier_models("option_generation")
+        retry_model = fallback_model if fallback_model and fallback_model != completion.model else completion.model
+        retry = await llm_router.complete_with_model(
+            model=retry_model,
+            prompt=prompt,
+            system_prompt=_SYSTEM_PROMPT,
+            max_tokens=2048,
+            temperature=0.2,
+        )
+        return _parse_options_json(retry.text), retry.model
+
+
 async def generate_policy_options(
     *,
     session: AsyncSession,
@@ -119,28 +169,25 @@ async def generate_policy_options(
     all_options: list[PolicyOption] = []
 
     for cluster in clusters:
-        submissions_block = _build_submissions_block(cluster, candidates_by_id)
-        prompt = _USER_PROMPT_TEMPLATE.format(
-            policy_topic=cluster.policy_topic,
-            summary=cluster.summary,
-            submissions_block=submissions_block,
-        )
-
         model_version = "fallback"
         try:
-            completion = await llm_router.complete(
-                tier="option_generation",
-                prompt=prompt,
-                system_prompt=_SYSTEM_PROMPT,
-                max_tokens=2048,
-                temperature=0.3,
-                grounding=True,
+            parsed, model_version = await _generate_options_for_cluster(
+                cluster, candidates_by_id, llm_router,
             )
-            parsed = _parse_options_json(completion.text)
-            model_version = completion.model
-        except Exception:
+        except Exception as exc:
             logger.exception("Failed to generate options for cluster %s", cluster.id)
             parsed = _fallback_options(cluster)
+            await append_evidence(
+                session=session,
+                event_type="policy_options_fallback_used",
+                entity_type="cluster",
+                entity_id=cluster.id,
+                payload={
+                    "cluster_id": str(cluster.id),
+                    "policy_key": cluster.policy_key,
+                    "error_type": type(exc).__name__,
+                },
+            )
 
         for position, item in enumerate(parsed, 1):
             option_data = PolicyOptionCreate(
@@ -175,6 +222,7 @@ async def generate_policy_options(
                 "cluster_id": str(cluster.id),
                 "option_count": len(parsed),
                 "labels": [item["label"] for item in parsed],
+                "model_version": model_version,
             },
         )
 
@@ -183,18 +231,24 @@ async def generate_policy_options(
 
 
 def _fallback_options(cluster: Cluster) -> list[dict[str, str]]:
-    """Minimal two-option fallback when LLM generation fails."""
+    """Minimal two-option fallback when LLM generation fails.
+
+    Only used for infrastructure unavailability (provider down / timeouts).
+    Descriptions are fully bilingual using the cluster's own language fields.
+    """
+    fa_desc = cluster.ballot_question_fa or "این سیاست"
+    en_desc = cluster.ballot_question or cluster.summary
     return [
         {
             "label": "حمایت از این سیاست",
             "label_en": "Support this policy",
-            "description": f"حمایت از اجرای این سیاست: {cluster.summary}",
-            "description_en": f"Support implementing this policy: {cluster.summary}",
+            "description": f"حمایت از: {fa_desc}",
+            "description_en": f"Support implementing: {en_desc}",
         },
         {
             "label": "مخالفت با این سیاست",
             "label_en": "Oppose this policy",
-            "description": f"مخالفت با اجرای این سیاست به دلیل هزینه یا عواقب ناخواسته: {cluster.summary}",
-            "description_en": f"Oppose this policy due to costs or unintended consequences: {cluster.summary}",
+            "description": f"مخالفت با: {fa_desc}",
+            "description_en": f"Oppose due to costs or unintended consequences: {en_desc}",
         },
     ]

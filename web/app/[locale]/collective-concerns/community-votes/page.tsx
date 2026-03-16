@@ -210,6 +210,10 @@ export default async function CommunityVotesPage() {
               const totalVoters = item.approval_rate > 0
                 ? Math.round(item.approval_count / item.approval_rate)
                 : 0;
+              const title =
+                locale === "fa" && item.ballot_question_fa
+                  ? item.ballot_question_fa
+                  : item.ballot_question ?? item.summary ?? item.cluster_id;
               return (
                 <div
                   key={item.cluster_id}
@@ -232,8 +236,13 @@ export default async function CommunityVotesPage() {
                             href={`/${locale}/collective-concerns/clusters/${item.cluster_id}`}
                             className="block font-medium text-gray-900 hover:text-accent dark:text-slate-100 dark:hover:text-indigo-300"
                           >
-                            {item.summary ?? item.cluster_id}
+                            {title}
                           </Link>
+                          {item.summary && item.summary !== title && (
+                            <p className="mt-1 text-sm text-gray-500 dark:text-slate-400">
+                              {item.summary}
+                            </p>
+                          )}
                           {item.policy_topic && (
                             <div className="mt-1">
                               <TopicBadge topic={item.policy_topic} />

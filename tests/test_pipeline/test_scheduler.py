@@ -179,6 +179,15 @@ async def test_batch_canonicalization_increments_contribution_count() -> None:
     mock_candidate.embedding = None
     mock_candidate.policy_key = "clean-water"
     mock_candidate.policy_topic = "environment"
+    mock_candidate.actor_scope = "public-governance"
+    mock_candidate.action_mechanism = "governance-design"
+    mock_candidate.target_scope = "public-governance"
+    mock_candidate.ballot_readiness = "ballot-ready"
+    mock_candidate.ballot_readiness_reason = "Concrete proposition"
+    mock_candidate.confidence = 0.9
+    mock_candidate.model_version = "test-model"
+    mock_candidate.prompt_version = "test-prompt"
+    mock_candidate.submission_id = sub_id
 
     with (
         patch("src.scheduler.main.load_existing_policy_context", new_callable=AsyncMock, return_value={}),
@@ -199,6 +208,77 @@ async def test_batch_canonicalization_increments_contribution_count() -> None:
 
     assert fake_user.contribution_count == 1
     assert result.processed_submissions == 1
+
+
+@pytest.mark.asyncio
+async def test_pipeline_generates_refinement_drafts_for_non_ballot_ready_clusters() -> None:
+    sub_id = uuid4()
+    fake_user = SimpleNamespace(id=uuid4(), contribution_count=0)
+    fake_sub = SimpleNamespace(
+        id=sub_id,
+        user_id=fake_user.id,
+        user=fake_user,
+        raw_text="We need a clearer public transport plan",
+        language="en",
+        status="canonicalized",
+        candidates=[],
+        created_at=datetime.now(UTC),
+    )
+
+    candidate = MagicMock()
+    candidate.id = uuid4()
+    candidate.embedding = [0.1] * 10
+    candidate.policy_key = "public-transport-access"
+    candidate.policy_topic = "transport-policy"
+    candidate.ballot_readiness = "needs-refinement"
+
+    cluster = MagicMock()
+    cluster.id = uuid4()
+    cluster.policy_key = "public-transport-access"
+    cluster.policy_topic = "transport-policy"
+    cluster.candidate_ids = [candidate.id]
+    cluster.needs_resummarize = True
+    cluster.ballot_question = None
+    cluster.status = "open"
+
+    call_count = 0
+
+    async def _fake_execute(stmt: object, *a: object, **kw: object) -> FakeResult:
+        nonlocal call_count
+        call_count += 1
+        if call_count == 1:
+            return FakeResult([])
+        if call_count == 2:
+            return FakeResult([fake_sub])
+        if call_count == 3:
+            return FakeResult([cluster])
+        if call_count == 4:
+            return FakeResult([candidate])
+        return FakeResult([])
+
+    session = AsyncMock(spec=AsyncSession)
+    session.execute = AsyncMock(side_effect=_fake_execute)
+    session.commit = AsyncMock()
+
+    fake_sub.candidates = [candidate]
+
+    with (
+        patch("src.scheduler.main.load_existing_policy_context", new_callable=AsyncMock, return_value=""),
+        patch("src.scheduler.main.compute_and_store_embeddings", new_callable=AsyncMock),
+        patch("src.scheduler.main.normalize_policy_keys", new_callable=AsyncMock, return_value=[]),
+        patch("src.scheduler.main._find_or_create_cluster", new_callable=AsyncMock, return_value=cluster),
+        patch("src.scheduler.main.generate_ballot_questions", new_callable=AsyncMock),
+        patch("src.scheduler.main.generate_refinement_drafts", new_callable=AsyncMock) as mock_refine,
+        patch("src.scheduler.main.generate_policy_options", new_callable=AsyncMock),
+        patch("src.scheduler.main.build_agenda", return_value=[]),
+        patch("src.scheduler.main._prune_ip_signup_log", new_callable=AsyncMock),
+        patch("src.scheduler.main._run_daily_anchoring", new_callable=AsyncMock),
+        patch("src.scheduler.main._maybe_open_cycle", new_callable=AsyncMock, return_value=None),
+    ):
+        result = await run_pipeline(session=session, llm_router=FakeRouter())  # type: ignore[arg-type]
+
+    assert result.processed_submissions == 1
+    mock_refine.assert_called_once()
 
 
 # --- _count_unprocessed tests ---
@@ -472,7 +552,7 @@ class _FakeCluster:
     def __init__(
         self, *, member_count: int = 5, ballot_question: str | None = "Q?",
         needs_resummarize: bool = False, policy_key: str = "clean-water",
-        status: str = "open",
+        status: str = "open", candidate_ids: list[object] | None = None,
     ) -> None:
         self.id = uuid4()
         self.policy_key = policy_key
@@ -480,6 +560,7 @@ class _FakeCluster:
         self.ballot_question = ballot_question
         self.needs_resummarize = needs_resummarize
         self.status = status
+        self.candidate_ids = candidate_ids if candidate_ids is not None else []
 
 
 def _settings_patch(**overrides: object) -> MagicMock:
@@ -518,6 +599,7 @@ async def test_maybe_open_cycle_opens_when_qualified() -> None:
         patch("src.scheduler.main.get_settings", return_value=_settings_patch()),
         patch("src.scheduler.main.count_cluster_endorsements", new_callable=AsyncMock, return_value=0),
         patch("src.scheduler.main._has_options", new_callable=AsyncMock, return_value=True),
+        patch("src.scheduler.main._cluster_is_ballot_ready_db", new_callable=AsyncMock, return_value=True),
         patch("src.scheduler.main.open_cycle", new_callable=AsyncMock, return_value=cycle_obj) as mock_open,
     ):
         result = await _maybe_open_cycle(session)
@@ -643,6 +725,7 @@ async def test_maybe_open_cycle_skips_without_options() -> None:
     with (
         patch("src.scheduler.main.get_settings", return_value=_settings_patch()),
         patch("src.scheduler.main.count_cluster_endorsements", new_callable=AsyncMock, return_value=0),
+        patch("src.scheduler.main._cluster_is_ballot_ready_db", new_callable=AsyncMock, return_value=True),
         patch("src.scheduler.main._has_options", new_callable=AsyncMock, return_value=False),
     ):
         result = await _maybe_open_cycle(session)

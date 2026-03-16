@@ -1209,7 +1209,7 @@ cd web && pnpm dev                 # Website
 
 **Single-server deployment for v0** (simplicity over scale).
 
-> **📖 See [Infrastructure Guide](infrastructure-guide.md)** for complete step-by-step setup instructions.
+> **📖 See [Infrastructure Guide](decision-rationale/infrastructure-guide.md)** for complete step-by-step setup instructions.
 
 **Architecture Summary:**
 

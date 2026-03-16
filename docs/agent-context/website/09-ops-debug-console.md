@@ -61,6 +61,12 @@ Recommended config:
    - Last run status, duration, and failure reason for pipeline/scheduler jobs
    - Heartbeat detail column is `Text` (not `VARCHAR(256)`) so full error context fits
 
+5. **Pipeline reliability (fallback visibility)**
+   - Degradation events by pipeline step: parse repairs, deferred submissions, normalization failures, ballot generation failures, option fallbacks, ensemble member failures
+   - Model fallback count from in-memory ops buffer
+   - Configurable time window (default 24h)
+   - Linked to evidence event types: `submission_deferred_to_batch`, `candidate_parse_repaired`, `normalization_step_failed`, `ballot_generation_failed`, `policy_options_fallback_used`, `dispute_ensemble_member_failed`
+
 ### API contracts
 
 Create backend endpoints under `/ops`:
@@ -71,6 +77,8 @@ Create backend endpoints under `/ops`:
   - Returns recent structured events/errors
 - `GET /ops/jobs`
   - Returns recent scheduler/pipeline run outcomes
+- `GET /ops/pipeline-health?hours=24`
+  - Returns pipeline degradation summary: total events, per-step counts with latest timestamp, model fallback count, recent degradation entries
 
 All responses must be sanitized and typed.
 

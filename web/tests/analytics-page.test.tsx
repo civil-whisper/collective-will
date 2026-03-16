@@ -49,6 +49,7 @@ describe("AnalyticsPage", () => {
           member_count: 12,
           approval_count: 8,
           endorsement_count: 5,
+          ballot_stage: "needs-refinement",
         },
       ],
       {...noStats, total_voters: 10, total_submissions: 5},
@@ -58,6 +59,7 @@ describe("AnalyticsPage", () => {
     render(jsx);
     expect(screen.getAllByText("Economic reform").length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText(/fiscal policy/).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText("Needs refinement")).toBeTruthy();
     expect(screen.getAllByText(/12/).length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText(/5/).length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText(/17/).length).toBeGreaterThanOrEqual(1);
@@ -65,7 +67,7 @@ describe("AnalyticsPage", () => {
 
   it("links each cluster to its detail page", async () => {
     mockFetchSequence(
-      [{id: "c1", summary: "Reform A", policy_topic: "fiscal-policy", policy_key: "fiscal-policy-001", status: "open", member_count: 5, approval_count: 3, endorsement_count: 2}],
+      [{id: "c1", summary: "Reform A", policy_topic: "fiscal-policy", policy_key: "fiscal-policy-001", status: "open", member_count: 5, approval_count: 3, endorsement_count: 2, ballot_stage: "ballot-ready"}],
       noStats,
       {total: 0, items: []},
     );
@@ -79,8 +81,8 @@ describe("AnalyticsPage", () => {
   it("renders multiple clusters", async () => {
     mockFetchSequence(
       [
-        {id: "c1", summary: "Cluster A", policy_topic: "fiscal-policy", policy_key: "fiscal-policy-001", status: "open", member_count: 5, approval_count: 3, endorsement_count: 1},
-        {id: "c2", summary: "Cluster B", policy_topic: "civil-rights", policy_key: "civil-rights-001", status: "open", member_count: 8, approval_count: 6, endorsement_count: 4},
+        {id: "c1", summary: "Cluster A", policy_topic: "fiscal-policy", policy_key: "fiscal-policy-001", status: "open", member_count: 5, approval_count: 3, endorsement_count: 1, ballot_stage: "ballot-ready"},
+        {id: "c2", summary: "Cluster B", policy_topic: "civil-rights", policy_key: "civil-rights-001", status: "open", member_count: 8, approval_count: 6, endorsement_count: 4, ballot_stage: "discussion-only"},
       ],
       noStats,
       {total: 0, items: []},
@@ -114,6 +116,11 @@ describe("AnalyticsPage", () => {
             summary: "Improve access in underserved areas.",
             policy_topic: "fiscal-policy",
             policy_key: "fiscal-policy-010",
+            actor_scope: "public-governance",
+            action_mechanism: "governance-design",
+            target_scope: "public-governance",
+            ballot_readiness: "needs-refinement",
+            ballot_readiness_reason: "Needs more specificity before it can become a ballot proposition.",
             confidence: 0.81,
           },
         ],
@@ -123,11 +130,13 @@ describe("AnalyticsPage", () => {
     render(jsx);
     expect(screen.getByText(/pending ai processing/i)).toBeTruthy();
     expect(screen.getByText("Public transport access")).toBeTruthy();
+    expect(screen.getByText("Needs refinement")).toBeTruthy();
+    expect(screen.getByText(/View submission history/)).toBeTruthy();
   });
 
   it("shows archived concerns section for archived clusters", async () => {
     mockFetchSequence(
-      [{id: "c1", summary: "Old Policy", policy_topic: "fiscal-policy", policy_key: "fiscal-policy-001", status: "archived", member_count: 5, approval_count: 3, endorsement_count: 2}],
+      [{id: "c1", summary: "Old Policy", policy_topic: "fiscal-policy", policy_key: "fiscal-policy-001", status: "archived", member_count: 5, approval_count: 3, endorsement_count: 2, ballot_stage: "ballot-ready"}],
       noStats,
       {total: 0, items: []},
     );

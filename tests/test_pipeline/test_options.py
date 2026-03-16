@@ -21,6 +21,7 @@ def _make_cluster(n_candidates: int = 3) -> MagicMock:
     cluster = MagicMock()
     cluster.id = uuid4()
     cluster.summary = "Public healthcare"
+    cluster.ballot_question = "Should the government expand public healthcare coverage?"
     cluster.candidate_ids = [uuid4() for _ in range(n_candidates)]
     return cluster
 
@@ -31,6 +32,10 @@ def _make_candidate(cid: object, stance: str = "support") -> MagicMock:
     c.title = "Healthcare access"
     c.summary = "Everyone should have access to healthcare."
     c.stance = stance
+    c.actor_scope = "public-governance"
+    c.action_mechanism = "governance-design"
+    c.target_scope = "public-governance"
+    c.ballot_readiness = "ballot-ready"
     return c
 
 
@@ -139,8 +144,8 @@ def test_submissions_block_formats_candidates() -> None:
     candidates_by_id = {c1.id: c1, c2.id: c2}
 
     block = _build_submissions_block(cluster, candidates_by_id)
-    assert "[support]" in block
-    assert "[oppose]" in block
+    assert "[support;" in block
+    assert "[oppose;" in block
 
 
 def test_submissions_block_includes_full_summary() -> None:
@@ -179,6 +184,25 @@ def test_fallback_produces_two_options() -> None:
     assert result[1]["label_en"] == "Oppose this policy"
 
 
+def test_fallback_uses_bilingual_descriptions() -> None:
+    """Fallback options use ballot_question_fa for Farsi, not cluster.summary."""
+    cluster = _make_cluster()
+    cluster.ballot_question_fa = "آیا دولت باید بهداشت عمومی را گسترش دهد"
+    result = _fallback_options(cluster)
+    assert "آیا دولت باید بهداشت عمومی را گسترش دهد" in result[0]["description"]
+    assert "Public healthcare" not in result[0]["description"]
+    assert cluster.ballot_question in result[0]["description_en"]
+
+
+def test_fallback_falls_back_to_summary_when_no_ballot_question() -> None:
+    cluster = _make_cluster()
+    cluster.ballot_question = None
+    cluster.ballot_question_fa = None
+    result = _fallback_options(cluster)
+    assert cluster.summary in result[0]["description_en"]
+    assert "این سیاست" in result[0]["description"]
+
+
 # ---------------------------------------------------------------------------
 # generate_policy_options (integration)
 # ---------------------------------------------------------------------------
@@ -201,6 +225,7 @@ async def test_generate_policy_options_creates_records(mock_evidence: AsyncMock)
     ))
 
     session = AsyncMock()
+    session.add = MagicMock()
     options = await generate_policy_options(
         session=session,
         clusters=[cluster],
@@ -227,6 +252,7 @@ async def test_generate_policy_options_creates_records(mock_evidence: AsyncMock)
 @patch("src.pipeline.options.append_evidence", new_callable=AsyncMock)
 async def test_generate_policy_options_uses_fallback_on_error(mock_evidence: AsyncMock) -> None:
     cluster = _make_cluster(1)
+    cluster.policy_key = "test-policy"
     c1 = _make_candidate(cluster.candidate_ids[0])
     candidates_by_id = {c1.id: c1}
 
@@ -234,6 +260,7 @@ async def test_generate_policy_options_uses_fallback_on_error(mock_evidence: Asy
     router.complete = AsyncMock(side_effect=RuntimeError("LLM down"))
 
     session = AsyncMock()
+    session.add = MagicMock()
     options = await generate_policy_options(
         session=session,
         clusters=[cluster],
@@ -243,3 +270,16 @@ async def test_generate_policy_options_uses_fallback_on_error(mock_evidence: Asy
 
     assert len(options) == 2
     assert options[0].model_version == "fallback"
+
+    fallback_calls = [
+        c for c in mock_evidence.call_args_list
+        if c.kwargs.get("event_type") == "policy_options_fallback_used"
+    ]
+    assert len(fallback_calls) == 1
+    assert fallback_calls[0].kwargs["payload"]["error_type"] == "RuntimeError"
+
+    generated_calls = [
+        c for c in mock_evidence.call_args_list
+        if c.kwargs.get("event_type") == "policy_options_generated"
+    ]
+    assert len(generated_calls) == 1

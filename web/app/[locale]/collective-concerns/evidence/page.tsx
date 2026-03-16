@@ -114,6 +114,11 @@ export default function EvidencePage() {
     const pairs: [string, string][] = [];
     if (p.policy_topic) pairs.push(["Topic", String(p.policy_topic)]);
     if (p.policy_key) pairs.push(["Policy key", String(p.policy_key)]);
+    if (p.ballot_readiness) pairs.push(["Stage", String(p.ballot_readiness)]);
+    if (p.actor_scope) pairs.push(["Actor", String(p.actor_scope)]);
+    if (p.action_mechanism) pairs.push(["Mechanism", String(p.action_mechanism)]);
+    if (p.target_scope) pairs.push(["Target", String(p.target_scope)]);
+    if (p.refinement_draft) pairs.push(["Draft", String(p.refinement_draft)]);
     if (p.confidence != null) pairs.push(["Confidence", `${Math.round(Number(p.confidence) * 100)}%`]);
     if (p.status) pairs.push(["Status", String(p.status)]);
     if (p.language) pairs.push(["Language", String(p.language)]);
@@ -125,6 +130,8 @@ export default function EvidencePage() {
       pairs.push(["Growth", `${p.old_member_count} → ${p.new_member_count}`]);
     if (p.survivor_key) pairs.push(["Survivor", String(p.survivor_key)]);
     if (p.merged_key) pairs.push(["Merged", String(p.merged_key)]);
+    if (p.old_policy_key) pairs.push(["Old key", String(p.old_policy_key)]);
+    if (p.new_policy_key) pairs.push(["New key", String(p.new_policy_key)]);
     if (p.option_count != null) pairs.push(["Options", String(p.option_count)]);
     if (p.cycle_duration_hours != null) pairs.push(["Duration", `${p.cycle_duration_hours}h`]);
     if (p.resolution_seconds != null)

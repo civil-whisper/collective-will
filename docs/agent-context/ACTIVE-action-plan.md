@@ -1120,6 +1120,12 @@ Design docs:
      - Public “how to verify” page for journalists/researchers
      - Keep shell/CLI instructions optional, not required for ordinary users
 
+143. [done] Replace all Gemini fallbacks with GPT-4o
+    - Gemini 3.1 Pro rate limits (25 RPD) caused persistent 429 errors across all fallback tiers
+    - Switched all fallback models from `gemini-3.1-pro-preview` to `gpt-4o` (config, deploy envs, .env, tests, docs)
+    - Ensemble models updated to `claude-sonnet-4-6,gpt-4o`
+    - Embeddings unchanged (Gemini embedding quotas remain generous)
+
 ## Definition of Done (This Cycle)
 
 - No CI/CD job performs paid LLM API calls

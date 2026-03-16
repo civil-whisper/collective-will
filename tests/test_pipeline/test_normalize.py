@@ -79,7 +79,11 @@ class TestExtractMergesFromMapping:
 
 class TestBuildSubmissionsBlock:
     def test_single_entry(self) -> None:
-        entries = [{"key": "hijab-policy", "topic": "dress-code", "count": 5, "summary": "Policy about hijab"}]
+        entries = [{
+            "key": "hijab-policy", "topic": "dress-code", "count": 5, "summary": "Policy about hijab",
+            "actor_scope": "domestic-citizens", "action_mechanism": "governance-design",
+            "target_scope": "civil-rights", "ballot_readiness": "ballot-ready",
+        }]
         block = _build_submissions_block(entries)
         assert '"hijab-policy"' in block
         assert '"dress-code"' in block
@@ -88,8 +92,16 @@ class TestBuildSubmissionsBlock:
 
     def test_multiple_entries(self) -> None:
         entries = [
-            {"key": "key-a", "topic": "topic-1", "count": 10, "summary": "Summary A"},
-            {"key": "key-b", "topic": "topic-2", "count": 3, "summary": "Summary B"},
+            {
+                "key": "key-a", "topic": "topic-1", "count": 10, "summary": "Summary A",
+                "actor_scope": "unclear", "action_mechanism": "unclear",
+                "target_scope": "unclear", "ballot_readiness": "discussion-only",
+            },
+            {
+                "key": "key-b", "topic": "topic-2", "count": 3, "summary": "Summary B",
+                "actor_scope": "unclear", "action_mechanism": "unclear",
+                "target_scope": "unclear", "ballot_readiness": "discussion-only",
+            },
         ]
         block = _build_submissions_block(entries)
         assert "1." in block

@@ -22,9 +22,42 @@ const FULL_CLUSTER = {
   member_count: 12,
   approval_count: 8,
   endorsement_count: 5,
+  ballot_stage: "needs-refinement",
+  readiness_counts: {"ballot-ready": 1, "needs-refinement": 1, "discussion-only": 0},
+  refinement_draft: "The government should expand bus routes and service frequency in underserved areas.",
+  refinement_draft_fa: "دولت باید مسیرها و تعداد سرویس اتوبوس را در مناطق کم‌برخوردار افزایش دهد.",
+  refinement_confidence: 0.82,
+  refinement_requires_clarification: false,
+  refinement_notes: "Multiple submissions point toward a concrete transit expansion proposal.",
   candidates: [
-    {id: "p1", title: "Tax Reform", summary: "Simplify tax code", policy_topic: "fiscal-policy", policy_key: "fiscal-policy-001", confidence: 0.92},
-    {id: "p2", title: "Budget Cuts", summary: "Reduce spending", policy_topic: "fiscal-policy", policy_key: "fiscal-policy-002", confidence: 0.78},
+    {
+      id: "p1",
+      submission_id: "s1",
+      title: "Tax Reform",
+      summary: "Simplify tax code",
+      policy_topic: "fiscal-policy",
+      policy_key: "fiscal-policy-001",
+      actor_scope: "public-governance",
+      action_mechanism: "governance-design",
+      target_scope: "public-governance",
+      ballot_readiness: "ballot-ready",
+      ballot_readiness_reason: "Concrete enough for a ballot proposition.",
+      confidence: 0.92,
+    },
+    {
+      id: "p2",
+      submission_id: "s2",
+      title: "Budget Cuts",
+      summary: "Reduce spending",
+      policy_topic: "fiscal-policy",
+      policy_key: "fiscal-policy-002",
+      actor_scope: "public-governance",
+      action_mechanism: "governance-design",
+      target_scope: "public-governance",
+      ballot_readiness: "needs-refinement",
+      ballot_readiness_reason: "Still too broad.",
+      confidence: 0.78,
+    },
   ],
 };
 
@@ -83,6 +116,18 @@ describe("ClusterDetailPage", () => {
     expect(screen.getByText(/92%/)).toBeTruthy();
     expect(screen.getByText(/Reduce spending/)).toBeTruthy();
     expect(screen.getByText(/78%/)).toBeTruthy();
+  });
+
+  it("shows stage and semantic metadata", async () => {
+    mockFetchWith(FULL_CLUSTER);
+    const jsx = await ClusterDetailPage({params: makeParams("c1")});
+    render(jsx);
+    expect(screen.getAllByText("Needs refinement").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText(/Actor:/).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText(/Mechanism:/).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText(/View submission history/).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText("Proposition Draft")).toBeTruthy();
+    expect(screen.getByText(/bus routes and service frequency/)).toBeTruthy();
   });
 
   it("fetches from the correct API endpoint using params id", async () => {

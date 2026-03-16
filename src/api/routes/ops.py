@@ -175,6 +175,86 @@ async def events(
     return [OpsEventResponse(**item) for item in cleaned]
 
 
+PIPELINE_DEGRADATION_EVENTS = {
+    "submission_deferred_to_batch",
+    "candidate_parse_repaired",
+    "normalization_step_failed",
+    "ballot_generation_failed",
+    "policy_options_fallback_used",
+    "dispute_ensemble_member_failed",
+}
+
+
+class PipelineStepHealth(BaseModel):
+    step: str
+    event_count: int
+    latest_at: str | None = None
+
+
+class PipelineHealthResponse(BaseModel):
+    generated_at: str
+    total_degradation_events: int
+    by_step: list[PipelineStepHealth]
+    model_fallback_count: int
+    recent_degradations: list[OpsEventResponse]
+
+
+@router.get("/pipeline-health", response_model=PipelineHealthResponse)
+async def pipeline_health(
+    _: Annotated[str | None, Depends(_require_ops_access)],
+    session: AsyncSession = Depends(get_db),
+    hours: int = Query(24, ge=1, le=720),
+) -> PipelineHealthResponse:
+    """Pipeline reliability overview: degradation events by step + model fallback rate."""
+    since = datetime.now(UTC) - timedelta(hours=hours)
+
+    result = await session.execute(
+        select(EvidenceLogEntry)
+        .where(
+            EvidenceLogEntry.event_type.in_(PIPELINE_DEGRADATION_EVENTS),
+            EvidenceLogEntry.timestamp >= since,
+        )
+        .order_by(EvidenceLogEntry.timestamp.desc())
+    )
+    rows = list(result.scalars().all())
+
+    step_map: dict[str, list[EvidenceLogEntry]] = {}
+    for row in rows:
+        step_map.setdefault(row.event_type, []).append(row)
+
+    by_step = []
+    for event_type in sorted(PIPELINE_DEGRADATION_EVENTS):
+        entries = step_map.get(event_type, [])
+        by_step.append(PipelineStepHealth(
+            step=event_type,
+            event_count=len(entries),
+            latest_at=isoformat_z(entries[0].timestamp) if entries else None,
+        ))
+
+    mem_events = ops_events.ops_event_buffer.recent(limit=500, event_type="llm_fallback_used")
+    model_fallback_count = len(mem_events)
+
+    recent_items: list[OpsEventResponse] = []
+    for row in rows[:20]:
+        recent_items.append(OpsEventResponse(
+            timestamp=isoformat_z(row.timestamp),
+            level="warning",
+            component="pipeline",
+            event_type=row.event_type,
+            message=f"Pipeline degradation: {row.event_type}",
+            correlation_id=None,
+            payload=ops_events.sanitize_value(row.payload),
+        ))
+
+    return PipelineHealthResponse(
+        generated_at=datetime.now(UTC).isoformat(timespec="milliseconds").replace("+00:00", "Z"),
+        total_degradation_events=len(rows),
+        by_step=by_step,
+        model_fallback_count=model_fallback_count,
+        recent_degradations=recent_items,
+    )
+
+
 @router.get("/jobs", response_model=list[JobStatus])
 async def jobs(
     settings: Annotated[Settings, Depends(get_settings)],

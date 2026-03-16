@@ -6,10 +6,16 @@ import {PageShell, MetricCard, TopicBadge, Card} from "@/components/ui";
 
 type PolicyCandidatePublic = {
   id: string;
+  submission_id: string;
   title: string;
   summary: string;
   policy_topic: string;
   policy_key: string;
+  actor_scope: string;
+  action_mechanism: string;
+  target_scope: string;
+  ballot_readiness: "ballot-ready" | "needs-refinement" | "discussion-only";
+  ballot_readiness_reason: string | null;
   confidence: number;
   raw_text: string | null;
   language: string | null;
@@ -23,6 +29,13 @@ type ClusterDetail = {
   member_count: number;
   approval_count: number;
   endorsement_count: number;
+  ballot_stage: "ballot-ready" | "needs-refinement" | "discussion-only" | "unknown";
+  readiness_counts: Record<string, number>;
+  refinement_draft: string | null;
+  refinement_draft_fa: string | null;
+  refinement_confidence: number | null;
+  refinement_requires_clarification: boolean;
+  refinement_notes: string | null;
   candidates: PolicyCandidatePublic[];
 };
 
@@ -61,6 +74,7 @@ export default async function ClusterDetailPage({params}: Props) {
       actions={
         <div className="flex items-center gap-2">
           <TopicBadge topic={cluster.policy_topic} />
+          <StageBadge stage={cluster.ballot_stage} t={t} />
         </div>
       }
     >
@@ -68,6 +82,40 @@ export default async function ClusterDetailPage({params}: Props) {
       <p className="text-sm leading-relaxed text-gray-700 sm:text-base dark:text-slate-300">
         {cluster.summary}
       </p>
+      <div className="flex flex-wrap items-center gap-3 text-xs text-gray-500 dark:text-slate-400">
+        <span>{t("stageBallotReadyCount", {count: cluster.readiness_counts["ballot-ready"] ?? 0})}</span>
+        <span>{t("stageNeedsRefinementCount", {count: cluster.readiness_counts["needs-refinement"] ?? 0})}</span>
+        <span>{t("stageDiscussionOnlyCount", {count: cluster.readiness_counts["discussion-only"] ?? 0})}</span>
+      </div>
+
+      {cluster.refinement_draft && (
+        <Card>
+          <div className="space-y-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="text-sm font-semibold">{t("refinementDraftTitle")}</p>
+              {cluster.refinement_confidence != null && (
+                <span className="text-xs text-gray-500 dark:text-slate-400">
+                  {t("refinementConfidence", {count: Math.round(cluster.refinement_confidence * 100)})}
+                </span>
+              )}
+            </div>
+            <p className="text-sm text-gray-700 dark:text-slate-300">{cluster.refinement_draft}</p>
+            {cluster.refinement_draft_fa && (
+              <p className="text-sm text-gray-700 dark:text-slate-300" dir="rtl">
+                {cluster.refinement_draft_fa}
+              </p>
+            )}
+            {cluster.refinement_notes && (
+              <p className="text-xs text-gray-500 dark:text-slate-400">{cluster.refinement_notes}</p>
+            )}
+            {cluster.refinement_requires_clarification && (
+              <p className="text-xs text-amber-700 dark:text-amber-300">
+                {t("refinementNeedsClarification")}
+              </p>
+            )}
+          </div>
+        </Card>
+      )}
 
       {/* Metrics */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
@@ -117,8 +165,33 @@ export default async function ClusterDetailPage({params}: Props) {
                   <p className="mt-1 text-xs text-gray-600 sm:text-sm dark:text-slate-400">
                     {candidate.summary}
                   </p>
-                  <div className="mt-2">
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
                     <TopicBadge topic={candidate.policy_topic} />
+                    <StageBadge stage={candidate.ballot_readiness} t={t} />
+                  </div>
+                  <div className="mt-1.5 flex flex-col gap-0.5">
+                    <span className="text-xs text-gray-500 dark:text-slate-400">
+                      {t("semanticActor")}: {candidate.actor_scope}
+                    </span>
+                    <span className="text-xs text-gray-500 dark:text-slate-400">
+                      {t("semanticMechanism")}: {candidate.action_mechanism}
+                    </span>
+                    <span className="text-xs text-gray-500 dark:text-slate-400">
+                      {t("semanticTarget")}: {candidate.target_scope}
+                    </span>
+                  </div>
+                  {candidate.ballot_readiness_reason && (
+                    <p className="mt-1 text-xs text-gray-500 dark:text-slate-400">
+                      {candidate.ballot_readiness_reason}
+                    </p>
+                  )}
+                  <div className="mt-2">
+                    <Link
+                      href={`/${locale}/submission/${candidate.id}`}
+                      className="text-xs font-medium text-accent hover:underline"
+                    >
+                      {t("viewSubmissionHistory")} →
+                    </Link>
                   </div>
                 </div>
                 <div className="text-end">
@@ -133,5 +206,31 @@ export default async function ClusterDetailPage({params}: Props) {
         </div>
       </div>
     </PageShell>
+  );
+}
+
+function StageBadge({
+  stage,
+  t,
+}: {
+  stage: "ballot-ready" | "needs-refinement" | "discussion-only" | "unknown";
+  t: (key: string, values?: Record<string, string | number>) => string;
+}) {
+  const labelByStage = {
+    "ballot-ready": t("stageBallotReady"),
+    "needs-refinement": t("stageNeedsRefinement"),
+    "discussion-only": t("stageDiscussionOnly"),
+    "unknown": t("stageUnknown"),
+  };
+  const classNameByStage = {
+    "ballot-ready": "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300",
+    "needs-refinement": "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300",
+    "discussion-only": "bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-300",
+    "unknown": "bg-gray-200 text-gray-700 dark:bg-slate-700 dark:text-slate-300",
+  };
+  return (
+    <span className={`rounded px-1.5 py-0.5 text-xs font-medium ${classNameByStage[stage]}`}>
+      {labelByStage[stage]}
+    </span>
   );
 }

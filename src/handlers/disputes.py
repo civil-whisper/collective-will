@@ -18,6 +18,10 @@ from src.pipeline.llm import LLMResponse, LLMRouter
 logger = logging.getLogger(__name__)
 
 _STANCES = "support, oppose, neutral, unclear"
+_DEFAULT_ACTOR_SCOPE = "unclear"
+_DEFAULT_ACTION_MECHANISM = "unclear"
+_DEFAULT_TARGET_SCOPE = "unclear"
+_DEFAULT_BALLOT_READINESS = "discussion-only"
 
 
 def _prompt_version(prompt: str) -> str:
@@ -100,6 +104,15 @@ def _normalize_decision(raw: dict[str, Any], completion: LLMResponse, prompt: st
         "title": str(raw.get("title", "Untitled policy candidate")),
         "summary": str(raw.get("summary", "")),
         "stance": stance_value,
+        "policy_topic": str(raw.get("policy_topic", "unassigned")).strip() or "unassigned",
+        "policy_key": str(raw.get("policy_key", "unassigned")).strip() or "unassigned",
+        "actor_scope": str(raw.get("actor_scope", _DEFAULT_ACTOR_SCOPE)).strip() or _DEFAULT_ACTOR_SCOPE,
+        "action_mechanism": str(raw.get("action_mechanism", _DEFAULT_ACTION_MECHANISM)).strip()
+        or _DEFAULT_ACTION_MECHANISM,
+        "target_scope": str(raw.get("target_scope", _DEFAULT_TARGET_SCOPE)).strip() or _DEFAULT_TARGET_SCOPE,
+        "ballot_readiness": str(raw.get("ballot_readiness", _DEFAULT_BALLOT_READINESS)).strip()
+        or _DEFAULT_BALLOT_READINESS,
+        "ballot_readiness_reason": str(raw.get("ballot_readiness_reason", "")).strip() or None,
         "entities": entities,
         "confidence": confidence,
         "ambiguity_flags": flags,
@@ -184,6 +197,8 @@ async def _run_ensemble(
     prompt: str,
     models: list[str],
     temperature: float,
+    session: AsyncSession | None = None,
+    submission_id: Any | None = None,
 ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     decisions: list[dict[str, Any]] = []
     for model in models:
@@ -195,8 +210,19 @@ async def _run_ensemble(
             )
             parsed = _parse_candidate_payload(completion.text)
             decisions.append(_normalize_decision(parsed, completion, prompt))
-        except Exception:
+        except Exception as exc:
             logger.exception("Dispute ensemble model failed: %s", model)
+            if session is not None and submission_id is not None:
+                await append_evidence(
+                    session=session,
+                    event_type="dispute_ensemble_member_failed",
+                    entity_type="submission",
+                    entity_id=submission_id,
+                    payload={
+                        "model": model,
+                        "error_type": type(exc).__name__,
+                    },
+                )
     if not decisions:
         raise RuntimeError("Dispute ensemble failed: no model succeeded")
     best = max(decisions, key=lambda item: float(item.get("confidence", 0.0)))
@@ -235,6 +261,8 @@ async def resolve_submission_dispute(
             prompt=prompt,
             models=ensemble_models,
             temperature=settings.dispute_ensemble_temperature,
+            session=session,
+            submission_id=submission.id,
         )
         await append_evidence(
             session=session,
@@ -264,6 +292,11 @@ async def resolve_submission_dispute(
                 stance=final_decision["stance"],
                 policy_topic=final_decision.get("policy_topic", "unassigned"),
                 policy_key=final_decision.get("policy_key", "unassigned"),
+                actor_scope=final_decision["actor_scope"],
+                action_mechanism=final_decision["action_mechanism"],
+                target_scope=final_decision["target_scope"],
+                ballot_readiness=final_decision["ballot_readiness"],
+                ballot_readiness_reason=final_decision["ballot_readiness_reason"],
                 entities=final_decision["entities"],
                 embedding=None,
                 confidence=final_decision["confidence"],
@@ -273,15 +306,48 @@ async def resolve_submission_dispute(
             ),
         )
     else:
+        old_policy_topic = current_candidate.policy_topic
+        old_policy_key = current_candidate.policy_key
+        old_ballot_readiness = getattr(current_candidate, "ballot_readiness", _DEFAULT_BALLOT_READINESS)
         current_candidate.title = final_decision["title"]
         current_candidate.summary = final_decision["summary"]
         current_candidate.stance = final_decision["stance"]
+        current_candidate.policy_topic = final_decision["policy_topic"]
+        current_candidate.policy_key = final_decision["policy_key"]
+        current_candidate.actor_scope = final_decision["actor_scope"]
+        current_candidate.action_mechanism = final_decision["action_mechanism"]
+        current_candidate.target_scope = final_decision["target_scope"]
+        current_candidate.ballot_readiness = final_decision["ballot_readiness"]
+        current_candidate.ballot_readiness_reason = final_decision["ballot_readiness_reason"]
         current_candidate.entities = final_decision["entities"]
         current_candidate.confidence = final_decision["confidence"]
         current_candidate.ambiguity_flags = final_decision["ambiguity_flags"]
         current_candidate.model_version = final_decision["model_version"]
         current_candidate.prompt_version = final_decision["prompt_version"]
         resolved_candidate = current_candidate
+        if (
+            old_policy_topic != current_candidate.policy_topic
+            or old_policy_key != current_candidate.policy_key
+            or old_ballot_readiness != current_candidate.ballot_readiness
+        ):
+            await append_evidence(
+                session=session,
+                event_type="candidate_rekeyed",
+                entity_type="candidate",
+                entity_id=current_candidate.id,
+                payload={
+                    "candidate_id": str(current_candidate.id),
+                    "submission_id": str(submission.id),
+                    "stage": "dispute_resolution",
+                    "old_policy_key": old_policy_key,
+                    "new_policy_key": current_candidate.policy_key,
+                    "old_policy_topic": old_policy_topic,
+                    "new_policy_topic": current_candidate.policy_topic,
+                    "old_ballot_readiness": old_ballot_readiness,
+                    "new_ballot_readiness": current_candidate.ballot_readiness,
+                    "reason_code": "dispute_resolution",
+                },
+            )
 
     await append_evidence(
         session=session,
@@ -297,6 +363,8 @@ async def resolve_submission_dispute(
             "model_version": final_decision["model_version"],
             "resolved_title": final_decision["title"],
             "resolved_summary": final_decision["summary"],
+            "resolved_policy_key": final_decision["policy_key"],
+            "resolved_policy_topic": final_decision["policy_topic"],
             "resolution_seconds": (datetime.now(UTC) - dispute_start).total_seconds(),
         },
     )

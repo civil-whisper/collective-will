@@ -53,6 +53,13 @@ async def test_resolve_submission_dispute_updates_existing_candidate() -> None:
     candidate.title = "Old title"
     candidate.summary = "Old summary"
     candidate.stance = "unclear"
+    candidate.policy_topic = "old-topic"
+    candidate.policy_key = "old-key"
+    candidate.actor_scope = "unclear"
+    candidate.action_mechanism = "unclear"
+    candidate.target_scope = "unclear"
+    candidate.ballot_readiness = "discussion_only"
+    candidate.ballot_readiness_reason = None
     candidate.entities = []
     candidate.confidence = 0.1
     candidate.ambiguity_flags = []
@@ -62,8 +69,12 @@ async def test_resolve_submission_dispute_updates_existing_candidate() -> None:
     session = AsyncMock()
     session.execute.side_effect = [_select_result(candidate), _select_result(None)]
     router = _router_with_primary(
-        '{"title":"Water Access Policy","domain":"rights","summary":"Ensure water access",'
-        '"stance":"support","entities":["water"],"confidence":0.9,"ambiguity_flags":[]}'
+        '{"title":"Water Access Policy","summary":"Ensure water access",'
+        '"stance":"support","policy_topic":"water-access","policy_key":"clean-water-access",'
+        '"actor_scope":"public-governance","action_mechanism":"governance-design",'
+        '"target_scope":"public-governance","ballot_readiness":"ballot-ready",'
+        '"ballot_readiness_reason":"This is a concrete public policy proposition.",'
+        '"entities":["water"],"confidence":0.9,"ambiguity_flags":[]}'
     )
 
     with (
@@ -77,11 +88,15 @@ async def test_resolve_submission_dispute_updates_existing_candidate() -> None:
     assert candidate.title == "Water Access Policy"
     assert candidate.summary == "Ensure water access"
     assert candidate.stance == "support"
+    assert candidate.policy_key == "clean-water-access"
+    assert candidate.ballot_readiness == "ballot-ready"
     assert candidate.confidence == 0.9
     assert router.complete.call_count == 1
     assert router.complete_with_model.call_count == 0
-    assert mock_evidence.call_count == 1
-    assert mock_evidence.call_args.kwargs["event_type"] == "dispute_resolved"
+    assert mock_evidence.call_count == 2
+    event_types = [call.kwargs["event_type"] for call in mock_evidence.call_args_list]
+    assert "candidate_rekeyed" in event_types
+    assert "dispute_resolved" in event_types
     mock_metrics.assert_called_once()
     session.commit.assert_called_once()
 
@@ -99,21 +114,33 @@ async def test_resolve_submission_dispute_escalates_low_confidence_and_creates_c
     session.execute.side_effect = [_select_result(None), _select_result(None)]
 
     router = _router_with_primary(
-        '{"title":"Inflation policy","domain":"economy","summary":"Lower inflation",'
-        '"stance":"support","entities":["inflation"],"confidence":0.3,"ambiguity_flags":[]}'
+        '{"title":"Inflation policy","summary":"Lower inflation",'
+        '"stance":"support","policy_topic":"economic-reform","policy_key":"inflation-relief-policy",'
+        '"actor_scope":"public-governance","action_mechanism":"governance-design",'
+        '"target_scope":"public-governance","ballot_readiness":"needs-refinement",'
+        '"ballot_readiness_reason":"The goal is concrete but the mechanism still needs refinement.",'
+        '"entities":["inflation"],"confidence":0.3,"ambiguity_flags":[]}'
     )
     router.complete_with_model.side_effect = [
         LLMResponse(
-            text='{"title":"Inflation relief","domain":"economy","summary":"Relief policy",'
-            '"stance":"support","entities":["inflation"],"confidence":0.6,"ambiguity_flags":[]}',
+            text='{"title":"Inflation relief","summary":"Relief policy",'
+            '"stance":"support","policy_topic":"economic-reform","policy_key":"inflation-relief-policy",'
+            '"actor_scope":"public-governance","action_mechanism":"governance-design",'
+            '"target_scope":"public-governance","ballot_readiness":"needs-refinement",'
+            '"ballot_readiness_reason":"Mechanism remains broad.",'
+            '"entities":["inflation"],"confidence":0.6,"ambiguity_flags":[]}',
             model="claude-opus-4-20250514",
             input_tokens=10,
             output_tokens=8,
             cost_usd=0.0,
         ),
         LLMResponse(
-            text='{"title":"Inflation stabilization","domain":"economy","summary":"Stabilize prices",'
-            '"stance":"support","entities":["inflation"],"confidence":0.8,"ambiguity_flags":[]}',
+            text='{"title":"Inflation stabilization","summary":"Stabilize prices",'
+            '"stance":"support","policy_topic":"economic-reform","policy_key":"inflation-stabilization-policy",'
+            '"actor_scope":"public-governance","action_mechanism":"governance-design",'
+            '"target_scope":"public-governance","ballot_readiness":"ballot-ready",'
+            '"ballot_readiness_reason":"Specific enough for a ballot proposition.",'
+            '"entities":["inflation"],"confidence":0.8,"ambiguity_flags":[]}',
             model="deepseek-chat",
             input_tokens=10,
             output_tokens=8,

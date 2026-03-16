@@ -42,6 +42,11 @@ class Cluster(Base):
     summary: Mapped[str] = mapped_column(String, nullable=False)
     ballot_question: Mapped[str | None] = mapped_column(String, nullable=True)
     ballot_question_fa: Mapped[str | None] = mapped_column(String, nullable=True)
+    refinement_draft: Mapped[str | None] = mapped_column(String, nullable=True)
+    refinement_draft_fa: Mapped[str | None] = mapped_column(String, nullable=True)
+    refinement_confidence: Mapped[float | None] = mapped_column(nullable=True)
+    refinement_requires_clarification: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=sa.false())
+    refinement_notes: Mapped[str | None] = mapped_column(String, nullable=True)
     candidate_ids: Mapped[list[UUID]] = mapped_column(ARRAY(PGUUID(as_uuid=True)), nullable=False)
     member_count: Mapped[int] = mapped_column(Integer, nullable=False)
     approval_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
@@ -67,6 +72,11 @@ class ClusterCreate(BaseModel):
     summary: str
     ballot_question: str | None = None
     ballot_question_fa: str | None = None
+    refinement_draft: str | None = None
+    refinement_draft_fa: str | None = None
+    refinement_confidence: float | None = None
+    refinement_requires_clarification: bool = False
+    refinement_notes: str | None = None
     candidate_ids: list[UUID]
     member_count: int = Field(ge=1)
     approval_count: int = 0
@@ -83,6 +93,11 @@ class ClusterRead(BaseModel):
     summary: str
     ballot_question: str | None
     ballot_question_fa: str | None
+    refinement_draft: str | None
+    refinement_draft_fa: str | None
+    refinement_confidence: float | None
+    refinement_requires_clarification: bool
+    refinement_notes: str | None
     candidate_ids: list[UUID]
     member_count: int
     approval_count: int
@@ -101,6 +116,11 @@ class ClusterRead(BaseModel):
             summary=db_cluster.summary,
             ballot_question=db_cluster.ballot_question,
             ballot_question_fa=db_cluster.ballot_question_fa,
+            refinement_draft=db_cluster.refinement_draft,
+            refinement_draft_fa=db_cluster.refinement_draft_fa,
+            refinement_confidence=db_cluster.refinement_confidence,
+            refinement_requires_clarification=db_cluster.refinement_requires_clarification,
+            refinement_notes=db_cluster.refinement_notes,
             candidate_ids=list(db_cluster.candidate_ids),
             member_count=db_cluster.member_count,
             approval_count=db_cluster.approval_count,

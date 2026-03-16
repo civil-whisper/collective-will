@@ -7,11 +7,12 @@
 - `database/04-evidence-store` (append_evidence)
 
 ## Goal
-Generate human-readable summaries for each cluster using the quality-first `english_reasoning` model (v0 default: Claude Sonnet), then build the voting agenda using a multi-stage gate: size threshold first, endorsement-signature threshold second.
+Generate neutral concern/proposition wording for each cluster using the quality-first `english_reasoning` model, then build the voting agenda using a multi-stage gate: size threshold first, endorsement-signature threshold second, and ballot-readiness before final voting.
 
 ## Files
 
-- `src/pipeline/endorsement.py` — ballot question generation (replaced legacy `summarize.py`)
+- `src/pipeline/endorsement.py` — neutral concern / proposition wording generation
+- `src/pipeline/refinement.py` — autonomous proposition draft generation for non-ballot-ready clusters
 - `src/pipeline/agenda.py` — agenda builder
 
 ## Specification
@@ -37,19 +38,20 @@ Steps:
 2. Update cluster records with summaries
 3. Return updated clusters
 
-### Summarization prompt
+### Wording prompt
 
 ```
-You are summarizing a group of related policy concerns from Iranian citizens.
+You are writing neutral public-process wording for a group of related policy concerns from Iranian citizens.
 
 The following policy positions were clustered together because they address similar concerns:
 
 {aggregated_titles_and_summaries}
 
 Write:
-1. A concise summary (2-3 sentences) in Farsi that represents what this group collectively wants
-2. An English translation of the same summary
-3. A brief explanation (1 sentence) of why these items were grouped together
+1. Neutral wording for the cluster that sounds like a real democratic process item
+2. Agenda-setting language when the issue is still broad
+3. Proposition-style language only when the issue is concrete enough for a ballot
+4. A short summary suitable for concern lists
 
 Output JSON:
 {
@@ -73,12 +75,27 @@ def build_agenda(
 Qualification formula: `total_support = member_count + endorsement_count >= min_support`.
 Submissions count as implicit endorsements. `min_support` defaults to 5 (`MIN_PREBALLOT_ENDORSEMENTS`).
 
+### Ballot-readiness gate
+
+Agenda qualification is necessary but not sufficient for final voting. A cluster may only receive policy options and enter a `VotingCycle` when all member candidates are classified as `ballot-ready`. `discussion-only` and `needs-refinement` clusters can remain visible and collect endorsements, but they must not be surfaced as final ballot propositions.
+
+### Autonomous refinement drafts
+
+For clusters that are not yet `ballot-ready`, the scheduler may generate a cluster-level refinement artifact:
+
+- `refinement_draft` / `refinement_draft_fa`: a proposed concrete proposition derived from the cluster
+- `refinement_confidence`: how trustworthy the autonomous draft is
+- `refinement_requires_clarification`: whether the draft is still too uncertain to trust without more input
+- `refinement_notes`: short explanation of what is missing or why the draft is plausible
+
+These drafts are website-visible and evidence-logged, but they do not automatically change candidate readiness or allow voting. They are a refinement aid, not a silent promotion to ballot status.
+
 ### Auto-open voting cycles
 
 After the agenda is built, `_maybe_open_cycle()` in `scheduler/main.py` automatically opens a `VotingCycle` when all conditions are met:
 1. No active voting cycle exists
 2. Cooldown period since last closed cycle has elapsed (`AUTO_CYCLE_COOLDOWN_HOURS`, default 1h)
-3. At least one cluster with `status='open'` is vote-ready: qualifies by endorsement threshold AND has a ballot question AND has policy options generated
+3. At least one cluster with `status='open'` is vote-ready: qualifies by endorsement threshold, is ballot-ready, has neutral wording, and has policy options generated
 
 When a cycle opens, `open_cycle()` sets all included clusters to `status='archived'`. This prevents re-voting on the same policies and frees up the `policy_key` for new submissions to create a fresh cluster on the same topic.
 
@@ -100,9 +117,9 @@ When a voting cycle is active:
 - **Telegram**: The bot sends a timing header (`cycle_timing` message) showing policy count and time remaining before presenting the ballot.
 - **Website**: The Collective Concerns page shows a green banner with policy count and end time via `GET /analytics/stats` → `active_cycle` field (includes `started_at`, `ends_at`, `cluster_count`).
 
-### Policy Option Generation (post-summarization)
+### Policy Option Generation
 
-After cluster summarization, `src/pipeline/options.py` generates 2–4 distinct stance options per cluster using the LLM. This is called in the scheduler pipeline after `summarize_clusters()`.
+After neutral wording generation, `src/pipeline/options.py` generates 2–4 distinct stance options per cluster using the LLM. This only runs for ballot-ready clusters.
 
 ```python
 async def generate_policy_options(
@@ -114,7 +131,7 @@ async def generate_policy_options(
 ```
 
 Steps:
-1. For each cluster, build a submissions block from ALL member candidates — full title, summary, and stance with no truncation
+1. For each cluster, build a submissions block from ALL member candidates — full title, summary, stance, and semantic fields with no truncation
 2. Call LLM with `tier="option_generation"` and `grounding=True` to generate 2–4 stance options with bilingual labels and descriptions. The primary model (Gemini Flash) uses Google Search to research real-world policy positions.
 3. Parse JSON output, validate 2–4 options with required fields (label, label_en, description, description_en)
 4. Create `PolicyOption` records linked to the cluster
@@ -127,7 +144,8 @@ The options are used in the per-policy voting flow (see `messaging/08-message-co
 
 - Only aggregated/anonymized content is sent to the LLM. Never individual submissions or user data.
 - Full candidate summaries are passed without truncation — the LLM sees the complete citizen input.
-- Ballot inclusion uses a single combined gate: `total_support = member_count + endorsements >= min_support`. No editorial filtering beyond this gate.
+- Ballot inclusion uses combined support plus ballot-readiness. Broad concerns must not be silently upgraded into ballot items.
+- Autonomous refinement drafts may be generated for broad concerns, but they remain advisory until the cluster itself becomes `ballot-ready`.
 - Small clusters (below threshold) are NOT deleted. They remain visible on the analytics dashboard but don't appear in the voting ballot.
 - Summary generation must always have a fallback path configured for risk management (`english_reasoning_fallback_model`).
 - Policy option generation must have a fallback path (generic support/oppose) so voting is never blocked by LLM failures.
@@ -149,7 +167,7 @@ Tests in `tests/test_pipeline/test_endorsement.py`, `tests/test_pipeline/test_ag
 - All qualifying clusters included (no editorial filtering)
 
 **Auto-cycle opening (tests/test_pipeline/test_scheduler.py):**
-- Opens cycle when qualified clusters with ballot questions + options exist and no active cycle
+- Opens cycle when qualified ballot-ready clusters with wording + options exist and no active cycle
 - Skips when active cycle already exists
 - Respects cooldown period
 - Skips when below endorsement threshold
@@ -158,9 +176,14 @@ Tests in `tests/test_pipeline/test_endorsement.py`, `tests/test_pipeline/test_ag
 
 **Options (tests/test_pipeline/test_options.py):**
 - `_parse_options_json()` handles valid JSON, markdown fences, truncation to 4, rejects < 2 options
-- `_build_submissions_block()` formats candidates with stance labels, includes full summaries, includes all candidates
+- `_build_submissions_block()` formats candidates with stance + semantic labels, includes full summaries, includes all candidates
 - `_fallback_options()` produces 2 generic support/oppose options
 - `generate_policy_options()` calls with `tier="option_generation"` and `grounding=True`
 - `generate_policy_options()` creates PolicyOption records via LLM
 - `generate_policy_options()` uses fallback on LLM error
 - `PolicyOptionCreate` schema validation (rejects empty label, zero position)
+
+**Refinement (tests/test_pipeline/test_refinement.py`, `tests/test_pipeline/test_scheduler.py`):**
+- Non-ballot-ready clusters can receive autonomous proposition drafts
+- Draft generation records evidence and stores confidence / clarification flags
+- Scheduler only runs refinement for clusters that still need refinement

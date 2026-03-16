@@ -37,6 +37,11 @@ _MESSAGES = {
             "✅ دریافت شد! نظر شما ثبت شد.\n"
             "📊 مشاهده در وبسایت: {url}"
         ),
+        "confirmation_under_review": (
+            "✅ دریافت شد! نگرانی شما ثبت شد.\n"
+            "در حال حاضر این مورد به عنوان یک نگرانی عمومی ثبت شده و دارد با موارد مشابه گروه‌بندی و شفاف‌تر می‌شود.\n"
+            "📊 مشاهده در وبسایت: {url}"
+        ),
         "rejection": (
             "❌ پیام شما به عنوان یک پیشنهاد سیاستی قابل پردازش نبود.\n"
             "{reason}\n"
@@ -54,6 +59,12 @@ _MESSAGES = {
         ),
         "confirmation_fallback": (
             "✅ Received! Your submission has been recorded.\n"
+            "📊 View on website: {url}"
+        ),
+        "confirmation_under_review": (
+            "✅ Received! Your concern has been recorded.\n"
+            "For now it is being kept as a public concern while the system groups it "
+            "with similar submissions and refines it into a clearer proposition.\n"
             "📊 View on website: {url}"
         ),
         "rejection": (
@@ -205,16 +216,48 @@ async def handle_submission(
             return
 
         db_candidate = await create_policy_candidate(db, result)
+        await append_evidence(
+            session=db,
+            event_type="candidate_classified",
+            entity_type="candidate",
+            entity_id=db_candidate.id,
+            payload={
+                "candidate_id": str(db_candidate.id),
+                "submission_id": str(submission.id),
+                "policy_topic": db_candidate.policy_topic,
+                "policy_key": db_candidate.policy_key,
+                "actor_scope": db_candidate.actor_scope,
+                "action_mechanism": db_candidate.action_mechanism,
+                "target_scope": db_candidate.target_scope,
+                "ballot_readiness": db_candidate.ballot_readiness,
+                "ballot_readiness_reason": db_candidate.ballot_readiness_reason,
+                "confidence": db_candidate.confidence,
+                "model_version": db_candidate.model_version,
+                "prompt_version": db_candidate.prompt_version,
+            },
+        )
         await compute_and_store_embeddings(session=db, candidates=[db_candidate], llm_router=router)
         submission.status = "canonicalized"
         user.contribution_count += 1
         await db.commit()
         analytics_url = f"{settings.app_public_base_url}/{locale}/submission/{db_candidate.id}"
-        text = _msg(locale, "confirmation", title=result.title, url=analytics_url)
+        message_key = "confirmation" if result.ballot_readiness == "ballot-ready" else "confirmation_under_review"
+        text = _msg(locale, message_key, title=result.title, url=analytics_url)
         await channel.send_message(OutboundMessage(recipient_ref=message.sender_ref, text=text))
-    except Exception:
+    except Exception as exc:
         logger.exception("Inline canonicalization failed for submission %s, deferring to batch", submission.id)
         submission.status = "pending"
+        await append_evidence(
+            session=db,
+            event_type="submission_deferred_to_batch",
+            entity_type="submission",
+            entity_id=submission.id,
+            payload={
+                "submission_id": str(submission.id),
+                "error_type": type(exc).__name__,
+                "step": "inline_canonicalization",
+            },
+        )
         await db.commit()
         analytics_url = f"{settings.app_public_base_url}/{locale}/collective-concerns"
         await channel.send_message(
@@ -324,13 +367,44 @@ async def process_submission(
             return submission, "rejected_not_policy"
 
         db_candidate = await create_policy_candidate(session, result)
+        await append_evidence(
+            session=session,
+            event_type="candidate_classified",
+            entity_type="candidate",
+            entity_id=db_candidate.id,
+            payload={
+                "candidate_id": str(db_candidate.id),
+                "submission_id": str(submission.id),
+                "policy_topic": db_candidate.policy_topic,
+                "policy_key": db_candidate.policy_key,
+                "actor_scope": db_candidate.actor_scope,
+                "action_mechanism": db_candidate.action_mechanism,
+                "target_scope": db_candidate.target_scope,
+                "ballot_readiness": db_candidate.ballot_readiness,
+                "ballot_readiness_reason": db_candidate.ballot_readiness_reason,
+                "confidence": db_candidate.confidence,
+                "model_version": db_candidate.model_version,
+                "prompt_version": db_candidate.prompt_version,
+            },
+        )
         await compute_and_store_embeddings(session=session, candidates=[db_candidate], llm_router=router)
         submission.status = "canonicalized"
         user.contribution_count += 1
         await session.commit()
         return submission, ("accepted_flagged" if quarantined else "accepted")
-    except Exception:
+    except Exception as exc:
         logger.exception("Inline canonicalization failed for submission %s, deferring to batch", submission.id)
         submission.status = "pending"
+        await append_evidence(
+            session=session,
+            event_type="submission_deferred_to_batch",
+            entity_type="submission",
+            entity_id=submission.id,
+            payload={
+                "submission_id": str(submission.id),
+                "error_type": type(exc).__name__,
+                "step": "inline_canonicalization",
+            },
+        )
         await session.commit()
         return submission, "pending"

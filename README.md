@@ -9,16 +9,12 @@ flow diagrams, see **[docs/architecture-flow.md](docs/architecture-flow.md)**.
 
 - `docs/` — all project documentation
   - `docs/architecture-flow.md` — **end-to-end architecture & submission flow** (start here)
-  - `docs/agent-context/` — implementation contracts (30 tasks across database, pipeline, messaging, website)
-  - `docs/decision-rationale/` — decision rationale and guardrails
-  - `docs/mvp-specification.md`
-  - `docs/llm-strategy.md`
-  - `docs/infrastructure-guide.md`
-  - `docs/roadmap.md`
-  - `docs/v0-precoding-checklist.md`
-  - `docs/decision-rationale/` — architectural decision rationale and guardrails
-  - `docs/CONTRIBUTING.md`
-  - `docs/DECISION_LOCKS.md`
+  - `docs/mvp-specification.md` — product context and frozen decisions
+  - `docs/roadmap.md` — v0/v1/v2 roadmap
+  - `docs/faq-content.md` — FAQ page content (EN + FA)
+  - `docs/CONTRIBUTING.md` — contribution rules and CI parity
+  - `docs/agent-context/` — implementation contracts (database, pipeline, messaging, website)
+  - `docs/decision-rationale/` — decision rationale, guardrails, LLM strategy, infra guide, decision locks
 - `src/` — Python backend (FastAPI, SQLAlchemy, pipeline)
 - `web/` — Next.js frontend (i18n, analytics, dashboard)
 - `migrations/` — Alembic database migrations

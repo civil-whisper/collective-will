@@ -1,9 +1,10 @@
 """Grouping integration test: 100+ submissions → serial canonicalize → interleaved normalize → verify grouping.
 
 Tests the full LLM-driven policy grouping pipeline with realistic submissions
-across 5 policy discussions plus outliers.
+across multiple policy discussions, adversarial regime-change tactic groups,
+and outliers.
 
-Runs in 4 rounds of 25 submissions each, with normalization after every round.
+Runs in round-sized batches of 25 submissions each, with normalization after every round.
 
 First run  (GENERATE_GROUPING_CACHE=1): calls real LLM APIs, saves to cache
 Subsequent runs: replays from cache, finishes in seconds.
@@ -43,6 +44,7 @@ from src.pipeline.normalize import (
     COSINE_SIMILARITY_THRESHOLD,
     _build_submissions_block,
     _cluster_by_embedding,
+    _entries_are_merge_compatible,
     _extract_merges_from_mapping,
     _parse_remap_response,
 )
@@ -64,7 +66,7 @@ pytestmark = [
 ]
 
 # ---------------------------------------------------------------------------
-# Submission data: 5 groups × ~18 + ~10 outliers ≈ 100
+# Submission data: 8 groups + outliers
 # ---------------------------------------------------------------------------
 
 GROUP_HIJAB = "hijab-dress-code"
@@ -72,6 +74,9 @@ GROUP_INTERNET = "internet-censorship"
 GROUP_DEATH_PENALTY = "death-penalty"
 GROUP_LANGUAGE_RIGHTS = "ethnic-language-rights"
 GROUP_PRIVATIZATION = "state-privatization"
+GROUP_DOMESTIC_STRIKE = "domestic-economic-strike"
+GROUP_FOREIGN_SANCTIONS = "foreign-economic-sanctions"
+GROUP_FOREIGN_INTERVENTION = "foreign-military-intervention"
 GROUP_OUTLIER = "outlier"
 
 EXPECTED_MAIN_GROUPS = {
@@ -80,6 +85,9 @@ EXPECTED_MAIN_GROUPS = {
     GROUP_DEATH_PENALTY,
     GROUP_LANGUAGE_RIGHTS,
     GROUP_PRIVATIZATION,
+    GROUP_DOMESTIC_STRIKE,
+    GROUP_FOREIGN_SANCTIONS,
+    GROUP_FOREIGN_INTERVENTION,
 }
 
 SUBMISSIONS: list[dict[str, str]] = [
@@ -534,6 +542,99 @@ SUBMISSIONS: list[dict[str, str]] = [
         "language": "en",
         "expected_group": GROUP_PRIVATIZATION,
     },
+    # --- Group 6: Domestic economic strike against the regime (~6) ---
+    {
+        "text": "We need labor strikes across key industries so the regime cannot survive economically.",
+        "language": "en",
+        "expected_group": GROUP_DOMESTIC_STRIKE,
+    },
+    {
+        "text": "باید اعتصاب سراسری کارگری راه بیفته تا حکومت از نظر اقتصادی فلج بشه.",
+        "language": "fa",
+        "expected_group": GROUP_DOMESTIC_STRIKE,
+    },
+    {
+        "text": "Truck drivers, oil workers, and bazaar merchants should coordinate strikes to choke regime revenue.",
+        "language": "en",
+        "expected_group": GROUP_DOMESTIC_STRIKE,
+    },
+    {
+        "text": "اگر کارگرها و معلم‌ها و بازاری‌ها همزمان اعتصاب کنن، فشار اقتصادی داخلی روی حکومت زیاد میشه.",
+        "language": "fa",
+        "expected_group": GROUP_DOMESTIC_STRIKE,
+    },
+    {
+        "text": "Domestic general strikes are a better path than foreign intervention for weakening the regime.",
+        "language": "en",
+        "expected_group": GROUP_DOMESTIC_STRIKE,
+    },
+    {
+        "text": "اعتصاب اقتصادی از داخل کشور باید ابزار اصلی فشار روی حکومت باشه، نه حمله خارجی.",
+        "language": "fa",
+        "expected_group": GROUP_DOMESTIC_STRIKE,
+    },
+    # --- Group 7: Foreign economic sanctions / pressure (~6) ---
+    {
+        "text": "The US and Europe should expand targeted sanctions to cut off regime funding.",
+        "language": "en",
+        "expected_group": GROUP_FOREIGN_SANCTIONS,
+    },
+    {
+        "text": "تحریم‌های مالی و نفتی شدیدتر علیه حکومت ایران باید اعمال بشه تا منابعش کم بشه.",
+        "language": "fa",
+        "expected_group": GROUP_FOREIGN_SANCTIONS,
+    },
+    {
+        "text": "International banking sanctions can pressure the regime without sending troops.",
+        "language": "en",
+        "expected_group": GROUP_FOREIGN_SANCTIONS,
+    },
+    {
+        "text": "جامعه جهانی باید فشار اقتصادی و تحریم هدفمند روی نهادهای حکومتی رو بیشتر کنه.",
+        "language": "fa",
+        "expected_group": GROUP_FOREIGN_SANCTIONS,
+    },
+    {
+        "text": "Foreign sanctions should target the Revolutionary Guards and regime elites, not ordinary people.",
+        "language": "en",
+        "expected_group": GROUP_FOREIGN_SANCTIONS,
+    },
+    {
+        "text": "تحریم خارجی علیه سپاه و مقامات حکومتی می‌تونه اهرم فشار موثرتری از جنگ باشه.",
+        "language": "fa",
+        "expected_group": GROUP_FOREIGN_SANCTIONS,
+    },
+    # --- Group 8: Foreign military intervention (~6) ---
+    {
+        "text": "The United States should be willing to use military strikes to help remove the regime.",
+        "language": "en",
+        "expected_group": GROUP_FOREIGN_INTERVENTION,
+    },
+    {
+        "text": "اگر حمله نظامی خارجی لازم باشه تا حکومت سقوط کنه، باید این گزینه روی میز باشه.",
+        "language": "fa",
+        "expected_group": GROUP_FOREIGN_INTERVENTION,
+    },
+    {
+        "text": "A limited military intervention could destroy regime command centers and help a transition.",
+        "language": "en",
+        "expected_group": GROUP_FOREIGN_INTERVENTION,
+    },
+    {
+        "text": "حمله هوایی خارجی به مراکز نظامی حکومت شاید تنها راه سریع برای سرنگونی باشه.",
+        "language": "fa",
+        "expected_group": GROUP_FOREIGN_INTERVENTION,
+    },
+    {
+        "text": "International military action should be considered if peaceful tools fail to end the regime.",
+        "language": "en",
+        "expected_group": GROUP_FOREIGN_INTERVENTION,
+    },
+    {
+        "text": "مداخله نظامی خارجی علیه حکومت نباید تابو باشه اگر بقیه راه‌ها جواب نده.",
+        "language": "fa",
+        "expected_group": GROUP_FOREIGN_INTERVENTION,
+    },
     # --- Outliers (~10) ---
     {
         "text": "باید قوانین حمایت از حیوانات سختگیرانه‌تر بشه. حیوان‌آزاری جرمه.",
@@ -585,6 +686,11 @@ SUBMISSIONS: list[dict[str, str]] = [
 # ---------------------------------------------------------------------------
 
 
+def _dataset_fingerprint() -> str:
+    material = json.dumps(SUBMISSIONS, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(material.encode("utf-8")).hexdigest()[:16]
+
+
 def _cache_key(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
@@ -594,12 +700,14 @@ def _load_cache(path: Path) -> dict[str, Any]:
         with gzip.open(path, "rt", encoding="utf-8") as f:
             data = json.load(f)
         data.setdefault("embeddings", {})
+        data.setdefault("dataset_fingerprint", "")
         return data
-    return {"completions": {}, "embeddings": {}}
+    return {"completions": {}, "embeddings": {}, "dataset_fingerprint": _dataset_fingerprint()}
 
 
 def _save_cache(cache: dict[str, Any], path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
+    cache["dataset_fingerprint"] = _dataset_fingerprint()
     with gzip.open(path, "wt", encoding="utf-8") as f:
         json.dump(cache, f, separators=(",", ":"))
     size_kb = path.stat().st_size / 1024
@@ -675,32 +783,29 @@ class PolicyContextAccumulator:
     matching the format of load_existing_policy_context()."""
 
     def __init__(self) -> None:
-        self._data: dict[str, dict[str, tuple[int, str]]] = defaultdict(dict)
+        self._data: dict[str, tuple[int, str]] = {}
 
     def add(self, policy_topic: str, policy_key: str, summary: str) -> None:
-        if policy_topic == "unassigned" or policy_key == "unassigned":
+        if policy_key == "unassigned":
             return
         clean = (summary or "").replace("\n", " ")
-        if policy_key in self._data[policy_topic]:
-            count, existing_summary = self._data[policy_topic][policy_key]
-            self._data[policy_topic][policy_key] = (count + 1, existing_summary)
+        if policy_key in self._data:
+            count, existing_summary = self._data[policy_key]
+            self._data[policy_key] = (count + 1, existing_summary)
         else:
-            self._data[policy_topic][policy_key] = (1, clean)
+            self._data[policy_key] = (1, clean)
 
     def format_context(self) -> str:
         if not self._data:
             return ""
         lines: list[str] = []
-        for topic, keys in sorted(self._data.items()):
-            total = sum(c for c, _ in keys.values())
-            lines.append(f'  Topic: "{topic}" ({total} total submissions)')
-            for key, (count, desc) in sorted(keys.items(), key=lambda x: -x[1][0]):
-                lines.append(f'    - "{key}" ({count} submissions) — {desc}')
+        for key, (count, desc) in sorted(self._data.items(), key=lambda x: (-x[1][0], x[0])):
+            lines.append(f'  - "{key}" ({count} submissions) — {desc}')
         return "\n".join(lines)
 
     def rebuild(self, candidates: list[dict[str, str]]) -> None:
         """Rebuild from a list of candidate dicts (after normalization merges)."""
-        self._data = defaultdict(dict)
+        self._data = {}
         for c in candidates:
             self.add(c["policy_topic"], c["policy_key"], c["summary"])
 
@@ -742,6 +847,8 @@ async def _normalize_in_memory(
             continue
 
         entries = _build_entries_for_test_cluster(members)
+        if not _entries_are_merge_compatible(entries):
+            continue
         submissions_block = _build_submissions_block(entries)
         prompt = _REMAP_PROMPT_TEMPLATE.format(
             submissions_block=submissions_block,
@@ -788,6 +895,10 @@ def _build_entries_for_test_cluster(
                 "topic": c["policy_topic"],
                 "count": 1,
                 "summaries": [c.get("summary", "") or ""],
+                "actor_scope": c.get("actor_scope", "unclear"),
+                "action_mechanism": c.get("action_mechanism", "unclear"),
+                "target_scope": c.get("target_scope", "unclear"),
+                "ballot_readiness": c.get("ballot_readiness", "discussion-only"),
             }
         else:
             key_data[pk]["count"] += 1
@@ -803,6 +914,10 @@ def _build_entries_for_test_cluster(
             "topic": kd["topic"],
             "count": kd["count"],
             "summary": combined,
+            "actor_scope": kd["actor_scope"],
+            "action_mechanism": kd["action_mechanism"],
+            "target_scope": kd["target_scope"],
+            "ballot_readiness": kd["ballot_readiness"],
         })
     return entries
 
@@ -890,14 +1005,17 @@ async def test_grouping_pipeline(_mock_evidence: AsyncMock) -> None:
     get_settings.cache_clear()
     settings = get_settings()
     router = CachingLLMRouter(cache_path=CACHE_PATH, settings=settings)
+    if not GENERATE_MODE and router._cache.get("dataset_fingerprint") != _dataset_fingerprint():
+        pytest.skip("Grouping cache is stale for the current adversarial fixture set. Regenerate with GENERATE_GROUPING_CACHE=1.")
     mock_session = AsyncMock()
 
     submissions = _interleaved_submissions()
     assert len(submissions) == len(SUBMISSIONS)
+    total_rounds = (len(submissions) + ROUND_SIZE - 1) // ROUND_SIZE
     logger.info(
         "Processing %d submissions in %d rounds of %d",
         len(submissions),
-        4,
+        total_rounds,
         ROUND_SIZE,
     )
 
@@ -920,7 +1038,7 @@ async def test_grouping_pipeline(_mock_evidence: AsyncMock) -> None:
     rejected = 0
 
     try:
-        for round_num in range(4):
+        for round_num in range(total_rounds):
             start = round_num * ROUND_SIZE
             end = min(start + ROUND_SIZE, len(submissions))
             round_subs = submissions[start:end]
@@ -972,9 +1090,14 @@ async def test_grouping_pipeline(_mock_evidence: AsyncMock) -> None:
                     continue
 
                 candidate_dict = {
+                    "title": result.title,
                     "policy_topic": result.policy_topic,
                     "policy_key": result.policy_key,
                     "summary": result.summary or "",
+                    "actor_scope": result.actor_scope,
+                    "action_mechanism": result.action_mechanism,
+                    "target_scope": result.target_scope,
+                    "ballot_readiness": result.ballot_readiness,
                     "expected_group": sub["expected_group"],
                 }
                 all_candidates.append(candidate_dict)
@@ -1160,14 +1283,15 @@ def _assert_group_separation(candidates: list[dict[str, str]]) -> None:
         if key in keys_seen:
             pytest.fail(f"Groups '{group}' and '{keys_seen[key]}' share dominant key '{key}'")
         keys_seen[key] = group
-    logger.info("Separation: all 5 groups have distinct dominant keys: %s", dominant_keys)
+    logger.info("Separation: all %d expected groups have distinct dominant keys: %s", len(dominant_keys), dominant_keys)
 
 
 def _assert_min_group_count(final_groups: dict[str, list[dict[str, str]]]) -> None:
-    """At least 5 distinct non-trivial groups in the output."""
+    """At least as many distinct non-trivial groups as expected main groups."""
     big_groups = {k: v for k, v in final_groups.items() if len(v) >= 3}
-    assert len(big_groups) >= 5, (
-        f"Expected >=5 groups with >=3 members, got {len(big_groups)}: "
+    minimum = len(EXPECTED_MAIN_GROUPS)
+    assert len(big_groups) >= minimum, (
+        f"Expected >={minimum} groups with >=3 members, got {len(big_groups)}: "
         f"{[(k, len(v)) for k, v in sorted(big_groups.items(), key=lambda x: -len(x[1]))]}"
     )
 
@@ -1176,7 +1300,7 @@ def _assert_outlier_isolation(
     candidates: list[dict[str, str]],
     final_groups: dict[str, list[dict[str, str]]],
 ) -> None:
-    """Outlier submissions should not cluster with the 5 main groups."""
+    """Outlier submissions should not cluster with the expected main groups."""
     main_dominant_keys: set[str] = set()
     for expected in EXPECTED_MAIN_GROUPS:
         members = [c for c in candidates if c["expected_group"] == expected]

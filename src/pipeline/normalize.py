@@ -49,6 +49,8 @@ Rules:
 - Group submissions that address the SAME specific ballot-level issue under \
 ONE canonical key.
 - Do NOT merge genuinely different sub-issues that need separate votes.
+- Do NOT merge submissions when the actor, mechanism, or target differs, even \
+if they share a broad political goal.
 - The canonical key should be stance-neutral, descriptive, and use \
 lowercase-with-hyphens.
 - You may create a new key name if no existing key captures the group well.
@@ -74,7 +76,9 @@ def _build_submissions_block(
     lines: list[str] = []
     for i, entry in enumerate(entries, 1):
         lines.append(
-            f'  {i}. [key: "{entry["key"]}", topic: "{entry["topic"]}", '
+            f'  {i}. [key: "{entry["key"]}", ui_topic: "{entry["topic"]}", '
+            f'actor: "{entry["actor_scope"]}", mechanism: "{entry["action_mechanism"]}", '
+            f'target: "{entry["target_scope"]}", readiness: "{entry["ballot_readiness"]}", '
             f'{entry["count"]} submissions]'
         )
         lines.append(f"     {entry['summary']}")
@@ -149,6 +153,12 @@ async def normalize_policy_keys(
             continue
 
         entries = _build_entries_for_cluster(members)
+        if not _entries_are_merge_compatible(entries):
+            logger.info(
+                "Skipping normalization merge for keys %s due to incompatible semantics",
+                distinct_keys,
+            )
+            continue
         submissions_block = _build_submissions_block(entries)
         prompt = _REMAP_PROMPT_TEMPLATE.format(
             submissions_block=submissions_block,
@@ -162,10 +172,22 @@ async def normalize_policy_keys(
                 temperature=0.0,
             )
             key_mapping = _parse_remap_response(completion.text)
-        except Exception:
+        except Exception as exc:
             logger.exception(
                 "Normalization LLM call failed for embedding cluster with keys %s",
                 distinct_keys,
+            )
+            representative = next(iter(members))
+            await append_evidence(
+                session=session,
+                event_type="normalization_step_failed",
+                entity_type="cluster",
+                entity_id=representative.id,
+                payload={
+                    "policy_keys": sorted(distinct_keys),
+                    "error_type": type(exc).__name__,
+                    "step": "llm_remap",
+                },
             )
             continue
 
@@ -201,6 +223,10 @@ def _build_entries_for_cluster(
                 "topic": c.policy_topic,
                 "count": 1,
                 "summaries": [c.summary or ""],
+                "actor_scope": c.actor_scope,
+                "action_mechanism": c.action_mechanism,
+                "target_scope": c.target_scope,
+                "ballot_readiness": c.ballot_readiness,
             }
         else:
             key_data[pk]["count"] += 1
@@ -216,8 +242,29 @@ def _build_entries_for_cluster(
             "topic": kd["topic"],
             "count": kd["count"],
             "summary": combined,
+            "actor_scope": kd["actor_scope"],
+            "action_mechanism": kd["action_mechanism"],
+            "target_scope": kd["target_scope"],
+            "ballot_readiness": kd["ballot_readiness"],
         })
     return entries
+
+
+def _entries_are_merge_compatible(entries: list[dict[str, Any]]) -> bool:
+    if not entries:
+        return False
+
+    actor_scopes = {str(entry.get("actor_scope", "unclear")) for entry in entries}
+    mechanisms = {str(entry.get("action_mechanism", "unclear")) for entry in entries}
+    targets = {str(entry.get("target_scope", "unclear")) for entry in entries}
+    readiness_values = {str(entry.get("ballot_readiness", "discussion-only")) for entry in entries}
+
+    non_unclear_actors = actor_scopes - {"unclear"}
+    non_unclear_mechanisms = mechanisms - {"unclear"}
+    non_unclear_targets = targets - {"unclear"}
+    if len(non_unclear_actors) > 1 or len(non_unclear_mechanisms) > 1 or len(non_unclear_targets) > 1:
+        return False
+    return "ballot-ready" not in readiness_values or len(readiness_values) <= 1
 
 
 def _extract_merges_from_mapping(
@@ -267,6 +314,10 @@ async def execute_key_merge(
         return
 
     for merged_key in merged_keys:
+        affected_candidates_result = await session.execute(
+            select(PolicyCandidate).where(PolicyCandidate.policy_key == merged_key)
+        )
+        affected_candidates = list(affected_candidates_result.scalars().all())
         merged_result = await session.execute(
             select(Cluster).where(
                 Cluster.policy_key == merged_key,
@@ -284,8 +335,28 @@ async def execute_key_merge(
         await session.execute(
             update(PolicyCandidate)
             .where(PolicyCandidate.policy_key == merged_key)
-            .values(policy_key=survivor_key)
+            .values(policy_key=survivor_key, policy_topic=survivor.policy_topic)
         )
+
+        for candidate in affected_candidates:
+            await append_evidence(
+                session=session,
+                event_type="candidate_rekeyed",
+                entity_type="candidate",
+                entity_id=candidate.id,
+                payload={
+                    "candidate_id": str(candidate.id),
+                    "submission_id": str(candidate.submission_id),
+                    "stage": "normalization",
+                    "old_policy_key": merged_key,
+                    "new_policy_key": survivor_key,
+                    "old_policy_topic": candidate.policy_topic,
+                    "new_policy_topic": survivor.policy_topic,
+                    "old_ballot_readiness": candidate.ballot_readiness,
+                    "new_ballot_readiness": candidate.ballot_readiness,
+                    "reason_code": "normalization_merge",
+                },
+            )
 
         await append_evidence(
             session=session,

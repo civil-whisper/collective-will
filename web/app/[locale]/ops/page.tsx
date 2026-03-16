@@ -21,6 +21,19 @@ type OpsJobStatus = {
   detail: string | null;
 };
 
+type PipelineStepHealth = {
+  step: string;
+  event_count: number;
+  latest_at: string | null;
+};
+
+type PipelineHealthResponse = {
+  generated_at: string;
+  total_degradation_events: number;
+  by_step: PipelineStepHealth[];
+  model_fallback_count: number;
+};
+
 type OpsEventLevel = "info" | "warning" | "error";
 
 async function getStatus(accessToken: string): Promise<OpsStatusResponse | null> {
@@ -55,6 +68,12 @@ async function getJobs(accessToken: string): Promise<OpsJobStatus[]> {
   }).catch(() => []);
 }
 
+async function getPipelineHealth(accessToken: string): Promise<PipelineHealthResponse | null> {
+  return apiGet<PipelineHealthResponse>("/ops/pipeline-health?hours=24", {
+    headers: buildBearerHeaders(accessToken),
+  }).catch(() => null);
+}
+
 type OpsPageProps = {
   searchParams?: Promise<{cid?: string; level?: string; type?: string}>;
 };
@@ -78,7 +97,7 @@ export default async function OpsPage({searchParams}: OpsPageProps) {
     redirect(`/${locale}/sign-in`);
   }
 
-  const [status, events, jobs] = await Promise.all([
+  const [status, events, jobs, pipelineHealth] = await Promise.all([
     getStatus(accessToken),
     getEvents(accessToken, {
       correlationId,
@@ -86,6 +105,7 @@ export default async function OpsPage({searchParams}: OpsPageProps) {
       eventType: selectedEventType,
     }),
     getJobs(accessToken),
+    getPipelineHealth(accessToken),
   ]);
 
   const buildOpsHref = (next: {cid?: string; level?: OpsEventLevel | ""; type?: string}) => {
@@ -137,6 +157,53 @@ export default async function OpsPage({searchParams}: OpsPageProps) {
       ) : (
         <>
           <OpsHealthPanel title={t("health")} services={status.services} />
+
+          {pipelineHealth && (
+            <Card>
+              <h2 className="mb-1 text-lg font-semibold">{t("pipelineHealth")}</h2>
+              <p className="mb-3 text-xs text-gray-500 dark:text-slate-400">
+                {t("pipelineHealthDesc", {hours: "24"})}
+              </p>
+              {pipelineHealth.total_degradation_events === 0 && pipelineHealth.model_fallback_count === 0 ? (
+                <p className="text-sm text-gray-500 dark:text-slate-400">{t("noDegradations")}</p>
+              ) : (
+                <>
+                  <div className="mb-3 flex flex-wrap gap-4 text-sm">
+                    <span>
+                      <span className="font-medium text-amber-600 dark:text-amber-400">{pipelineHealth.total_degradation_events}</span>{" "}
+                      {t("totalDegradations")}
+                    </span>
+                    <span>
+                      <span className="font-medium text-amber-600 dark:text-amber-400">{pipelineHealth.model_fallback_count}</span>{" "}
+                      {t("modelFallbacks")}
+                    </span>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-sm">
+                      <thead>
+                        <tr className="border-b border-gray-200 dark:border-slate-700">
+                          <th className="pb-2 pr-4 font-medium text-gray-600 dark:text-slate-400">{t("degradationStep")}</th>
+                          <th className="pb-2 pr-4 text-right font-medium text-gray-600 dark:text-slate-400">{t("degradationCount")}</th>
+                          <th className="pb-2 font-medium text-gray-600 dark:text-slate-400">{t("degradationLatest")}</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {pipelineHealth.by_step
+                          .filter((s) => s.event_count > 0)
+                          .map((s) => (
+                            <tr key={s.step} className="border-b border-gray-100 dark:border-slate-800">
+                              <td className="py-1.5 pr-4 font-mono text-xs">{s.step}</td>
+                              <td className="py-1.5 pr-4 text-right font-medium text-amber-600 dark:text-amber-400">{s.event_count}</td>
+                              <td className="py-1.5 font-mono text-xs text-gray-500 dark:text-slate-400">{s.latest_at ?? "—"}</td>
+                            </tr>
+                          ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              )}
+            </Card>
+          )}
 
           <Card>
             <h2 className="mb-3 text-lg font-semibold">{t("traceFilterTitle")}</h2>

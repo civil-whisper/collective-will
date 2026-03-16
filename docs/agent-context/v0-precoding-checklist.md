@@ -3,9 +3,9 @@
 Everything that needs to happen before writing code.
 
 Scope reflects current frozen decisions:
-- WhatsApp only (Evolution API) for v0
+- Telegram active for MVP (WhatsApp deferred post-MVP)
 - No action execution in v0
-- Cloud embeddings via quality-first default (`text-embedding-3-large`) with fallback configured
+- Cloud embeddings via quality-first default (`gemini-embedding-001`) with `text-embedding-3-large` fallback
 - Privacy-first infra (Njalla domain + 1984.is VPS)
 
 ---
@@ -58,10 +58,11 @@ Register these before anything is public. Names get squatted fast.
 
 Each collaborator who runs the stack locally should have access to:
 - `ANTHROPIC_API_KEY` (canonicalization / messaging / reasoning tiers)
-- `OPENAI_API_KEY` (embedding default in v0)
+- `OPENAI_API_KEY` (embedding fallback)
 - `DEEPSEEK_API_KEY` (configured fallback path where applicable)
 - `MISTRAL_API_KEY` (optional embedding fallback path)
-- `EVOLUTION_API_KEY` (WhatsApp gateway auth)
+- `TELEGRAM_TOKEN` (Telegram bot — active MVP channel)
+- `EVOLUTION_API_KEY` (WhatsApp gateway auth — deferred post-MVP)
 
 Do not commit keys. Keep them in local `.env` only.
 
@@ -99,15 +100,15 @@ Also ensure `.env` is in `.gitignore`.
 
 ---
 
-## 6) WhatsApp setup for v0
+## 6) Telegram setup for MVP
 
-v0 uses:
-- Evolution API (self-hosted Docker container)
-- No Meta Business verification required for development/early pilot
+MVP uses:
+- Telegram Bot API (via `TelegramChannel`)
+- WhatsApp (`WhatsAppChannel` via Evolution API) is implemented but deferred post-MVP
 
-v1 migration plan:
-- Move to official WhatsApp Business API for stability/compliance at scale
-- Keep channel adapter boundary clean so migration mostly affects `whatsapp.py`
+Post-MVP:
+- Activate WhatsApp via Evolution API or migrate to official WhatsApp Business API
+- Channel adapter boundary (`BaseChannel`) keeps transport changes scoped to one module
 
 ---
 
@@ -117,7 +118,7 @@ v1 migration plan:
 - Pseudonymous git identity (for commits and GitHub activity)
 - API keys: Anthropic, OpenAI, DeepSeek (Mistral optional fallback)
 - Local dev environment (Python/Node/Docker/uv)
-- Evolution API local container
+- Telegram bot token configured
 
 ### Set up before pilot launch (does not block coding)
 - Domain via Njalla
@@ -137,7 +138,7 @@ v1 migration plan:
 - Never put real names in commits, code comments, or public docs.
 - Never commit secrets (`.env`, private keys, tokens).
 - Use VPN for project account access.
-- Do not store raw WhatsApp identifiers in logs or analytics exports.
+- Do not store raw messaging platform identifiers in logs or analytics exports.
 - Treat account mapping data as sensitive; tokenize where possible.
 
 ---
@@ -151,5 +152,5 @@ v1 migration plan:
 - [ ] Social handles claimed (Twitter/X at minimum)
 - [ ] Required API keys available locally
 - [ ] `.env` created and ignored by git
-- [ ] Docker services run locally (Postgres + Evolution API)
-- [ ] Team aligned on v0 boundaries (no action execution, WhatsApp only)
+- [ ] Docker services run locally (Postgres)
+- [ ] Team aligned on v0 boundaries (no action execution, Telegram for MVP)

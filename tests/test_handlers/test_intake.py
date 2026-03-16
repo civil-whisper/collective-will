@@ -109,6 +109,11 @@ def _make_candidate_create(submission_id: Any = None) -> PolicyCandidateCreate:
         stance="support",
         policy_topic="water-access",
         policy_key="clean-drinking-water",
+        actor_scope="public-governance",
+        action_mechanism="governance-design",
+        target_scope="public-governance",
+        ballot_readiness="ballot-ready",
+        ballot_readiness_reason="This is a concrete public policy proposal.",
         entities=["water"],
         confidence=0.95,
         ambiguity_flags=[],
@@ -161,6 +166,50 @@ async def test_handle_submission_verified_user(
     assert user.contribution_count == 1
     assert len(channel.sent) == 1
     assert "Clean Water Policy" in channel.sent[0].text
+
+
+@pytest.mark.asyncio
+@patch("src.handlers.intake.check_submission_rate_limit", new_callable=AsyncMock, return_value=(True, None))
+@patch("src.handlers.intake.check_burst_quarantine", new_callable=AsyncMock, return_value=False)
+@patch("src.handlers.intake.create_submission", new_callable=AsyncMock)
+@patch("src.handlers.intake.append_evidence", new_callable=AsyncMock)
+@patch("src.handlers.intake.canonicalize_single", new_callable=AsyncMock)
+@patch("src.handlers.intake.create_policy_candidate", new_callable=AsyncMock)
+@patch("src.handlers.intake.compute_and_store_embeddings", new_callable=AsyncMock)
+@patch("src.handlers.intake.get_settings")
+async def test_handle_submission_non_ballot_ready_gets_under_review_message(
+    mock_settings: MagicMock,
+    mock_embed: AsyncMock,
+    mock_create_candidate: AsyncMock,
+    mock_canon: AsyncMock,
+    mock_evidence: AsyncMock,
+    mock_create: AsyncMock,
+    mock_burst: AsyncMock,
+    mock_rate: AsyncMock,
+) -> None:
+    mock_settings.return_value.min_account_age_hours = 48
+    mock_settings.return_value.app_public_base_url = "https://example.test"
+    sub = MagicMock()
+    sub.id = uuid4()
+    sub.status = "pending"
+    mock_create.return_value = sub
+
+    candidate_create = _make_candidate_create(sub.id)
+    candidate_create.ballot_readiness = "needs-refinement"
+    mock_canon.return_value = candidate_create
+    db_candidate = MagicMock()
+    db_candidate.id = uuid4()
+    mock_create_candidate.return_value = db_candidate
+
+    channel = FakeChannel()
+    user = _make_user()
+    db = AsyncMock()
+
+    await handle_submission(_make_msg("نگران وضعیت اقتصاد هستم"), user, channel, db)
+
+    mock_embed.assert_called_once()
+    assert len(channel.sent) == 1
+    assert "نگرانی شما ثبت شد" in channel.sent[0].text
 
 
 @pytest.mark.asyncio
@@ -235,6 +284,15 @@ async def test_handle_submission_llm_failure_falls_back(
     assert user.contribution_count == 0
     assert len(channel.sent) == 1
     assert "دریافت شد" in channel.sent[0].text
+
+    deferred_calls = [
+        c for c in mock_evidence.call_args_list
+        if c.kwargs.get("event_type") == "submission_deferred_to_batch"
+    ]
+    assert len(deferred_calls) == 1
+    payload = deferred_calls[0].kwargs["payload"]
+    assert payload["error_type"] == "RuntimeError"
+    assert payload["step"] == "inline_canonicalization"
 
 
 @pytest.mark.asyncio

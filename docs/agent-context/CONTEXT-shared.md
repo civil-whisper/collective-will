@@ -24,19 +24,19 @@ These are locked. Do not deviate.
 | **Channel** | Telegram-first for MVP build/testing (official Bot API) while preserving channel-agnostic boundaries (`BaseChannel`). WhatsApp (Evolution API, self-hosted) is deferred until post-MVP rollout once anonymous SIM operations are ready. Keep provider-specific parsing in channel adapters and test with mock/fake channels so transport swaps remain one-module changes. |
 | **Canonicalization model** | Claude Sonnet 4.6 (any language → structured English). Runs inline at submission time with batch fallback. Accepts positions, questions, concerns, and expressions of interest about policy topics — not just explicit stances. Fallback: Gemini 3.1 Pro. |
 | **LLM routing abstraction** | Model/provider resolution is centralized in `pipeline/llm.py` via config-backed task tiers. No direct model IDs in other modules. |
-| **LLM model strategy** | Claude-first: all primary tiers default to `claude-sonnet-4-6` for reliable throughput (Gemini 3.1 Pro hit 25 RPD limit). All fallbacks default to `gemini-3.1-pro-preview`. Model selection is config-backed — switch any tier via env without code changes. |
+| **LLM model strategy** | Claude-first: all primary tiers default to `claude-sonnet-4-6`. All fallbacks default to `gpt-4o` (switched from `gemini-3.1-pro-preview` due to Gemini rate limits). Model selection is config-backed — switch any tier via env without code changes. Web search grounding supported for Anthropic, Google, and OpenAI. |
 | **Embeddings** | Gemini-first in v0: `gemini-embedding-001` (primary), `text-embedding-3-large` (fallback). Model selection/fallback controlled by config. |
 | **Cluster summaries** | `english_reasoning` tier defaults to Claude Sonnet 4.6. Mandatory fallback (Gemini 3.1 Pro) is required for risk management via abstraction config. |
 | **Policy option generation** | Web-grounded via `option_generation` tier: defaults to Claude Sonnet 4.6 (no grounding). Google Search grounding activates automatically on Gemini fallback. Full (untruncated) citizen submissions are passed to the LLM alongside web search for real-world policy context. |
 | **User-facing messages** | Locale-aware (Farsi + English, keyed by `user.locale`). LLM-generated content (rejection reasons) matches the input language. Template-based messages (confirmation, errors) use the `_MESSAGES` dict with locale selection. LLM tier `farsi_messages` defaults to Claude Sonnet 4.6 with mandatory fallback (Gemini 3.1 Pro) via abstraction config. |
-| **Clustering** | LLM-driven policy-key grouping. Each submission is assigned a stance-neutral `policy_topic` (browsing umbrella, e.g., "internet-censorship") and `policy_key` (ballot-level discussion, e.g., "political-internet-censorship") at canonicalization time. Clusters are persistent entities keyed by `policy_key`. Periodic hybrid normalization (embedding cosine similarity at 0.55 threshold + LLM key remapping with full summaries) merges near-duplicate keys across all topics; LLM may create new canonical key names. |
+| **Clustering** | LLM-driven policy-key grouping. Each submission is assigned a stance-neutral `policy_key` as the ballot-level identity. `policy_topic` is retained only as browsing/display metadata and must not drive grouping or merge decisions. Canonicalization also emits semantic fields (`actor_scope`, `action_mechanism`, `target_scope`) plus `ballot_readiness` (`ballot-ready`, `needs-refinement`, `discussion-only`). Clusters are persistent entities keyed by `policy_key`; only ballot-ready clusters may advance to policy option generation and voting. Hybrid normalization must preserve actor/mechanism/target compatibility and abstain when items would not share the same proposition and option set. |
 | **Identity** | Email magic-link + WhatsApp account linking. No phone verification, no OAuth, no vouching. Signup controls: exempt major email providers from per-domain cap; enforce `MAX_SIGNUPS_PER_DOMAIN_PER_DAY=3` for non-major domains; enforce per-IP signup cap (`MAX_SIGNUPS_PER_IP_PER_DAY`) and keep telemetry signals (domain diversity, disposable-domain scoring, velocity logs). |
 | **Sealed account mapping** | Store messaging linkage as random opaque account refs (UUIDv4). Raw platform IDs (Telegram chat_id, WhatsApp wa_id) live only in the `sealed_account_mappings` DB table and are stripped from logs/exports. The sealed mapping is persisted to database (not in-memory) so it survives restarts. |
 | **Auth token persistence** | Magic link tokens and linking codes are stored in the `verification_tokens` DB table with expiry timestamps. No in-memory token storage — tokens must survive process restarts and be shared across background workers. |
 | **Authenticated web API identity** | `/user/*` and `/ops/*` must use backend-verified bearer tokens derived from the magic-link web session flow. Do not trust client-provided identity headers (for example `x-user-email`) for authenticated access control. Keep bearer signing secret backend-only via `WEB_ACCESS_TOKEN_SECRET`. |
 | **Submission eligibility** | Verified account + account age >= 48 hours in production. Threshold is config-backed via `MIN_ACCOUNT_AGE_HOURS` (default `48`) so test/dev can override lower values. |
 | **Vote eligibility** | Verified account + age >= 48h + at least 1 accepted contribution in production. Accepted contribution = processed submission OR pre-ballot policy endorsement signature. Age threshold config-backed via `MIN_ACCOUNT_AGE_HOURS` (default `48`). Contribution requirement config-backed via `REQUIRE_CONTRIBUTION_FOR_VOTE` (default `true`). Staging/test can override both. |
-| **Pre-ballot signatures** | Multi-stage approval is required before ballot: clusters must pass size threshold and collect enough distinct endorsement signatures (`MIN_PREBALLOT_ENDORSEMENTS`, default `5`) before entering final approval ballot. |
+| **Pre-ballot signatures** | Multi-stage approval is required before ballot: concerns first gather signatures/endorsements as agenda-setting items. Only clusters classified as `ballot-ready` may advance from endorsement into final voting. Broad concerns can remain visible as `discussion-only` or `needs-refinement` items while the system autonomously refines them into clearer proposition drafts. Those refinement drafts are stored at the cluster level with confidence + clarification flags and are visible on the website, but they do not automatically promote a cluster into voting. |
 | **Voting cycle duration** | Config-backed via `VOTING_CYCLE_HOURS` (default `48`). Staging can use shorter cycles for testing. |
 | **Submission daily limit** | Config-backed via `MAX_SUBMISSIONS_PER_DAY` (default `5`). Staging can raise for testing. |
 | **Adjudication autonomy** | Individual votes, disputes, and quarantine outcomes are resolved by autonomous agentic workflows (primary model + fallback/ensemble as needed). Humans do not manually decide per-item outcomes; human actions are limited to architecture, policy tuning, and risk-management incidents. |
@@ -395,6 +395,10 @@ anchor_publish_failed, audit_bundle_generated, audit_bundle_publish_succeeded,
 audit_bundle_publish_failed,
 # Voice
 voice_enrolled, voice_enroll_phrase_rejected, voice_verified
+# Pipeline degradation (fallback visibility)
+submission_deferred_to_batch, candidate_parse_repaired,
+normalization_step_failed, ballot_generation_failed,
+policy_options_fallback_used, dispute_ensemble_member_failed
 ```
 
 ### IPSignupLog (operational — `src/db/ip_signup_log.py`)
@@ -439,6 +443,12 @@ All `append_evidence` payloads include human-readable context so the evidence ch
 | `audit_bundle_generated` | `day`, `entry_count`, `bundle_sha256`, `storage_path` |
 | `audit_bundle_publish_succeeded` | `day`, `bundle_sha256`, `manifest_path`, `index_path` |
 | `audit_bundle_publish_failed` | `day`, `bundle_sha256`, `error_type` |
+| `submission_deferred_to_batch` | `submission_id`, `error_type`, `error_message` |
+| `candidate_parse_repaired` | `submission_id`, `repair_method` (`regex` or `llm`) |
+| `normalization_step_failed` | `cluster_key`, `error_type`, `error_message` |
+| `ballot_generation_failed` | `cluster_id`, `policy_key`, `error_type`, `error_message` |
+| `policy_options_fallback_used` | `cluster_id`, `policy_key`, `error_type`, `error_message` |
+| `dispute_ensemble_member_failed` | `submission_id`, `model`, `error_type`, `error_message` |
 
 ### Evidence PII Stripping & Visibility Tiers
 

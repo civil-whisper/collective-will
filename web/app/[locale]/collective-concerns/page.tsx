@@ -30,6 +30,7 @@ type Cluster = {
   member_count: number;
   approval_count: number;
   endorsement_count: number;
+  ballot_stage: "ballot-ready" | "needs-refinement" | "discussion-only" | "unknown";
 };
 
 type ActiveCycle = {
@@ -49,10 +50,16 @@ type CycleStats = {
 
 type UnclusteredItem = {
   id: string;
+  submission_id: string;
   title: string;
   summary: string;
   policy_topic: string;
   policy_key: string;
+  actor_scope: string;
+  action_mechanism: string;
+  target_scope: string;
+  ballot_readiness: "ballot-ready" | "needs-refinement" | "discussion-only";
+  ballot_readiness_reason: string | null;
   confidence: number;
   raw_text: string | null;
   language: string | null;
@@ -181,8 +188,30 @@ export default async function AnalyticsPage() {
                     </p>
                     <p className="font-medium">{item.title}</p>
                     <p className="mt-1 text-sm text-gray-600 dark:text-slate-400">{item.summary}</p>
-                    <div className="mt-2">
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
                       <TopicBadge topic={item.policy_topic} />
+                      <StageBadge stage={item.ballot_readiness} t={t} />
+                    </div>
+                    <div className="mt-1.5 flex flex-col gap-0.5">
+                      <span className="text-xs text-gray-500 dark:text-slate-400">
+                        {t("semanticActor")}: {item.actor_scope}
+                      </span>
+                      <span className="text-xs text-gray-500 dark:text-slate-400">
+                        {t("semanticMechanism")}: {item.action_mechanism}
+                      </span>
+                    </div>
+                    {item.ballot_readiness_reason && (
+                      <p className="mt-1 text-xs text-gray-500 dark:text-slate-400">
+                        {item.ballot_readiness_reason}
+                      </p>
+                    )}
+                    <div className="mt-2">
+                      <Link
+                        href={`/${locale}/submission/${item.id}`}
+                        className="text-xs font-medium text-accent hover:underline"
+                      >
+                        {t("viewSubmissionHistory")} →
+                      </Link>
                     </div>
                   </div>
                   <div className="text-end">
@@ -227,6 +256,32 @@ export default async function AnalyticsPage() {
   );
 }
 
+function StageBadge({
+  stage,
+  t,
+}: {
+  stage: "ballot-ready" | "needs-refinement" | "discussion-only" | "unknown";
+  t: (key: string, values?: Record<string, string | number>) => string;
+}) {
+  const labelByStage = {
+    "ballot-ready": t("stageBallotReady"),
+    "needs-refinement": t("stageNeedsRefinement"),
+    "discussion-only": t("stageDiscussionOnly"),
+    "unknown": t("stageUnknown"),
+  };
+  const classNameByStage = {
+    "ballot-ready": "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300",
+    "needs-refinement": "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300",
+    "discussion-only": "bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-300",
+    "unknown": "bg-gray-200 text-gray-700 dark:bg-slate-700 dark:text-slate-300",
+  };
+  return (
+    <span className={`rounded px-1.5 py-0.5 text-xs font-medium ${classNameByStage[stage]}`}>
+      {labelByStage[stage]}
+    </span>
+  );
+}
+
 function ConcernList({
   concerns,
   locale,
@@ -248,6 +303,7 @@ function ConcernList({
             <p className="font-medium">{concern.summary}</p>
             <div className="mt-2 flex flex-wrap items-center gap-2">
               <TopicBadge topic={concern.policy_topic} />
+              <StageBadge stage={concern.ballot_stage} t={t} />
               {concern.status === "archived" && (
                 <span className="rounded bg-gray-200 px-1.5 py-0.5 text-xs font-medium text-gray-600 dark:bg-slate-600 dark:text-slate-300">
                   {t("archived")}

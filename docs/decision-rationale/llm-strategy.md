@@ -13,7 +13,7 @@ This doc summarizes the current model landscape (February 2026), the hybrid arch
 - **Language strategy:** Farsi is the primary user language; English is the internal processing language. Models are chosen based on Farsi support needs.
 - **Canonicalization and Farsi messages:** Sonnet primary with mandatory fallback paths.
 - **English reasoning and summaries:** Sonnet primary with fallback to DeepSeek `deepseek-chat`.
-- **Embeddings:** OpenAI `text-embedding-3-large` primary with config-backed fallback (e.g., `mistral-embed`).
+- **Embeddings:** Gemini `gemini-embedding-001` primary with OpenAI `text-embedding-3-large` fallback.
 - **Dispute adjudication:** dedicated `dispute_resolution` tier with fallback/ensemble escalation.
 - **Action plan:** Keep all tier->model mapping in config so policy shifts never require caller rewrites.
 
@@ -26,8 +26,8 @@ The pipeline has three AI-dependent stages:
 | Agent | Task | Language | Model | Why |
 |-------|------|----------|-------|-----|
 | **Canonicalization** | Freeform Farsi → structured English | Farsi in | Sonnet (fallback configured) | Quality-first extraction in v0 |
-| **Embeddings** | Compute vectors for clustering | English | OpenAI `text-embedding-3-large` (fallback configured) | Best semantic quality in v0 |
-| **Clustering** | Group similar items, produce summaries | English | HDBSCAN (local) + `english_reasoning` tier | Local clustering with quality-first summaries + fallback |
+| **Embeddings** | Compute vectors for normalization | English | Gemini `gemini-embedding-001` (OpenAI fallback) | Best semantic quality in v0 |
+| **Grouping** | Group by policy_key, normalize near-duplicates | English | Deterministic grouping + `english_reasoning` tier | LLM-key grouping with quality-first summaries + fallback |
 | **Action planning** | Map voted items to action templates, draft content | English | DeepSeek V3.2 | Complex reasoning, English-only, cheap (v1 only) |
 | **User messages** | Bot responses, confirmations, vote prompts | Farsi out | `farsi_messages` tier (Sonnet default, Haiku fallback) | High clarity with continuity risk management |
 
@@ -105,9 +105,9 @@ Newer models bring algorithm and data advantages at the same size: better reason
 │   messages│    │   clustering│   │ • Complex   │
 │           │    │             │   │   drafts    │
 │ Model:    │    │ Model:      │   │             │
-│ Sonnet    │    │ OpenAI      │   │ Model:      │
-│ (+fallback)│   │ text-embed- │   │ Sonnet      │
-│           │    │ 3-large     │   │ (+fallback) │
+│ Sonnet    │    │ Gemini      │   │ Model:      │
+│ (+fallback)│   │ embedding-  │   │ Sonnet      │
+│           │    │ 001         │   │ (+fallback) │
 └───────────┘    └─────────────┘   └─────────────┘
                        │
               (v0: cloud API)
@@ -115,7 +115,7 @@ Newer models bring algorithm and data advantages at the same size: better reason
 ```
 
 - **Router:** Task-tier routing (`canonicalization`, `farsi_messages`, `english_reasoning`, `dispute_resolution`, `embedding`).
-- **Embeddings:** v0 default OpenAI `text-embedding-3-large`, with configurable fallback path.
+- **Embeddings:** v0 default Gemini `gemini-embedding-001`, with OpenAI `text-embedding-3-large` fallback.
 - **Abstraction:** All agents call the same interface (e.g. `complete(prompt, model_tier)` / `embed(text)`); implementation swaps backend.
 
 ---
@@ -133,7 +133,7 @@ Newer models bring algorithm and data advantages at the same size: better reason
 - **Canonicalization tier:** Sonnet primary + configured fallback.
 - **Farsi messaging tier:** Sonnet primary + configured fallback.
 - **English reasoning tier:** Sonnet primary + configured fallback.
-- **Embedding tier:** OpenAI `text-embedding-3-large` primary + configured fallback.
+- **Embedding tier:** Gemini `gemini-embedding-001` primary + OpenAI `text-embedding-3-large` fallback.
 - **Dispute-resolution tier:** dedicated primary model + fallback/ensemble escalation.
 - **Target hardware:** No GPU required for MVP. All AI workloads are cloud API calls. Add local models later if cost or privacy requires it.
 
@@ -156,7 +156,7 @@ Newer models bring algorithm and data advantages at the same size: better reason
 | Task | Model | Volume | Cost |
 |------|-------|--------|------|
 | Canonicalization | Sonnet primary | 1k submissions | Higher than cost-first |
-| Clustering embeddings | OpenAI `text-embedding-3-large` primary | 1k items | Higher than cost-first |
+| Normalization embeddings | Gemini `gemini-embedding-001` primary | 1k items | Higher than cost-first |
 | Cluster summaries | Sonnet primary + fallback | 50 clusters | Higher than cost-first |
 | User messages | Sonnet primary + Haiku fallback | 3k messages | Higher than cost-first |
 | **Total** | | | **Quality-first v0 budget; optimize later via config** |

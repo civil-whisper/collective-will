@@ -36,6 +36,7 @@ def _make_cluster(**overrides: Any) -> MagicMock:
     cluster.status = overrides.get("status", "open")
     cluster.member_count = overrides.get("member_count", 5)
     cluster.approval_count = overrides.get("approval_count", 0)
+    cluster.candidate_ids = overrides.get("candidate_ids", [])
     cluster.created_at = overrides.get("created_at", datetime.now(UTC))
     return cluster
 
@@ -47,6 +48,12 @@ def _make_candidate(**overrides: Any) -> MagicMock:
     candidate.summary = overrides.get("summary", "Summary")
     candidate.policy_topic = overrides.get("policy_topic", "economy")
     candidate.policy_key = overrides.get("policy_key", "test-policy")
+    candidate.actor_scope = overrides.get("actor_scope", "public-governance")
+    candidate.action_mechanism = overrides.get("action_mechanism", "governance-design")
+    candidate.target_scope = overrides.get("target_scope", "public-governance")
+    candidate.ballot_readiness = overrides.get("ballot_readiness", "ballot-ready")
+    candidate.ballot_readiness_reason = overrides.get("ballot_readiness_reason", "Concrete enough for a ballot.")
+    candidate.submission_id = overrides.get("submission_id", uuid4())
     candidate.confidence = overrides.get("confidence", 0.8)
     candidate.created_at = overrides.get("created_at", datetime.now(UTC))
     return candidate
@@ -65,7 +72,11 @@ def _make_evidence_entry(**overrides: Any) -> MagicMock:
     return entry
 
 
-def _mock_cluster_session(rows: list[tuple[Any, int]]) -> AsyncMock:
+def _mock_cluster_session(
+    rows: list[tuple[Any, int]],
+    *,
+    candidates: list[Any] | None = None,
+) -> AsyncMock:
     """Mock session for the clusters endpoint which uses result.all() with (Cluster, count) tuples."""
     session = AsyncMock()
     result = MagicMock()
@@ -76,7 +87,9 @@ def _mock_cluster_session(rows: list[tuple[Any, int]]) -> AsyncMock:
         row.endorsement_count = endorsement_count
         row_mocks.append(row)
     result.all.return_value = row_mocks
-    session.execute.return_value = result
+    candidates_result = MagicMock()
+    candidates_result.scalars.return_value = MagicMock(all=MagicMock(return_value=candidates or []))
+    session.execute.side_effect = [result, candidates_result]
     return session
 
 
@@ -94,11 +107,13 @@ class TestClusters:
 
     def test_returns_cluster_list(self) -> None:
         cid = uuid4()
+        candidate_id = uuid4()
         cluster = _make_cluster(
             id=cid, summary="Reform A", policy_topic="governance",
-            policy_key="governance-reform", member_count=10,
+            policy_key="governance-reform", member_count=10, candidate_ids=[candidate_id],
         )
-        session = _mock_cluster_session([(cluster, 3)])
+        candidate = _make_candidate(id=candidate_id, ballot_readiness="ballot-ready")
+        session = _mock_cluster_session([(cluster, 3)], candidates=[candidate])
         app.dependency_overrides[get_db] = lambda: session
         try:
             client = TestClient(app)
@@ -114,6 +129,7 @@ class TestClusters:
             assert data[0]["member_count"] == 10
             assert data[0]["approval_count"] == 0
             assert data[0]["endorsement_count"] == 3
+            assert data[0]["ballot_stage"] == "ballot-ready"
         finally:
             app.dependency_overrides.pop(get_db, None)
 
@@ -365,6 +381,126 @@ class TestEvidence:
             assert data["entries"] == []
             assert data["total"] == 0
             assert data["page"] == 1
+        finally:
+            app.dependency_overrides.pop(get_db, None)
+
+
+class TestSubmissionPipelineHistory:
+    def test_returns_submission_history(self) -> None:
+        submission_id = uuid4()
+        candidate_id = uuid4()
+
+        submission = MagicMock()
+        submission.id = submission_id
+        submission.raw_text = "We need to strike so the regime cannot survive economically"
+        submission.status = "canonicalized"
+
+        candidate = _make_candidate(id=candidate_id)
+        candidate.submission_id = submission_id
+
+        evidence_entry = _make_evidence_entry(
+            id=7,
+            event_type="candidate_rekeyed",
+            entity_type="candidate",
+            entity_id=candidate_id,
+            payload={
+                "candidate_id": str(candidate_id),
+                "submission_id": str(submission_id),
+                "stage": "normalization",
+                "old_policy_key": "domestic-economic-strike",
+                "new_policy_key": "foreign-intervention",
+            },
+        )
+
+        submission_result = MagicMock()
+        submission_result.scalar_one_or_none.return_value = submission
+
+        candidate_result = MagicMock()
+        candidate_result.scalars.return_value = MagicMock(all=MagicMock(return_value=[candidate]))
+
+        evidence_result = MagicMock()
+        evidence_result.scalars.return_value = MagicMock(all=MagicMock(return_value=[evidence_entry]))
+
+        session = AsyncMock()
+        session.execute.side_effect = [submission_result, candidate_result, evidence_result]
+        app.dependency_overrides[get_db] = lambda: session
+        try:
+            client = TestClient(app)
+            response = client.get(f"/analytics/submissions/{submission_id}/pipeline-history")
+            assert response.status_code == 200
+            data = response.json()
+            assert data["submission_id"] == str(submission_id)
+            assert data["candidate_ids"] == [str(candidate_id)]
+            assert data["entries"][0]["event_type"] == "candidate_rekeyed"
+            assert data["entries"][0]["payload"]["old_policy_key"] == "domestic-economic-strike"
+        finally:
+            app.dependency_overrides.pop(get_db, None)
+
+
+class TestCandidatePipelineHistory:
+    def test_returns_candidate_history_with_current_snapshot(self) -> None:
+        submission_id = uuid4()
+        candidate_id = uuid4()
+        cluster_id = uuid4()
+
+        submission = MagicMock()
+        submission.id = submission_id
+        submission.raw_text = "Workers should strike to weaken the regime economically"
+        submission.status = "canonicalized"
+        submission.language = "en"
+
+        candidate = _make_candidate(
+            id=candidate_id,
+            submission_id=submission_id,
+            title="Domestic Economic Strike",
+            policy_key="domestic-economic-strike",
+            ballot_readiness="ballot-ready",
+        )
+        candidate.submission = submission
+
+        evidence_entry = _make_evidence_entry(
+            event_type="candidate_classified",
+            entity_type="candidate",
+            entity_id=candidate_id,
+            payload={
+                "candidate_id": str(candidate_id),
+                "submission_id": str(submission_id),
+                "policy_key": "domestic-economic-strike",
+                "ballot_readiness": "ballot-ready",
+            },
+        )
+        cluster = _make_cluster(id=cluster_id, candidate_ids=[candidate_id])
+
+        candidate_result = MagicMock()
+        candidate_result.scalar_one_or_none.return_value = candidate
+
+        submission_candidates_result = MagicMock()
+        submission_candidates_result.scalars.return_value = MagicMock(all=MagicMock(return_value=[candidate]))
+
+        evidence_result = MagicMock()
+        evidence_result.scalars.return_value = MagicMock(all=MagicMock(return_value=[evidence_entry]))
+
+        cluster_result = MagicMock()
+        cluster_result.scalar_one_or_none.return_value = cluster
+
+        session = AsyncMock()
+        session.execute.side_effect = [
+            candidate_result,
+            submission_candidates_result,
+            evidence_result,
+            cluster_result,
+        ]
+        app.dependency_overrides[get_db] = lambda: session
+        try:
+            client = TestClient(app)
+            response = client.get(f"/analytics/candidate/{candidate_id}/pipeline-history")
+            assert response.status_code == 200
+            data = response.json()
+            assert data["candidate"]["id"] == str(candidate_id)
+            assert data["candidate"]["policy_key"] == "domestic-economic-strike"
+            assert data["location"]["status"] == "clustered"
+            assert data["location"]["cluster_id"] == str(cluster_id)
+            assert data["entries"][0]["event_type"] == "candidate_classified"
         finally:
             app.dependency_overrides.pop(get_db, None)
 

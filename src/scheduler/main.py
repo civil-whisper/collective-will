@@ -38,6 +38,7 @@ from src.pipeline.endorsement import generate_ballot_questions
 from src.pipeline.llm import LLMRouter
 from src.pipeline.normalize import normalize_policy_keys
 from src.pipeline.options import generate_policy_options
+from src.pipeline.refinement import generate_refinement_drafts
 
 logger = logging.getLogger(__name__)
 
@@ -52,6 +53,15 @@ class PipelineResult:
     qualified_clusters: int = 0
     opened_cycle_id: str | None = None
     errors: list[str] = field(default_factory=list)
+
+
+def _is_candidate_ballot_ready(candidate: PolicyCandidate) -> bool:
+    return candidate.ballot_readiness == "ballot-ready"
+
+
+def _cluster_needs_refinement(cluster: Cluster, candidates_by_id: dict[UUID, PolicyCandidate]) -> bool:
+    members = [candidates_by_id[cid] for cid in cluster.candidate_ids if cid in candidates_by_id]
+    return bool(members) and any(candidate.ballot_readiness != "ballot-ready" for candidate in members)
 
 
 async def run_pipeline(*, session: AsyncSession, llm_router: LLMRouter | None = None) -> PipelineResult:
@@ -96,6 +106,26 @@ async def run_pipeline(*, session: AsyncSession, llm_router: LLMRouter | None = 
                 canonicalized_sub_ids = {data.submission_id for data in candidate_creates}
                 for data in candidate_creates:
                     db_candidate = await create_policy_candidate(session, data)
+                    await append_evidence(
+                        session=session,
+                        event_type="candidate_classified",
+                        entity_type="candidate",
+                        entity_id=db_candidate.id,
+                        payload={
+                            "candidate_id": str(db_candidate.id),
+                            "submission_id": str(db_candidate.submission_id),
+                            "policy_topic": db_candidate.policy_topic,
+                            "policy_key": db_candidate.policy_key,
+                            "actor_scope": db_candidate.actor_scope,
+                            "action_mechanism": db_candidate.action_mechanism,
+                            "target_scope": db_candidate.target_scope,
+                            "ballot_readiness": db_candidate.ballot_readiness,
+                            "ballot_readiness_reason": db_candidate.ballot_readiness_reason,
+                            "confidence": db_candidate.confidence,
+                            "model_version": db_candidate.model_version,
+                            "prompt_version": db_candidate.prompt_version,
+                        },
+                    )
                     await session.refresh(db_candidate)
                 await session.flush()
                 for sub in pending_subs:
@@ -151,10 +181,22 @@ async def run_pipeline(*, session: AsyncSession, llm_router: LLMRouter | None = 
                     session=session, clusters=needs_ballot,
                     candidates_by_id=candidates_by_id, llm_router=router,
                 )
+                refinement_targets = [
+                    cluster for cluster in needs_ballot
+                    if _cluster_needs_refinement(cluster, candidates_by_id)
+                ]
+                if refinement_targets:
+                    await generate_refinement_drafts(
+                        session=session,
+                        clusters=refinement_targets,
+                        candidates_by_id=candidates_by_id,
+                        llm_router=router,
+                    )
 
             qualified_clusters = [
                 c for c in all_clusters
                 if c.ballot_question and not c.needs_resummarize
+                and _cluster_is_ballot_ready(c, candidates_by_id)
             ]
             clusters_needing_options = [
                 c for c in qualified_clusters
@@ -274,13 +316,16 @@ async def _maybe_open_cycle(session: AsyncSession) -> VotingCycle | None:
     )
     qualified_ids = {item.cluster_id for item in agenda if item.qualifies}
 
-    vote_ready = [
-        c for c in all_clusters
-        if str(c.id) in qualified_ids
-        and c.ballot_question
-        and not c.needs_resummarize
-        and await _has_options(session, c.id)
-    ]
+    vote_ready: list[Cluster] = []
+    for c in all_clusters:
+        if (
+            str(c.id) in qualified_ids
+            and c.ballot_question
+            and not c.needs_resummarize
+            and await _cluster_is_ballot_ready_db(session, c)
+            and await _has_options(session, c.id)
+        ):
+            vote_ready.append(c)
     if not vote_ready:
         return None
 
@@ -378,6 +423,25 @@ async def _has_options(session: AsyncSession, cluster_id: UUID) -> bool:
         select(PolicyOption.id).where(PolicyOption.cluster_id == cluster_id).limit(1)
     )
     return result.scalar_one_or_none() is not None
+
+
+def _cluster_is_ballot_ready(cluster: Cluster, candidates_by_id: dict[UUID, PolicyCandidate]) -> bool:
+    candidate_ids = cluster.candidate_ids
+    if not candidate_ids:
+        return False
+    members = [candidates_by_id[cid] for cid in candidate_ids if cid in candidates_by_id]
+    return bool(members) and all(_is_candidate_ballot_ready(candidate) for candidate in members)
+
+
+async def _cluster_is_ballot_ready_db(session: AsyncSession, cluster: Cluster) -> bool:
+    candidate_ids = cluster.candidate_ids
+    if not candidate_ids:
+        return False
+    result = await session.execute(
+        select(PolicyCandidate).where(PolicyCandidate.id.in_(candidate_ids))
+    )
+    members = list(result.scalars().all())
+    return bool(members) and all(_is_candidate_ballot_ready(candidate) for candidate in members)
 
 
 async def _run_daily_anchoring(*, session: AsyncSession, router: LLMRouter) -> None:

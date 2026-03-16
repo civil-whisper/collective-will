@@ -53,6 +53,11 @@ class PolicyCandidate(Base):
     stance: Mapped[str] = mapped_column(String(16), nullable=False)
     policy_topic: Mapped[str] = mapped_column(String(255), nullable=False, index=True, server_default="unassigned")
     policy_key: Mapped[str] = mapped_column(String(255), nullable=False, index=True, server_default="unassigned")
+    actor_scope: Mapped[str] = mapped_column(String(64), nullable=False, server_default="unclear")
+    action_mechanism: Mapped[str] = mapped_column(String(64), nullable=False, server_default="unclear")
+    target_scope: Mapped[str] = mapped_column(String(64), nullable=False, server_default="unclear")
+    ballot_readiness: Mapped[str] = mapped_column(String(32), nullable=False, server_default="discussion-only")
+    ballot_readiness_reason: Mapped[str | None] = mapped_column(String(255), nullable=True)
     entities: Mapped[list[str]] = mapped_column(JSONB, nullable=False, default=list)
     embedding: Mapped[list[float] | None] = mapped_column(Vector(1024), nullable=True)
     confidence: Mapped[float] = mapped_column(Float, nullable=False)
@@ -110,6 +115,14 @@ class PolicyCandidateCreate(BaseModel):
     stance: str = Field(pattern="^(support|oppose|neutral|unclear)$")
     policy_topic: str = Field(min_length=2, max_length=255)
     policy_key: str = Field(min_length=2, max_length=255)
+    actor_scope: str = "unclear"
+    action_mechanism: str = "unclear"
+    target_scope: str = "unclear"
+    ballot_readiness: str = Field(
+        default="discussion-only",
+        pattern="^(ballot-ready|needs-refinement|discussion-only)$",
+    )
+    ballot_readiness_reason: str | None = None
     entities: list[str]
     embedding: list[float] | None = None
     confidence: float = Field(ge=0, le=1)
@@ -126,6 +139,11 @@ class PolicyCandidateRead(BaseModel):
     stance: str
     policy_topic: str
     policy_key: str
+    actor_scope: str
+    action_mechanism: str
+    target_scope: str
+    ballot_readiness: str
+    ballot_readiness_reason: str | None
     entities: list[str]
     embedding: list[float] | None
     confidence: float
@@ -148,6 +166,11 @@ class PolicyCandidateRead(BaseModel):
             stance=db_candidate.stance,
             policy_topic=db_candidate.policy_topic,
             policy_key=db_candidate.policy_key,
+            actor_scope=db_candidate.actor_scope,
+            action_mechanism=db_candidate.action_mechanism,
+            target_scope=db_candidate.target_scope,
+            ballot_readiness=db_candidate.ballot_readiness,
+            ballot_readiness_reason=db_candidate.ballot_readiness_reason,
             entities=list(db_candidate.entities),
             embedding=embedding,
             confidence=db_candidate.confidence,

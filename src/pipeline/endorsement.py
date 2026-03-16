@@ -22,31 +22,38 @@ from src.pipeline.llm import LLMRouter
 logger = logging.getLogger(__name__)
 
 _SYSTEM_PROMPT = (
-    "You are a nonpartisan policy analyst for a democratic deliberation platform. "
-    "Your job is to create a neutral description of a policy issue "
-    "without taking sides, so citizens can decide whether this topic should appear "
-    "on the voting ballot."
+    "You are a nonpartisan democratic process analyst. "
+    "Your job is to write plain-language, impartial civic wording that resembles "
+    "a real democratic process. Preserve the difference between a broad concern "
+    "that needs more refinement and a concrete proposition that voters could actually decide."
 )
 
 _PROMPT_TEMPLATE = """\
 Policy discussion: "{policy_key}"
-Topic area: "{policy_topic}"
 Number of submissions: {member_count}
 
-Citizen submissions on this issue (summaries):
+Citizen submissions on this issue:
 {submissions_block}
 
-Generate a stance-neutral policy description that:
-1. Describes the policy issue without taking sides
-2. Mentions the range of views expressed by citizens
-3. Is concise (1-2 sentences in English, 1-2 sentences in Farsi)
-4. Makes clear what voters would be deciding about
-5. Also provide a short neutral summary of the policy discussion
+Generate two pieces of neutral wording:
+1. ballot_question:
+   - If the issue is concrete and ballot-ready, write neutral proposition language
+     describing what voters would actually be deciding.
+   - If the issue is still broad or underspecified, write agenda-setting language
+     describing whether this concern should move forward for further public refinement.
+2. summary:
+   - Write a short neutral summary suitable for a concerns/discussion list.
 
 IMPORTANT formatting rules for the Farsi version (ballot_question_fa):
 - Write as a STATEMENT, not a question. Do NOT start with «آیا» or end with «؟».
 - Use casual, plain Farsi suitable for people in their early 20s — direct and friendly, not formal or bureaucratic.
-- Example of the right tone: «این بحث درباره ... مطرح شده» or «شهروندان نگران ... هستن»
+- Plain-language civic style is more important than rhetoric.
+
+Ballot-language requirements:
+- Use concise, impartial language.
+- Avoid "one citizen raised a concern" narration.
+- Make clear whether the item is a concrete proposition or still a broad concern under discussion.
+- Do not invent an option set or political spectrum in this step.
 
 Return ONLY raw JSON (no markdown):
 {{
@@ -66,7 +73,12 @@ def _build_submissions_block(
         candidate = candidates_by_id.get(cid)
         if candidate is None:
             continue
-        lines.append(f"- [{candidate.stance}] {candidate.title}: {candidate.summary}")
+        lines.append(
+            "- "
+            f"[{candidate.stance}; actor={candidate.actor_scope}; mechanism={candidate.action_mechanism}; "
+            f"target={candidate.target_scope}; readiness={candidate.ballot_readiness}] "
+            f"{candidate.title}: {candidate.summary}"
+        )
     return "\n".join(lines) if lines else "(no submissions available)"
 
 
@@ -89,7 +101,6 @@ async def generate_ballot_questions(
         submissions_block = _build_submissions_block(cluster, candidates_by_id)
         prompt = _PROMPT_TEMPLATE.format(
             policy_key=cluster.policy_key,
-            policy_topic=cluster.policy_topic,
             member_count=cluster.member_count,
             submissions_block=submissions_block,
         )
@@ -102,10 +113,21 @@ async def generate_ballot_questions(
                 temperature=0.1,
             )
             parsed = _parse_ballot_response(completion.text)
-        except Exception:
+        except Exception as exc:
             logger.exception(
                 "Ballot question generation failed for cluster %s (%s)",
                 cluster.id, cluster.policy_key,
+            )
+            await append_evidence(
+                session=session,
+                event_type="ballot_generation_failed",
+                entity_type="cluster",
+                entity_id=cluster.id,
+                payload={
+                    "cluster_id": str(cluster.id),
+                    "policy_key": cluster.policy_key,
+                    "error_type": type(exc).__name__,
+                },
             )
             continue
 

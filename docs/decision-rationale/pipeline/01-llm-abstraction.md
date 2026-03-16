@@ -9,7 +9,7 @@
 ## Decision Alignment
 
 - **Claude-first strategy**: All primary tiers default to `claude-sonnet-4-6` for reliable throughput (no restrictive RPD limits). Gemini 3.1 Pro rate limits (25 RPD on Paid Tier 1) caused persistent 429 errors under normal workload.
-- All fallbacks default to `gemini-3.1-pro-preview` for cross-provider resilience.
+- All fallbacks default to `gpt-4o` for cross-provider resilience (switched from `gemini-3.1-pro-preview` due to Gemini rate limits).
 - Embeddings: `gemini-embedding-001` primary, `text-embedding-3-large` fallback (Gemini embedding quotas are generous — 3K RPM, unlimited RPD).
 - Policy option generation (`option_generation`) uses Claude Sonnet 4.6 as primary (no grounding). Fallback: Gemini 3.1 Pro (Google Search grounding activates automatically for Google models when `grounding=True`).
 - Dispute adjudication is autonomous via the `dispute_resolution` tier, with ensemble tie-break using Claude Sonnet 4.6 + Gemini 3.1 Pro.
