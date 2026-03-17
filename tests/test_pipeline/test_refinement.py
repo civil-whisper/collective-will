@@ -111,8 +111,12 @@ async def test_generate_refinement_drafts_softens_blunt_needs_refinement_tone() 
             llm_router=router,
         )
 
-    assert cluster.refinement_draft == "A labor strike to help Iranians pursue regime change in Iran should be supported."
-    assert cluster.refinement_draft_fa == "از یک اعتصاب کارگری برای کمک به ایرانیان در پیگیری تغییر رژیم در ایران حمایت شود."
+    assert cluster.refinement_draft == (
+        "A labor strike to help Iranians pursue regime change in Iran should be supported."
+    )
+    assert cluster.refinement_draft_fa == (
+        "از یک اعتصاب کارگری برای کمک به ایرانیان در پیگیری تغییر رژیم در ایران حمایت شود."
+    )
     assert cluster.refinement_requires_clarification is True
 
 
@@ -130,8 +134,14 @@ async def test_generate_refinement_drafts_normalizes_question_form_to_statement(
     router = MagicMock()
     router.complete = AsyncMock(return_value=LLMResponse(
         text=json.dumps({
-            "refinement_draft": "Should economic and financial pressure be applied against the Iranian regime to support regime change?",
-            "refinement_draft_fa": "آیا باید فشار اقتصادی و مالی علیه رژیم ایران برای حمایت از تغییر رژیم اعمال شود؟",
+            "refinement_draft": (
+                "Should economic and financial pressure be applied against the "
+                "Iranian regime to support regime change?"
+            ),
+            "refinement_draft_fa": (
+                "آیا باید فشار اقتصادی و مالی علیه رژیم ایران برای حمایت از "
+                "تغییر رژیم اعمال شود؟"
+            ),
             "refinement_confidence": 0.84,
             "requires_clarification": False,
             "notes": "The exact measures and actor remain unclear.",
@@ -156,7 +166,9 @@ async def test_generate_refinement_drafts_normalizes_question_form_to_statement(
     assert cluster.refinement_draft == (
         "Economic and financial pressure should be applied against the Iranian regime to support regime change."
     )
-    assert cluster.refinement_draft_fa == "فشار اقتصادی و مالی علیه رژیم ایران برای حمایت از تغییر رژیم اعمال شود."
+    assert cluster.refinement_draft_fa == (
+        "فشار اقتصادی و مالی علیه رژیم ایران برای حمایت از تغییر رژیم اعمال شود."
+    )
     assert cluster.refinement_requires_clarification is False
 
 
@@ -247,8 +259,14 @@ async def test_generate_refinement_drafts_rejects_unanchored_specific_target() -
     router = MagicMock()
     router.complete = AsyncMock(return_value=LLMResponse(
         text=json.dumps({
-            "refinement_draft": "Support military action against Iran, but only for a limited period of no more than one month.",
-            "refinement_draft_fa": "از اقدام نظامی علیه ایران حمایت شود، اما فقط برای مدت محدودی که از یک ماه بیشتر نباشد.",
+            "refinement_draft": (
+                "Support military action against Iran, but only for a limited "
+                "period of no more than one month."
+            ),
+            "refinement_draft_fa": (
+                "از اقدام نظامی علیه ایران حمایت شود، اما فقط برای مدت محدودی "
+                "که از یک ماه بیشتر نباشد."
+            ),
             "refinement_confidence": 0.8,
             "requires_clarification": False,
             "notes": "The submission supports war with a time limit.",

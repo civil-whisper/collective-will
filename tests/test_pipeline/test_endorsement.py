@@ -69,9 +69,19 @@ async def test_generate_ballot_questions_rewrites_unanchored_actorful_output() -
     router = MagicMock()
     router.complete = AsyncMock(return_value=LLMResponse(
         text=json.dumps({
-            "ballot_question": "Whether the United States should use military force against Iran, with the current proposal limited to support for war and no clear details yet on scope, objectives, or duration.",
-            "ballot_question_fa": "حمایت از جنگ با ایران، با این ابهام که هنوز معلوم نیست دامنه، هدف‌ها و مدت آن دقیقاً چی باشد.",
-            "summary": "A proposal to support military action against Iran, with the main details still unclear and the support described as conditional.",
+            "ballot_question": (
+                "Whether the United States should use military force against Iran, "
+                "with the current proposal limited to support for war and no clear "
+                "details yet on scope, objectives, or duration."
+            ),
+            "ballot_question_fa": (
+                "حمایت از جنگ با ایران، با این ابهام که هنوز معلوم نیست دامنه، "
+                "هدف‌ها و مدت آن دقیقاً چی باشد."
+            ),
+            "summary": (
+                "A proposal to support military action against Iran, with the main "
+                "details still unclear and the support described as conditional."
+            ),
         }),
         model="test-model",
         input_tokens=10,
@@ -96,7 +106,10 @@ async def test_generate_ballot_questions_rewrites_unanchored_actorful_output() -
         "objectives, and duration still needing definition."
     )
     assert "United States" not in cluster.ballot_question
-    assert cluster.summary == "Discussion of whether to support military action related to Iran while key details remain unclear."
+    assert cluster.summary == (
+        "Discussion of whether to support military action related to Iran "
+        "while key details remain unclear."
+    )
     evidence_payload = mock_evidence.call_args.kwargs["payload"]
     assert evidence_payload["validation_flags"] == [
         "Ballot wording introduced a U.S. actor not grounded in the source submissions.",
@@ -118,9 +131,21 @@ async def test_generate_ballot_questions_softens_blunt_needs_refinement_wording(
     router = MagicMock()
     router.complete = AsyncMock(return_value=LLMResponse(
         text=json.dumps({
-            "ballot_question": "Support using labor strikes by domestic citizens to economically weaken the Iranian regime, with the exact scope and organizing details still unspecified.",
-            "ballot_question_fa": "حمایت از اعتصاب‌های کارگری توسط شهروندان داخل کشور برای ضعیف کردن اقتصادیِ رژیم ایران، با این‌که جزئیات دقیقِ دامنه و سازمان‌دهی هنوز مشخص نیست.",
-            "summary": "Proposal to use domestic labor strikes as a tactic to economically weaken the Iranian regime; the intended scope and organizing details are not yet defined.",
+            "ballot_question": (
+                "Support using labor strikes by domestic citizens to economically "
+                "weaken the Iranian regime, with the exact scope and organizing "
+                "details still unspecified."
+            ),
+            "ballot_question_fa": (
+                "حمایت از اعتصاب‌های کارگری توسط شهروندان داخل کشور برای ضعیف "
+                "کردن اقتصادیِ رژیم ایران، با این‌که جزئیات دقیقِ دامنه و "
+                "سازمان‌دهی هنوز مشخص نیست."
+            ),
+            "summary": (
+                "Proposal to use domestic labor strikes as a tactic to economically "
+                "weaken the Iranian regime; the intended scope and organizing "
+                "details are not yet defined."
+            ),
         }),
         model="test-model",
         input_tokens=10,
@@ -149,11 +174,12 @@ async def test_generate_ballot_questions_softens_blunt_needs_refinement_wording(
         "the Iranian regime while key details remain unclear."
     )
 
-    def test_prose_prefix_stripped(self) -> None:
-        raw = (
-            'Here is the ballot question:\n'
-            '{"ballot_question": "test", "ballot_question_fa": "تست",'
-            '"summary": "s"}'
-        )
-        result = _parse_ballot_response(raw)
-        assert result["ballot_question"] == "test"
+
+def test_prose_prefix_stripped() -> None:
+    raw = (
+        'Here is the ballot question:\n'
+        '{"ballot_question": "test", "ballot_question_fa": "تست",'
+        '"summary": "s"}'
+    )
+    result = _parse_ballot_response(raw)
+    assert result["ballot_question"] == "test"

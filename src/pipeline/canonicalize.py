@@ -137,12 +137,16 @@ _CANONICALIZATION_INSTRUCTIONS = (
     "about governance, rights, economy, foreign policy, or public affairs.\n"
     "- Invalid submissions include greetings, spam, personal/off-topic text, and platform/how-to questions.\n"
     "- discussion-only = broad exploration with no implied proposition.\n"
-    "- needs-refinement = a real proposition or direction exists, but scope, actor, mechanism, or target is still unclear.\n"
-    "- ballot-ready can include a clearly stated constitutional, legal, or policy rule, even when phrased as a question.\n"
+    "- needs-refinement = a real proposition or direction exists, "
+    "but scope, actor, mechanism, or target is still unclear.\n"
+    "- ballot-ready can include a clearly stated constitutional, "
+    "legal, or policy rule, even when phrased as a question.\n"
     "- policy_topic is UI metadata only.\n"
     "- policy_key must be stance-neutral, lowercase-with-hyphens, and represent one ballot-level issue.\n"
-    "- For actor_scope, action_mechanism, and target_scope, use other when the dimension is clear but outside the listed buckets; use unclear only when it is genuinely unclear.\n"
-    "- Do not merge distinct propositions. Create a new policy_key when actor, mechanism, or target materially differs, "
+    "- For actor_scope, action_mechanism, and target_scope, use other when the dimension is clear "
+    "but outside the listed buckets; use unclear only when it is genuinely unclear.\n"
+    "- Do not merge distinct propositions. Create a new policy_key when actor, "
+    "mechanism, or target materially differs, "
     "or when reuse would change ballot wording, option sets, or refinement output.\n"
     "- For compound submissions, keep only the dominant proposition in policy_key/title/summary. "
     "Put secondary ideas in ambiguity_flags or ballot_readiness_reason, and use compound_submission when appropriate.\n"
@@ -150,7 +154,8 @@ _CANONICALIZATION_INSTRUCTIONS = (
     f"is_valid_policy, rejection_reason, title, summary, stance ({_STANCES}), policy_topic, "
     "policy_key, actor_scope, action_mechanism, target_scope, ballot_readiness, "
     "ballot_readiness_reason, entities, confidence, ambiguity_flags.\n"
-    "actor_scope: domestic-citizens, foreign-state, international-organization, civil-society, public-governance, other, unclear.\n"
+    "actor_scope: domestic-citizens, foreign-state, international-organization, "
+    "civil-society, public-governance, other, unclear.\n"
     "action_mechanism: labor-strike, economic-sanctions, economic-pressure, military-action, diplomatic-pressure, "
     "civil-society-support, governance-design, discussion-only, other, unclear.\n"
     "target_scope: iranian-regime, iranian-economy, public-governance, civil-rights, other, unclear.\n"
@@ -170,7 +175,8 @@ def _prompt_for_item(item: dict[str, Any], policy_context: str = "") -> str:
             f"{policy_context}\n"
             "Reuse only on a true actor/mechanism/target match. "
             "If actor or mechanism differs, create a new policy_key. "
-            "Also create a new key whenever reuse would change the ballot-level proposition, wording, or option set.\n\n"
+            "Also create a new key whenever reuse would change the ballot-level proposition, "
+            "wording, or option set.\n\n"
         )
     return (
         _CANONICALIZATION_INSTRUCTIONS
@@ -192,7 +198,10 @@ def _prompt_version(prompt: str) -> str:
 
 _FARSI_SCRIPT_RE = re.compile(r"[\u0600-\u06FF]")
 _LATIN_SCRIPT_RE = re.compile(r"[A-Za-z]")
-_BROAD_CONFLICT_TERM_RE = re.compile(r"(war|conflict|intervention|military|جنگ|درگیری|مداخله|نظامی)", flags=re.IGNORECASE)
+_BROAD_CONFLICT_TERM_RE = re.compile(
+    r"(war|conflict|intervention|military|جنگ|درگیری|مداخله|نظامی)",
+    flags=re.IGNORECASE,
+)
 _EXPLICIT_IRANIAN_REGIME_TARGET_RE = re.compile(
     r"(regime|regime change|government of iran|iranian government|حکومت|رژیم|دولت)",
     flags=re.IGNORECASE,

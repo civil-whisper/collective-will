@@ -10,8 +10,8 @@ from __future__ import annotations
 import json
 import logging
 import re
-from collections.abc import Mapping
 from collections import Counter
+from collections.abc import Mapping
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -67,7 +67,8 @@ Ballot-language requirements:
 - Do not invent an option set or political spectrum in this step.
 - Do not introduce a new actor, institution, city, country, or jurisdiction unless it is explicit in the submissions.
 - If the actor is unclear, keep the wording actor-neutral.
-- Do not turn a broad war/conflict/intervention submission into a specific country-led action unless the source submissions say so.
+- Do not turn a broad war/conflict/intervention submission into a specific
+  country-led action unless the source submissions say so.
 
 Return ONLY raw JSON (no markdown):
 {{
@@ -78,9 +79,18 @@ Return ONLY raw JSON (no markdown):
 """
 
 _LOCAL_ACTOR_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
-    (re.compile(r"\bthe united states should\b", flags=re.IGNORECASE), "Ballot wording introduced a U.S. actor not grounded in the source submissions."),
-    (re.compile(r"\bu\.s\. should\b", flags=re.IGNORECASE), "Ballot wording introduced a U.S. actor not grounded in the source submissions."),
-    (re.compile(r"\bthe city should\b", flags=re.IGNORECASE), "Ballot wording introduced a city-level actor not grounded in the source submissions."),
+    (
+        re.compile(r"\bthe united states should\b", flags=re.IGNORECASE),
+        "Ballot wording introduced a U.S. actor not grounded in the source submissions.",
+    ),
+    (
+        re.compile(r"\bu\.s\. should\b", flags=re.IGNORECASE),
+        "Ballot wording introduced a U.S. actor not grounded in the source submissions.",
+    ),
+    (
+        re.compile(r"\bthe city should\b", flags=re.IGNORECASE),
+        "Ballot wording introduced a city-level actor not grounded in the source submissions.",
+    ),
 )
 _UNANCHORED_TARGET_PHRASES = (
     "against iran",
@@ -225,7 +235,9 @@ def _fallback_ballot_wording(
     if dominant_mechanism == "military-action" and (
         _dominant_member_value(members, "actor_scope") is None or dominant_target is None
     ):
-        unresolved_en = ", with the exact actor, objectives, and duration still needing definition."
+        unresolved_en = (
+            ", with the exact actor, objectives, and duration still needing definition."
+        )
         unresolved_fa = "، با این‌که بازیگر دقیق، هدف‌ها و مدت آن هنوز باید روشن‌تر شود."
 
     if readiness == "needs-refinement":
@@ -233,12 +245,14 @@ def _fallback_ballot_wording(
             return (
                 f"Debate over whether to oppose {mechanism_en}{target_en}{unresolved_en}",
                 f"بحث درباره مخالفت با {mechanism_fa}{target_fa}{unresolved_fa}",
-                f"Discussion of whether to oppose {mechanism_en}{target_en} while key details remain unclear.",
+                "Discussion of whether to oppose "
+                f"{mechanism_en}{target_en} while key details remain unclear.",
             )
         return (
             f"Debate over whether to support {mechanism_en}{target_en}{unresolved_en}",
             f"بحث درباره حمایت از {mechanism_fa}{target_fa}{unresolved_fa}",
-            f"Discussion of whether to support {mechanism_en}{target_en} while key details remain unclear.",
+            "Discussion of whether to support "
+            f"{mechanism_en}{target_en} while key details remain unclear.",
         )
 
     if dominant_stance == "oppose":
@@ -289,15 +303,19 @@ def _tone_soften_ballot_wording(
         )
         for prefix, replacement in support_rewrites:
             if main_clause.startswith(prefix):
-                rewritten_core = f"{replacement[len('Debate over '):]}{main_clause[len(prefix):]}".rstrip(".")
+                rewritten_core = (
+                    f"{replacement[len('Debate over '):]}{main_clause[len(prefix):]}"
+                ).rstrip(".")
                 softened_question = f"{replacement}{main_clause[len(prefix):]}{unresolved_suffix}"
-                softened_summary = f"Discussion of {rewritten_core} while key details remain unclear."
+                softened_summary = (
+                    f"Discussion of {rewritten_core} while key details remain unclear."
+                )
                 softened_fa = ballot_question_fa
                 if ballot_question_fa.startswith("حمایت از"):
                     softened_fa = f"بحث درباره حمایت از {ballot_question_fa[len('حمایت از '):]}"
-                elif ballot_question_fa.startswith("اعمال "):
-                    softened_fa = f"بحث درباره {ballot_question_fa}"
-                elif ballot_question_fa.startswith("استفاده از"):
+                elif ballot_question_fa.startswith("اعمال ") or ballot_question_fa.startswith(
+                    "استفاده از"
+                ):
                     softened_fa = f"بحث درباره {ballot_question_fa}"
                 return softened_question, softened_fa, softened_summary
     else:
@@ -308,12 +326,18 @@ def _tone_soften_ballot_wording(
         )
         for prefix, replacement in oppose_rewrites:
             if main_clause.startswith(prefix):
-                rewritten_core = f"{replacement[len('Debate over '):]}{main_clause[len(prefix):]}".rstrip(".")
+                rewritten_core = (
+                    f"{replacement[len('Debate over '):]}{main_clause[len(prefix):]}"
+                ).rstrip(".")
                 softened_question = f"{replacement}{main_clause[len(prefix):]}{unresolved_suffix}"
-                softened_summary = f"Discussion of {rewritten_core} while key details remain unclear."
+                softened_summary = (
+                    f"Discussion of {rewritten_core} while key details remain unclear."
+                )
                 softened_fa = ballot_question_fa
                 if ballot_question_fa.startswith("مخالفت با"):
-                    softened_fa = f"بحث درباره مخالفت با {ballot_question_fa[len('مخالفت با '):]}"
+                    softened_fa = (
+                        f"بحث درباره مخالفت با {ballot_question_fa[len('مخالفت با '):]}"
+                    )
                 return softened_question, softened_fa, softened_summary
 
     return ballot_question, ballot_question_fa, summary
@@ -342,7 +366,9 @@ def _sanitize_ballot_wording(
     if dominant_target is None:
         for phrase in _UNANCHORED_TARGET_PHRASES:
             if phrase in ballot_lower and phrase not in source_corpus:
-                validation_flags.append("Ballot wording introduced a specific target that is not grounded in the source submissions.")
+                validation_flags.append(
+                    "Ballot wording introduced a specific target that is not grounded in the source submissions."
+                )
                 break
 
     if validation_flags:

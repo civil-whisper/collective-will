@@ -38,7 +38,10 @@ from src.pipeline.endorsement import (
 from src.pipeline.endorsement import (
     _build_submissions_block as _build_ballot_submissions_block,
 )
-from src.pipeline.endorsement import _parse_ballot_response, _sanitize_ballot_wording
+from src.pipeline.endorsement import (
+    _parse_ballot_response,
+    _sanitize_ballot_wording,
+)
 from src.pipeline.llm import EmbeddingResult, LLMResponse, LLMRouter
 from src.pipeline.normalize import (
     _REMAP_PROMPT_TEMPLATE,
@@ -48,11 +51,11 @@ from src.pipeline.normalize import (
     _extract_merges_from_mapping,
     _parse_remap_response,
     _same_key_group_needs_revalidation,
+    review_same_key_reuse,
 )
 from src.pipeline.normalize import (
     _build_submissions_block as _build_normalization_submissions_block,
 )
-from src.pipeline.normalize import review_same_key_reuse
 from src.pipeline.options import (
     _fallback_options,
     _generate_options_for_cluster,
@@ -64,8 +67,13 @@ from src.pipeline.refinement import (
 from src.pipeline.refinement import (
     _SYSTEM_PROMPT as REFINEMENT_SYSTEM_PROMPT,
 )
-from src.pipeline.refinement import _build_submissions_block as _build_refinement_submissions_block
-from src.pipeline.refinement import _parse_refinement_payload, _sanitize_refinement_output
+from src.pipeline.refinement import (
+    _build_submissions_block as _build_refinement_submissions_block,
+)
+from src.pipeline.refinement import (
+    _parse_refinement_payload,
+    _sanitize_refinement_output,
+)
 
 
 @dataclass(slots=True)
@@ -426,7 +434,15 @@ async def load_submissions_from_db(
         async with AsyncSession(engine, expire_on_commit=False) as session:
             stmt = (
                 select(Submission)
-                .options(load_only(Submission.id, Submission.raw_text, Submission.language, Submission.status, Submission.created_at))
+                .options(
+                    load_only(
+                        Submission.id,
+                        Submission.raw_text,
+                        Submission.language,
+                        Submission.status,
+                        Submission.created_at,
+                    )
+                )
                 .order_by(Submission.created_at.asc(), Submission.id.asc())
             )
             if limit is not None:
@@ -535,7 +551,10 @@ async def replay_submissions(
                 model=completion.model,
                 fallback_from=completion.fallback_from,
             ))
-        parsed, repair_method = await _parse_candidate_payload_with_repair(payload=completion.text, llm_router=llm_router)
+        parsed, repair_method = await _parse_candidate_payload_with_repair(
+            payload=completion.text,
+            llm_router=llm_router,
+        )
         if repair_method is not None:
             degradations.append(ReplayDegradationEvent(
                 step="canonicalization",
@@ -695,7 +714,11 @@ async def _normalize_candidates_in_memory(
     llm_router: LLMRouter,
     degradations: list[ReplayDegradationEvent],
 ) -> list[ReplayCandidate]:
-    active = [candidate for candidate in candidates if candidate.policy_key != "unassigned" and candidate.embedding is not None]
+    active = [
+        candidate
+        for candidate in candidates
+        if candidate.policy_key != "unassigned" and candidate.embedding is not None
+    ]
     if len(active) < 2:
         return candidates
 
@@ -878,7 +901,11 @@ async def _populate_cluster_artifacts(
             fallback_from=ballot_response.fallback_from,
         ))
     ballot_payload = _parse_ballot_response(ballot_response.text)
-    members = [candidates_by_id[candidate_id] for candidate_id in cluster.candidate_ids if candidate_id in candidates_by_id]
+    members = [
+        candidates_by_id[candidate_id]
+        for candidate_id in cluster.candidate_ids
+        if candidate_id in candidates_by_id
+    ]
     (
         cluster.ballot_question,
         cluster.ballot_question_fa,
