@@ -36,8 +36,7 @@ from src.pipeline.cluster import group_by_policy_key
 from src.pipeline.embeddings import compute_and_store_embeddings
 from src.pipeline.endorsement import generate_ballot_questions
 from src.pipeline.llm import LLMRouter
-from src.pipeline.normalize import normalize_policy_keys
-from src.pipeline.normalize import revalidate_candidate_key_reuse
+from src.pipeline.normalize import normalize_policy_keys, revalidate_candidate_key_reuse
 from src.pipeline.options import generate_policy_options
 from src.pipeline.refinement import generate_refinement_drafts
 
@@ -62,7 +61,9 @@ def _is_candidate_ballot_ready(candidate: PolicyCandidate) -> bool:
 
 def _cluster_needs_refinement(cluster: Cluster, candidates_by_id: dict[UUID, PolicyCandidate]) -> bool:
     members = [candidates_by_id[cid] for cid in cluster.candidate_ids if cid in candidates_by_id]
-    return bool(members) and any(candidate.ballot_readiness == "needs-refinement" for candidate in members)
+    return bool(members) and any(
+        candidate.ballot_readiness == "needs-refinement" for candidate in members
+    )
 
 
 async def run_pipeline(*, session: AsyncSession, llm_router: LLMRouter | None = None) -> PipelineResult:

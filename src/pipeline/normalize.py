@@ -79,7 +79,8 @@ New candidates to evaluate:
 
 Rules:
 - Reuse the existing key only when the candidate expresses the SAME ballot-level proposition.
-- If assigning the candidate to the existing key would materially change ballot wording, option sets, or refinement output, assign a new key.
+- If assigning the candidate to the existing key would materially change ballot wording,
+  option sets, or refinement output, assign a new key.
 - Do not create a new key for minor wording differences that still represent the same proposition.
 - New keys must be stance-neutral, descriptive, and lowercase-with-hyphens.
 - `policy_topic` should be a short browsing label, also lowercase-with-hyphens.
@@ -124,18 +125,29 @@ def _build_submissions_block(
 
 
 def _has_compound_shape(candidate: Any) -> bool:
-    return any(str(flag).strip().lower() == "compound_submission" for flag in getattr(candidate, "ambiguity_flags", []))
+    return any(
+        str(flag).strip().lower() == "compound_submission"
+        for flag in getattr(candidate, "ambiguity_flags", [])
+    )
 
 
 def _same_key_group_needs_revalidation(candidates: list[Any]) -> bool:
     if len(candidates) < 2:
         return False
 
-    non_unclear_actors = {str(candidate.actor_scope) for candidate in candidates if str(candidate.actor_scope) != "unclear"}
+    non_unclear_actors = {
+        str(candidate.actor_scope)
+        for candidate in candidates
+        if str(candidate.actor_scope) != "unclear"
+    }
     non_unclear_mechanisms = {
         str(candidate.action_mechanism) for candidate in candidates if str(candidate.action_mechanism) != "unclear"
     }
-    non_unclear_targets = {str(candidate.target_scope) for candidate in candidates if str(candidate.target_scope) != "unclear"}
+    non_unclear_targets = {
+        str(candidate.target_scope)
+        for candidate in candidates
+        if str(candidate.target_scope) != "unclear"
+    }
     readiness_values = {str(candidate.ballot_readiness) for candidate in candidates}
     compound_values = {_has_compound_shape(candidate) for candidate in candidates}
 

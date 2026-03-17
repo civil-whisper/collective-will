@@ -234,7 +234,10 @@ def test_instruction_version_is_stable_hash() -> None:
 
 def test_prompt_includes_readiness_and_compound_guidance() -> None:
     prompt = _prompt_for_item({"raw_text": "text", "language": "en"})
-    prompt_with_context = _prompt_for_item({"raw_text": "text", "language": "en"}, policy_context='  - "my-key" (3) — summary')
+    prompt_with_context = _prompt_for_item(
+        {"raw_text": "text", "language": "en"},
+        policy_context='  - "my-key" (3) — summary',
+    )
     assert "discussion-only = broad exploration with no implied proposition" in prompt
     assert "ballot-ready can include a clearly stated constitutional, legal, or policy rule" in prompt
     assert "use other when the dimension is clear but outside the listed buckets" in prompt
@@ -481,7 +484,9 @@ async def test_canonicalize_batch_normalizes_english_rejection_reason_to_farsi_f
 
     assert candidates == []
     evidence_payload = mock_evidence.call_args.kwargs["payload"]
-    assert evidence_payload["rejection_reason"] == "این متن به اندازه کافی مشخص نیست که به عنوان یک پیشنهاد سیاستی در نظر گرفته شود."
+    assert evidence_payload["rejection_reason"] == (
+        "این متن به اندازه کافی مشخص نیست که به عنوان یک پیشنهاد سیاستی در نظر گرفته شود."
+    )
     assert evidence_payload["rejection_reason_language_normalized"] is True
 
 
@@ -516,13 +521,6 @@ async def test_canonicalize_single_emits_parse_repaired_evidence_on_llm_repair()
         llm_router=router,  # type: ignore[arg-type]
     )
     assert not isinstance(result, CanonicalizationRejection)
-    evidence_calls = [
-        call for call in session.flush.call_args_list
-    ]
-    append_calls = [
-        c for c in session.method_calls
-        if "append_evidence" in str(c) or "candidate_parse_repaired" in str(c)
-    ]
     # Verify via the mock session that evidence was appended multiple times
     # The session gets execute/flush calls; we check the number of mock calls.
     # At minimum: evidence for parse_repaired + evidence for candidate_created
@@ -626,7 +624,10 @@ async def test_canonicalize_downgrades_inferred_regime_target_for_broad_conflict
         "is_valid_policy": True,
         "rejection_reason": None,
         "title": "Conditional support for war in Iran",
-        "summary": "The submission expresses conditional support for war in Iran if it does not last more than one month.",
+        "summary": (
+            "The submission expresses conditional support for war in Iran "
+            "if it does not last more than one month."
+        ),
         "stance": "support",
         "policy_topic": "foreign-policy",
         "policy_key": "support-war-in-iran",

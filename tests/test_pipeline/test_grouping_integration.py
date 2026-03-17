@@ -1059,7 +1059,10 @@ async def test_grouping_pipeline(_mock_evidence: AsyncMock) -> None:
     settings = get_settings()
     router = CachingLLMRouter(cache_path=CACHE_PATH, settings=settings)
     if not GENERATE_MODE and router._cache.get("dataset_fingerprint") != _dataset_fingerprint():
-        pytest.skip("Grouping cache is stale for the current adversarial fixture set. Regenerate with GENERATE_GROUPING_CACHE=1.")
+        pytest.skip(
+            "Grouping cache is stale for the current adversarial fixture set. "
+            "Regenerate with GENERATE_GROUPING_CACHE=1."
+        )
     mock_session = AsyncMock()
 
     submissions = _interleaved_submissions()

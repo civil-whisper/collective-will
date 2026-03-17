@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import json
 import re
-from collections.abc import Mapping
 from collections import Counter
+from collections.abc import Mapping
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -44,22 +44,37 @@ Return JSON only:
 Rules:
 - Stay close to the actual submissions.
 - Draft the narrowest faithful proposition implied by the submissions.
-- Keep the draft in the same language split as requested: English in refinement_draft, plain Farsi in refinement_draft_fa.
+- Keep the draft in the same language split as requested:
+  English in refinement_draft, plain Farsi in refinement_draft_fa.
 - Do not introduce a new actor, institution, city, or jurisdiction unless it is explicit in the submissions.
 - If the actor is unclear, keep the draft actor-neutral instead of inventing who should act.
-- Do not turn a broad worry, conditional statement, or open-ended concern into a more specific or more forceful proposition than the submissions support.
+- Do not turn a broad worry, conditional statement, or open-ended concern
+  into a more specific or more forceful proposition than the submissions support.
 - If the core direction is identifiable, prefer a draft over null even when some details are still missing.
-- Set refinement_draft/refinement_draft_fa to null only when the submissions are purely exploratory, discussion-only, or too underspecified to support a trustworthy proposition.
+- Set refinement_draft/refinement_draft_fa to null only when the submissions are
+  purely exploratory, discussion-only, or too underspecified to support a trustworthy proposition.
 - Use requires_clarification=true when the submissions do not supply enough detail for a trustworthy draft.
 - Confidence reflects whether the draft captures a real plausible proposition implied by the submissions.
 - Keep notes short and concrete: say what is missing, or why the draft is still trustworthy.
 """
 
 _LOCAL_ACTOR_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
-    (re.compile(r"\bthe city should\b", flags=re.IGNORECASE), "Draft introduced a city-level actor not present in the source submissions."),
-    (re.compile(r"\bmunicipalit(?:y|ies)\b", flags=re.IGNORECASE), "Draft introduced a municipal actor not present in the source submissions."),
-    (re.compile(r"\bmayor\b", flags=re.IGNORECASE), "Draft introduced a mayoral actor not present in the source submissions."),
-    (re.compile(r"\bcity council\b", flags=re.IGNORECASE), "Draft introduced a local council actor not present in the source submissions."),
+    (
+        re.compile(r"\bthe city should\b", flags=re.IGNORECASE),
+        "Draft introduced a city-level actor not present in the source submissions.",
+    ),
+    (
+        re.compile(r"\bmunicipalit(?:y|ies)\b", flags=re.IGNORECASE),
+        "Draft introduced a municipal actor not present in the source submissions.",
+    ),
+    (
+        re.compile(r"\bmayor\b", flags=re.IGNORECASE),
+        "Draft introduced a mayoral actor not present in the source submissions.",
+    ),
+    (
+        re.compile(r"\bcity council\b", flags=re.IGNORECASE),
+        "Draft introduced a local council actor not present in the source submissions.",
+    ),
 )
 _UNANCHORED_TARGET_PHRASES = (
     "against iran",
@@ -244,8 +259,16 @@ def _sanitize_refinement_output(
     members: list[PolicyCandidate],
     payload: dict[str, object],
 ) -> tuple[str | None, str | None, float, bool, str | None, list[str]]:
-    draft = str(payload.get("refinement_draft")).strip() if payload.get("refinement_draft") not in {None, ""} else None
-    draft_fa = str(payload.get("refinement_draft_fa")).strip() if payload.get("refinement_draft_fa") not in {None, ""} else None
+    draft = (
+        str(payload.get("refinement_draft")).strip()
+        if payload.get("refinement_draft") not in {None, ""}
+        else None
+    )
+    draft_fa = (
+        str(payload.get("refinement_draft_fa")).strip()
+        if payload.get("refinement_draft_fa") not in {None, ""}
+        else None
+    )
     confidence = float(payload.get("refinement_confidence", 0.0))
     requires_clarification = bool(payload.get("requires_clarification", False))
     notes = str(payload.get("notes", "")).strip() or None
@@ -254,7 +277,14 @@ def _sanitize_refinement_output(
     if draft is None:
         if draft_fa is not None:
             validation_flags.append("Draft returned Farsi text without an English draft.")
-        return None, None, 0.0 if draft_fa is not None else confidence, True if draft_fa is not None else requires_clarification, notes, validation_flags
+        return (
+            None,
+            None,
+            0.0 if draft_fa is not None else confidence,
+            True if draft_fa is not None else requires_clarification,
+            notes,
+            validation_flags,
+        )
 
     draft_lower = draft.lower()
     source_corpus = _build_source_corpus(cluster, members)
@@ -268,7 +298,9 @@ def _sanitize_refinement_output(
     if dominant_target is None:
         for phrase in _UNANCHORED_TARGET_PHRASES:
             if phrase in draft_lower and phrase not in source_corpus:
-                validation_flags.append("Draft introduced a specific target that is not anchored in the source submissions.")
+                validation_flags.append(
+                    "Draft introduced a specific target that is not anchored in the source submissions."
+                )
                 break
 
     draft_direction = _draft_direction(draft)
