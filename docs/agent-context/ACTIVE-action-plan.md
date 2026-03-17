@@ -1158,6 +1158,55 @@ Design docs:
     - Fresh replay after the pass: 19 submissions → 16 candidates → 11 clusters, 3 rejected, 0 degradations, $0.302 estimated cost
     - Focused regression suite passed (`67 passed`) covering canonicalization, refinement, endorsement, replay, scheduler, and slug sanitization
 
+148. [done] Split labor-strike-only from strike-plus-solidarity compounds
+    - Added stricter canonicalization guidance so single-mechanism submissions do not reuse compound open keys, and compound submissions do not reuse single-mechanism keys
+    - Replaced the earlier targeted strike-vs-solidarity heuristic with generalized proposition-shape guidance in canonicalization
+    - Added regression coverage for the split in `tests/test_pipeline/test_canonicalize.py`
+    - Fresh replay after the split fix: 19 submissions → 16 candidates → 12 clusters, 3 rejected, 0 degradations, $0.317 estimated cost
+    - Verified that the pure economic-strike submission lands separately from the compound strike-plus-solidarity submission in replay
+
+149. [done] Patch canonicalization null-flags crash and switch to OpenAI-first defaults
+    - Hardened `_build_candidate_create()` so `ambiguity_flags=null` from model output is treated as an empty list instead of crashing
+    - Switched default completion-tier order to `gpt-4o` primary with Claude Sonnet 4.6 fallback (`canonicalization`, `farsi_messages`, `english_reasoning`, `option_generation`, `dispute_resolution`)
+    - Updated `.env`, `.env.example`, and deploy envs so local and deployed runs use the same OpenAI-first order
+    - Updated focused config/router/canonicalization tests and synchronized context/rationale docs
+
+150. [done] Move canonicalization default to GPT-5.4 mini
+    - Switched `canonicalization_model` default from `gpt-4o` to `gpt-5.4-mini` in config, local env, and deploy envs
+    - Updated router tests and context/rationale docs to reflect the tier-specific change while keeping Claude Sonnet 4.6 as fallback
+    - Deferred multi-fallback routing as a separate router/config refactor so this change stays isolated and easy to evaluate
+
+151. [done] Move all completion tiers to GPT-5.4 mini defaults
+    - Switched `farsi_messages`, `english_reasoning`, `option_generation`, and `dispute_resolution` defaults from `gpt-4o` to `gpt-5.4-mini`
+    - Updated dispute ensemble defaults to `gpt-5.4-mini,claude-sonnet-4-6`
+    - Regenerated replay evaluation with a fresh cache so report conclusions reflect the all-mini routing instead of mixed-model reuse
+
+152. [done] Harden rejection-language and refinement-faithfulness guards
+    - Canonicalization now treats `rejection_reason` as a prompt-guided contract plus a deterministic post-parse normalization step, so wrong-language rejection text is replaced with a safe default in the submission language before runtime and replay reporting
+    - Added a target de-inference guard for broad conflict submissions so `target_scope` is downgraded to `unclear` when the input mentions conflict/intervention but not an explicit regime/government target
+    - Tightened refinement prompts and added post-LLM validation so drafts are dropped when they invent a local actor/jurisdiction, flip the cluster direction, or add an ungrounded specific target
+    - Synced replay to reuse the same canonicalization/refinement sanitizers as the live pipeline
+    - Focused regression suite passed (`33 passed`) across canonicalization, refinement, and replay
+    - Fresh guarded replay: 19 submissions → 16 candidates → 13 clusters, 3 rejected, 0 degradations, $0.071 estimated cost
+
+153. [done] Harden endorsement wording against invented actors and targets
+    - Tightened ballot-question prompts so endorsement wording must stay actor-neutral when the source submissions do not identify a concrete actor or jurisdiction
+    - Added post-LLM ballot wording validation with actor-neutral fallback generation when ballot text invents a new actor/jurisdiction or ungrounded specific target
+    - Synced replay to reuse the same ballot-wording sanitizer as the live endorsement path
+    - Focused regression suite passed (`36 passed`) across endorsement, replay, canonicalization, and refinement
+    - Fresh guarded replay: 19 submissions → 16 candidates → 14 clusters, 3 rejected, 0 degradations, $0.103 estimated cost
+
+154. [done] Soften needs-refinement wording tone for public display
+    - Adjusted endorsement prompt guidance and post-processing so `needs-refinement` ballot wording prefers deliberative civic phrasing (`debate over whether...`, `discussion of whether...`) instead of bare advocacy language
+    - Added regression coverage for safe-but-blunt labor-strike wording so it is softened without weakening the underlying proposition
+    - Fresh guarded replay after the tone pass: 19 submissions → 16 candidates → 14 clusters, 3 rejected, 1 degradation (`option_generation:parse_retry`), $0.159 estimated cost
+
+155. [done] Soften imperative refinement drafts for clarification-needed items
+    - Added refinement post-processing so clarification-needed drafts keep proposition form while avoiding blunt imperative wording like `Support X`, `Oppose X`, or `Use X`
+    - Added regression coverage for refinement draft tone, including English/Farsi imperative softening on a labor-strike case
+    - Extended refinement normalization so question-shaped drafts (`Should ... ?`, `آیا باید ... ؟`) are converted back into statement-form propositions before publishing
+    - Fresh guarded replay after the refinement tone pass: 19 submissions → 16 candidates → 13 clusters, 3 rejected, 0 degradations, $0.167 estimated cost
+
 ## Definition of Done (This Cycle)
 
 - No CI/CD job performs paid LLM API calls

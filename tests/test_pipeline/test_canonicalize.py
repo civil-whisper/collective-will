@@ -174,6 +174,38 @@ def test_parse_candidate_payload_repairs_adjacent_strings() -> None:
     assert repair == "regex"
 
 
+@pytest.mark.asyncio
+async def test_canonicalize_single_tolerates_null_ambiguity_flags() -> None:
+    response = json.dumps({
+        "is_valid_policy": True,
+        "rejection_reason": None,
+        "title": "Free Education",
+        "summary": "Universal free education for all",
+        "stance": "support",
+        "policy_topic": "education-policy",
+        "policy_key": "universal-free-education",
+        "actor_scope": "public-governance",
+        "action_mechanism": "governance-design",
+        "target_scope": "public-governance",
+        "ballot_readiness": "ballot-ready",
+        "ballot_readiness_reason": "This is a concrete policy proposition.",
+        "entities": ["education"],
+        "confidence": 0.95,
+        "ambiguity_flags": None,
+    })
+    router = FakeRouter(responses=[_mock_llm_response(text=response)])
+    session = _make_mock_session()
+    result = await canonicalize_single(
+        session=session,
+        submission_id=uuid4(),
+        raw_text="تحصیل رایگان برای همه",
+        language="fa",
+        llm_router=router,  # type: ignore[arg-type]
+    )
+    assert not isinstance(result, CanonicalizationRejection)
+    assert result.ambiguity_flags == []
+
+
 def test_prompt_for_item_is_concise_and_has_no_examples_block() -> None:
     prompt = _prompt_for_item({"raw_text": "text", "language": "en"})
     assert "Examples of distinctions" not in prompt
@@ -202,10 +234,14 @@ def test_instruction_version_is_stable_hash() -> None:
 
 def test_prompt_includes_readiness_and_compound_guidance() -> None:
     prompt = _prompt_for_item({"raw_text": "text", "language": "en"})
-    assert "Use discussion-only only for broad, exploratory, or open-ended civic discussion" in prompt
-    assert "it can still be ballot-ready even when phrased as a question" in prompt
-    assert "ambiguity flag compound_submission" in prompt
-    assert "policy_key/title/summary must describe only the dominant proposition" in prompt
+    prompt_with_context = _prompt_for_item({"raw_text": "text", "language": "en"}, policy_context='  - "my-key" (3) — summary')
+    assert "discussion-only = broad exploration with no implied proposition" in prompt
+    assert "ballot-ready can include a clearly stated constitutional, legal, or policy rule" in prompt
+    assert "use other when the dimension is clear but outside the listed buckets" in prompt
+    assert "compound_submission" in prompt
+    assert "keep only the dominant proposition in policy_key/title/summary" in prompt
+    assert "reuse would change ballot wording, option sets, or refinement output" in prompt
+    assert "create a new key whenever reuse would change the ballot-level proposition" in prompt_with_context
 
 
 @pytest.mark.asyncio
@@ -300,6 +336,38 @@ async def test_canonicalize_single_garbage_rejected() -> None:
 
 
 @pytest.mark.asyncio
+async def test_canonicalize_single_normalizes_farsi_rejection_reason_to_english_for_english_input() -> None:
+    garbage_response = json.dumps({
+        "is_valid_policy": False,
+        "rejection_reason": "این فقط یک احوالپرسی است و پیشنهاد سیاستی نیست.",
+        "title": "Greeting",
+        "summary": "User said hello",
+        "stance": "unclear",
+        "policy_topic": "unassigned",
+        "policy_key": "unassigned",
+        "actor_scope": "unclear",
+        "action_mechanism": "discussion-only",
+        "target_scope": "unclear",
+        "ballot_readiness": "discussion-only",
+        "ballot_readiness_reason": "This is not a civic or policy concern.",
+        "entities": [],
+        "confidence": 0,
+        "ambiguity_flags": [],
+    })
+    router = FakeRouter(responses=[_mock_llm_response(text=garbage_response)])
+    session = _make_mock_session()
+    result = await canonicalize_single(
+        session=session,
+        submission_id=uuid4(),
+        raw_text="hello",
+        language="en",
+        llm_router=router,  # type: ignore[arg-type]
+    )
+    assert isinstance(result, CanonicalizationRejection)
+    assert result.reason == "This submission is not specific enough to be treated as a policy proposal."
+
+
+@pytest.mark.asyncio
 async def test_canonicalize_single_repairs_malformed_json_locally() -> None:
     malformed = '{"is_valid_policy", true, "title": "Broken", "entities": ["x" "y"]}'
     repaired = json.dumps({
@@ -382,6 +450,39 @@ async def test_canonicalize_batch_skips_invalid() -> None:
     candidates = await canonicalize_batch(session=session, submissions=items, llm_router=router)  # type: ignore[arg-type]
     assert len(candidates) == 1
     assert candidates[0].title == "Policy A"
+
+
+@pytest.mark.asyncio
+async def test_canonicalize_batch_normalizes_english_rejection_reason_to_farsi_for_farsi_input() -> None:
+    invalid = json.dumps({
+        "is_valid_policy": False,
+        "rejection_reason": "This is only a greeting and not a policy submission.",
+        "title": "Greeting",
+        "summary": "User said hello",
+        "stance": "unclear",
+        "policy_topic": "unassigned",
+        "policy_key": "unassigned",
+        "actor_scope": "unclear",
+        "action_mechanism": "discussion-only",
+        "target_scope": "unclear",
+        "ballot_readiness": "discussion-only",
+        "ballot_readiness_reason": "The text is not a policy submission.",
+        "entities": [],
+        "confidence": 0,
+        "ambiguity_flags": [],
+    })
+    router = FakeRouter(responses=[_mock_llm_response(text=invalid)])
+    session = _make_mock_session()
+    items = [{"id": str(uuid4()), "raw_text": "سلام", "language": "fa"}]
+    from unittest.mock import patch
+
+    with patch("src.pipeline.canonicalize.append_evidence", new_callable=AsyncMock) as mock_evidence:
+        candidates = await canonicalize_batch(session=session, submissions=items, llm_router=router)  # type: ignore[arg-type]
+
+    assert candidates == []
+    evidence_payload = mock_evidence.call_args.kwargs["payload"]
+    assert evidence_payload["rejection_reason"] == "این متن به اندازه کافی مشخص نیست که به عنوان یک پیشنهاد سیاستی در نظر گرفته شود."
+    assert evidence_payload["rejection_reason_language_normalized"] is True
 
 
 @pytest.mark.asyncio
@@ -483,3 +584,72 @@ async def test_canonicalize_preserves_actor_and_mechanism_distinction() -> None:
     assert result.actor_scope == "domestic-citizens"
     assert result.action_mechanism == "labor-strike"
     assert result.policy_key == "domestic-economic-strike-against-regime"
+
+
+@pytest.mark.asyncio
+async def test_canonicalize_preserves_other_semantic_buckets() -> None:
+    response = json.dumps({
+        "is_valid_policy": True,
+        "rejection_reason": None,
+        "title": "Protect Informal Mutual Aid Networks",
+        "summary": "Protect neighborhood support networks from state disruption.",
+        "stance": "support",
+        "policy_topic": "community-resilience",
+        "policy_key": "protect-informal-mutual-aid-networks",
+        "actor_scope": "other",
+        "action_mechanism": "other",
+        "target_scope": "other",
+        "ballot_readiness": "needs-refinement",
+        "ballot_readiness_reason": "The direction is clear but the legal mechanism needs to be specified.",
+        "entities": ["mutual aid networks"],
+        "confidence": 0.77,
+        "ambiguity_flags": [],
+    })
+    router = FakeRouter(responses=[_mock_llm_response(text=response)])
+    session = _make_mock_session()
+    result = await canonicalize_single(
+        session=session,
+        submission_id=uuid4(),
+        raw_text="Protect local mutual aid networks from interference",
+        language="en",
+        llm_router=router,  # type: ignore[arg-type]
+    )
+    assert not isinstance(result, CanonicalizationRejection)
+    assert result.actor_scope == "other"
+    assert result.action_mechanism == "other"
+    assert result.target_scope == "other"
+
+
+@pytest.mark.asyncio
+async def test_canonicalize_downgrades_inferred_regime_target_for_broad_conflict_input() -> None:
+    response = json.dumps({
+        "is_valid_policy": True,
+        "rejection_reason": None,
+        "title": "Conditional support for war in Iran",
+        "summary": "The submission expresses conditional support for war in Iran if it does not last more than one month.",
+        "stance": "support",
+        "policy_topic": "foreign-policy",
+        "policy_key": "support-war-in-iran",
+        "actor_scope": "other",
+        "action_mechanism": "military-action",
+        "target_scope": "iranian-regime",
+        "ballot_readiness": "needs-refinement",
+        "ballot_readiness_reason": "The actor and target remain underspecified.",
+        "entities": ["Iran"],
+        "confidence": 0.76,
+        "ambiguity_flags": [],
+    })
+    router = FakeRouter(responses=[_mock_llm_response(text=response)])
+    session = _make_mock_session()
+
+    result = await canonicalize_single(
+        session=session,
+        submission_id=uuid4(),
+        raw_text="من با جنگ در ایران موافقم ولی اگه تا یه ماه بیشتر طول بکشه نمی‌دونم باز موافق خواهم بود",
+        language="fa",
+        llm_router=router,  # type: ignore[arg-type]
+    )
+
+    assert not isinstance(result, CanonicalizationRejection)
+    assert result.target_scope == "unclear"
+    assert "target_scope_unclear_from_input" in result.ambiguity_flags

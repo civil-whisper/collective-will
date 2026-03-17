@@ -1,6 +1,8 @@
 """Tests for hybrid embedding + LLM normalization utilities."""
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 import numpy as np
 
 from src.pipeline.normalize import (
@@ -8,6 +10,8 @@ from src.pipeline.normalize import (
     _cluster_by_embedding,
     _extract_merges_from_mapping,
     _parse_remap_response,
+    _parse_reuse_review_response,
+    _same_key_group_needs_revalidation,
 )
 
 
@@ -108,6 +112,65 @@ class TestBuildSubmissionsBlock:
         assert "2." in block
         assert '"key-a"' in block
         assert '"key-b"' in block
+
+
+class TestReuseReviewResponse:
+    def test_parse_reuse_review_response(self) -> None:
+        raw = """{
+          "decisions": [
+            {
+              "candidate_id": "abc",
+              "reuse_existing_key": false,
+              "policy_key": "new-key",
+              "policy_topic": "new-topic",
+              "reason_code": "different_proposition"
+            }
+          ]
+        }"""
+        result = _parse_reuse_review_response(raw)
+        assert result["abc"]["reuse_existing_key"] is False
+        assert result["abc"]["policy_key"] == "new-key"
+        assert result["abc"]["policy_topic"] == "new-topic"
+
+
+class TestSameKeyGroupNeedsRevalidation:
+    def test_false_for_uniform_group(self) -> None:
+        members = [
+            SimpleNamespace(
+                actor_scope="domestic-citizens",
+                action_mechanism="labor-strike",
+                target_scope="iranian-regime",
+                ballot_readiness="needs-refinement",
+                ambiguity_flags=[],
+            ),
+            SimpleNamespace(
+                actor_scope="domestic-citizens",
+                action_mechanism="labor-strike",
+                target_scope="iranian-regime",
+                ballot_readiness="needs-refinement",
+                ambiguity_flags=[],
+            ),
+        ]
+        assert _same_key_group_needs_revalidation(members) is False
+
+    def test_true_for_semantic_or_shape_mismatch(self) -> None:
+        members = [
+            SimpleNamespace(
+                actor_scope="domestic-citizens",
+                action_mechanism="labor-strike",
+                target_scope="iranian-economy",
+                ballot_readiness="needs-refinement",
+                ambiguity_flags=[],
+            ),
+            SimpleNamespace(
+                actor_scope="domestic-citizens",
+                action_mechanism="labor-strike",
+                target_scope="iranian-regime",
+                ballot_readiness="needs-refinement",
+                ambiguity_flags=["compound_submission"],
+            ),
+        ]
+        assert _same_key_group_needs_revalidation(members) is True
 
 
 class TestClusterByEmbedding:

@@ -20,6 +20,7 @@ Implement the canonicalization agent that turns freeform text (any language) int
 - **Canonical output** (`title`, `summary`, `entities`, `policy_key`, semantic fields): always English, regardless of input language. Translate if necessary.
 - **Rejection reason** (`rejection_reason`): always in the same language as the input, so the user can understand it.
 - The LLM prompt instructs automatic input language detection.
+- The pipeline must validate `rejection_reason` after parsing. If the model returns the wrong language/script, replace it with a safe default in the input language instead of returning mixed-language feedback to the user.
 
 ### Semantic identity fields
 
@@ -34,6 +35,7 @@ Each valid candidate must include:
 - `ballot_readiness_reason`: short explanation for the readiness classification.
 
 These fields exist to preserve distinctions like domestic strikes vs foreign sanctions vs military intervention even when they share a broad political goal.
+For `actor_scope`, `action_mechanism`, and `target_scope`, use `other` when the dimension is clear but falls outside the small canonical bucket list; reserve `unclear` for genuinely ambiguous cases.
 
 ### Validity assessment
 
@@ -61,7 +63,7 @@ Steps:
 4. If parsing fails, attempt local repair for common malformed JSON patterns (for example key/value comma typos, adjacent string literals, trailing commas, or fenced/wrapped JSON)
 5. If local repair still fails, make one JSON-repair pass through the `canonicalization` tier and parse that result
 6. If parsing still fails after repair: raise so the intake handler can fall back to pending/batch retry
-7. If `is_valid_policy` is false: return `CanonicalizationRejection(rejection_reason=...)`
+7. If `is_valid_policy` is false: normalize `rejection_reason` into the input language if needed, then return `CanonicalizationRejection(rejection_reason=...)`
 8. If valid: build and return `PolicyCandidateCreate` with all canonical fields
 9. Set `model_version` and `prompt_version` on the result
 
@@ -88,7 +90,7 @@ Steps:
 1. Call `prepare_batch_for_llm(submissions)` to get anonymous texts + index map
 2. For each text, call `complete()` with `tier="canonicalization"` and the canonicalization prompt
 3. Parse LLM JSON response into PolicyCandidate fields, with the same local-repair then one-shot JSON-repair fallback used by `canonicalize_single()`
-4. Filter out submissions where `is_valid_policy` is false (mark as `"rejected"`)
+4. Filter out submissions where `is_valid_policy` is false (mark as `"rejected"`), but normalize `rejection_reason` into the submission language before logging rejection evidence
 5. Handle multi-issue splitting: one submission may produce multiple candidates
 6. Re-link results to submissions via index map
 7. For each valid candidate:
@@ -119,6 +121,8 @@ Readiness guidance is explicit:
 
 Compound submissions must not be silently blurred into broad keys. When a message mixes multiple mechanisms or actors, canonicalization should keep the dominant proposition, add `compound_submission` to `ambiguity_flags`, and usually classify it as `needs-refinement`.
 
+Open-key reuse must also preserve ballot-level proposition identity. If reusing an existing key would materially change the resulting ballot wording, refinement draft, or option set, canonicalization should create a new key even when actor / mechanism / target overlap partially.
+
 ```
 You are processing civic submissions for a democratic deliberation platform.
 Citizens submit policy ideas, concerns, or questions in any language (often Farsi
@@ -130,6 +134,7 @@ LANGUAGE RULES:
 - Detect the input language automatically.
 - title, summary, entities, policy_key, policy_topic, actor_scope, action_mechanism, target_scope, ballot_readiness, and ballot_readiness_reason MUST always be in English (translate if needed).
 - rejection_reason MUST be in the SAME LANGUAGE as the input.
+- rejection_reason is the ONLY user-facing field that stays in the input language; all other fields stay English even when the input is Farsi.
 
 VALIDITY: A valid submission is anything that relates to governance, laws,
 rights, economy, foreign policy, or public affairs. This includes:
@@ -193,6 +198,7 @@ Store this with every candidate for reproducibility.
 - Canonicalization must request `tier="canonicalization"` only; do not reference provider-specific model IDs in this module.
 - All canonical fields (`title`, `summary`, `entities`) must be in English regardless of input language.
 - `rejection_reason` must be in the input language so user-facing rejection messages are understandable.
+- If the model violates that contract, code-level normalization must correct it before the reason is returned or evidence-logged.
 
 ## Tests
 

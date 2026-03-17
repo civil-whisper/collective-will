@@ -89,6 +89,7 @@ def test_env_example_contains_all_expected_keys() -> None:
         "LLM_COMPLETION_TIMEOUT_SECONDS", "LLM_EMBEDDING_TIMEOUT_SECONDS",
         "LLM_EMBEDDING_DIMENSIONS",
         "LLM_TRANSIENT_STATUS_CODES", "LLM_NON_RETRIABLE_STATUS_CODES",
+        "LLM_FAIL_FAST_ON_TRANSIENT_ERRORS", "LLM_RETRY_DEBUG_LOGGING_ENABLED",
         "DISPUTE_ENSEMBLE_TEMPERATURE",
         "DB_POOL_SIZE", "DB_MAX_OVERFLOW", "DB_POOL_TIMEOUT_SECONDS", "DB_ECHO_SQL",
     }
@@ -186,7 +187,7 @@ def test_tier_models_config_backed(monkeypatch: pytest.MonkeyPatch) -> None:
 # --- 16. farsi_messages_fallback_model is set ---
 def test_farsi_messages_fallback_model_set(monkeypatch: pytest.MonkeyPatch) -> None:
     settings = _make_settings(monkeypatch)
-    assert settings.farsi_messages_fallback_model == "gpt-4o"
+    assert settings.farsi_messages_fallback_model == "claude-sonnet-4-6"
 
     overridden = _make_settings(monkeypatch, FARSI_MESSAGES_FALLBACK_MODEL="other")
     assert overridden.farsi_messages_fallback_model == "other"
@@ -195,14 +196,14 @@ def test_farsi_messages_fallback_model_set(monkeypatch: pytest.MonkeyPatch) -> N
 # --- 17. english_reasoning_fallback_model is set ---
 def test_english_reasoning_fallback_model_set(monkeypatch: pytest.MonkeyPatch) -> None:
     settings = _make_settings(monkeypatch)
-    assert settings.english_reasoning_fallback_model == "gpt-4o"
+    assert settings.english_reasoning_fallback_model == "claude-sonnet-4-6"
 
 
 # --- 18. dispute_resolution_model and fallback configurable ---
 def test_dispute_resolution_model_configurable(monkeypatch: pytest.MonkeyPatch) -> None:
     settings = _make_settings(monkeypatch)
-    assert settings.dispute_resolution_model == "claude-sonnet-4-6"
-    assert settings.dispute_resolution_fallback_model == "gpt-4o"
+    assert settings.dispute_resolution_model == "gpt-5.4-mini"
+    assert settings.dispute_resolution_fallback_model == "claude-sonnet-4-6"
 
     overridden = _make_settings(
         monkeypatch,

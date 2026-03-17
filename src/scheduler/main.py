@@ -37,6 +37,7 @@ from src.pipeline.embeddings import compute_and_store_embeddings
 from src.pipeline.endorsement import generate_ballot_questions
 from src.pipeline.llm import LLMRouter
 from src.pipeline.normalize import normalize_policy_keys
+from src.pipeline.normalize import revalidate_candidate_key_reuse
 from src.pipeline.options import generate_policy_options
 from src.pipeline.refinement import generate_refinement_drafts
 
@@ -134,9 +135,19 @@ async def run_pipeline(*, session: AsyncSession, llm_router: LLMRouter | None = 
                         sub.user.contribution_count += 1
 
             db_candidates: list[PolicyCandidate] = []
+            new_db_candidates: list[PolicyCandidate] = []
             for sub in submissions:
                 db_candidates.extend(sub.candidates)
+            for sub in pending_subs:
+                new_db_candidates.extend(sub.candidates)
             result.created_candidates = len(db_candidates)
+
+            if new_db_candidates:
+                await revalidate_candidate_key_reuse(
+                    session=session,
+                    new_candidates=new_db_candidates,
+                    llm_router=router,
+                )
 
             needs_embed = [c for c in db_candidates if c.embedding is None]
             if needs_embed:

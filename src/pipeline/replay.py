@@ -20,6 +20,7 @@ from src.models.submission import Submission
 from src.pipeline.canonicalize import (
     _INSTRUCTION_VERSION,
     _build_candidate_create,
+    _normalize_rejection_reason,
     _parse_candidate_payload_with_repair,
     _prompt_for_item,
     _prompt_version,
@@ -34,8 +35,10 @@ from src.pipeline.endorsement import (
 from src.pipeline.endorsement import (
     _SYSTEM_PROMPT as BALLOT_SYSTEM_PROMPT,
 )
-from src.pipeline.endorsement import _build_submissions_block as _build_ballot_submissions_block
-from src.pipeline.endorsement import _parse_ballot_response
+from src.pipeline.endorsement import (
+    _build_submissions_block as _build_ballot_submissions_block,
+)
+from src.pipeline.endorsement import _parse_ballot_response, _sanitize_ballot_wording
 from src.pipeline.llm import EmbeddingResult, LLMResponse, LLMRouter
 from src.pipeline.normalize import (
     _REMAP_PROMPT_TEMPLATE,
@@ -44,10 +47,12 @@ from src.pipeline.normalize import (
     _entries_are_merge_compatible,
     _extract_merges_from_mapping,
     _parse_remap_response,
+    _same_key_group_needs_revalidation,
 )
 from src.pipeline.normalize import (
     _build_submissions_block as _build_normalization_submissions_block,
 )
+from src.pipeline.normalize import review_same_key_reuse
 from src.pipeline.options import (
     _fallback_options,
     _generate_options_for_cluster,
@@ -60,7 +65,7 @@ from src.pipeline.refinement import (
     _SYSTEM_PROMPT as REFINEMENT_SYSTEM_PROMPT,
 )
 from src.pipeline.refinement import _build_submissions_block as _build_refinement_submissions_block
-from src.pipeline.refinement import _parse_refinement_payload
+from src.pipeline.refinement import _parse_refinement_payload, _sanitize_refinement_output
 
 
 @dataclass(slots=True)
@@ -187,9 +192,12 @@ class ReplayCachingLLMRouter(LLMRouter):
         timeout_s: float | None = None,
         grounding: bool = False,
     ) -> LLMResponse:
+        primary_model, fallback_model = self._resolve_tier_models(tier)
         cache_payload = json.dumps(
             {
                 "tier": tier,
+                "primary_model": primary_model,
+                "fallback_model": fallback_model,
                 "prompt": prompt,
                 "system_prompt": system_prompt,
                 "max_tokens": max_tokens,
@@ -232,7 +240,18 @@ class ReplayCachingLLMRouter(LLMRouter):
         vectors: list[list[float]] = []
         missing: list[tuple[int, str, str]] = []
         for idx, text in enumerate(texts):
-            key = _cache_key("embedding", text)
+            key = _cache_key(
+                "embedding",
+                json.dumps(
+                    {
+                        "embedding_model": self.settings.embedding_model,
+                        "embedding_fallback_model": self.settings.embedding_fallback_model,
+                        "text": text,
+                    },
+                    ensure_ascii=False,
+                    sort_keys=True,
+                ),
+            )
             cached = self._cache["embeddings"].get(key)
             if cached is None:
                 missing.append((idx, key, text))
@@ -528,17 +547,18 @@ async def replay_submissions(
         parsed["model_version"] = completion.model
         parsed["prompt_version"] = _prompt_version(prompt)
         if not parsed.get("is_valid_policy", True):
+            rejection_reason, _ = _normalize_rejection_reason(parsed.get("rejection_reason"), language=item.language)
             rejected.append(
                 {
                     "source_submission_id": item.source_submission_id,
                     "raw_text": item.raw_text,
                     "language": item.language,
-                    "rejection_reason": str(parsed.get("rejection_reason") or "Submission is not a valid policy proposal."),
+                    "rejection_reason": rejection_reason,
                     "model_version": completion.model,
                 }
             )
             continue
-        candidate_create = _build_candidate_create(parsed, item.replay_submission_id)
+        candidate_create = _build_candidate_create(parsed, item.replay_submission_id, raw_text=item.raw_text)
         candidate = ReplayCandidate(
             id=uuid4(),
             submission_id=item.replay_submission_id,
@@ -565,6 +585,7 @@ async def replay_submissions(
         accumulator.add(candidate.policy_key, candidate.summary)
 
     if candidates:
+        candidates = await _revalidate_same_key_candidates_in_memory(candidates, llm_router, degradations)
         embed_result = await llm_router.embed(
             [prepare_text_for_embedding(title=item.title, summary=item.summary) for item in candidates]
         )
@@ -727,6 +748,48 @@ async def _normalize_candidates_in_memory(
     return candidates
 
 
+async def _revalidate_same_key_candidates_in_memory(
+    candidates: list[ReplayCandidate],
+    llm_router: LLMRouter,
+    degradations: list[ReplayDegradationEvent],
+) -> list[ReplayCandidate]:
+    groups: dict[str, list[ReplayCandidate]] = defaultdict(list)
+    for candidate in candidates:
+        if candidate.policy_key != "unassigned":
+            groups[candidate.policy_key].append(candidate)
+
+    for key, members in groups.items():
+        if len(members) < 2 or not _same_key_group_needs_revalidation(members):
+            continue
+        try:
+            decisions = await review_same_key_reuse(
+                policy_key=key,
+                existing_members=[],
+                new_candidates=members,
+                llm_router=llm_router,
+            )
+        except Exception as exc:
+            degradations.append(ReplayDegradationEvent(
+                step="same_key_revalidation",
+                entity_id=key,
+                event_type="step_failed",
+                detail=f"Same-key revalidation failed: {type(exc).__name__}: {exc}",
+            ))
+            continue
+        for candidate in members:
+            decision = decisions.get(str(candidate.id))
+            if decision is None or decision.get("reuse_existing_key", True):
+                continue
+            new_policy_key = str(decision.get("policy_key", "")).strip()
+            new_policy_topic = str(decision.get("policy_topic", "")).strip()
+            if not new_policy_key or new_policy_key == candidate.policy_key:
+                continue
+            candidate.policy_key = new_policy_key
+            if new_policy_topic:
+                candidate.policy_topic = new_policy_topic
+    return candidates
+
+
 def _build_entries_for_replay_cluster(members: list[ReplayCandidate]) -> list[dict[str, Any]]:
     key_data: dict[str, dict[str, Any]] = {}
     for candidate in members:
@@ -815,11 +878,13 @@ async def _populate_cluster_artifacts(
             fallback_from=ballot_response.fallback_from,
         ))
     ballot_payload = _parse_ballot_response(ballot_response.text)
-    cluster.ballot_question = ballot_payload.get("ballot_question")
-    cluster.ballot_question_fa = ballot_payload.get("ballot_question_fa")
-    cluster.summary = ballot_payload.get("summary", cluster.summary)
-
     members = [candidates_by_id[candidate_id] for candidate_id in cluster.candidate_ids if candidate_id in candidates_by_id]
+    (
+        cluster.ballot_question,
+        cluster.ballot_question_fa,
+        cluster.summary,
+        _validation_flags,
+    ) = _sanitize_ballot_wording(cluster=cluster, members=members, parsed=ballot_payload)
     if members and any(candidate.ballot_readiness == "needs-refinement" for candidate in members):
         refinement_prompt = REFINEMENT_PROMPT_TEMPLATE.format(
             policy_key=cluster.policy_key,
@@ -842,19 +907,18 @@ async def _populate_cluster_artifacts(
                 fallback_from=refinement_response.fallback_from,
             ))
         refinement_payload = _parse_refinement_payload(refinement_response.text)
-        cluster.refinement_draft = (
-            str(refinement_payload.get("refinement_draft")).strip()
-            if refinement_payload.get("refinement_draft") not in {None, ""}
-            else None
+        (
+            cluster.refinement_draft,
+            cluster.refinement_draft_fa,
+            cluster.refinement_confidence,
+            cluster.refinement_requires_clarification,
+            cluster.refinement_notes,
+            _validation_flags,
+        ) = _sanitize_refinement_output(
+            cluster=cluster,
+            members=members,
+            payload=refinement_payload,
         )
-        cluster.refinement_draft_fa = (
-            str(refinement_payload.get("refinement_draft_fa")).strip()
-            if refinement_payload.get("refinement_draft_fa") not in {None, ""}
-            else None
-        )
-        cluster.refinement_confidence = float(refinement_payload.get("refinement_confidence", 0.0))
-        cluster.refinement_requires_clarification = bool(refinement_payload.get("requires_clarification", False))
-        cluster.refinement_notes = str(refinement_payload.get("notes", "")).strip() or None
         return
 
     if members and not all(candidate.ballot_readiness == "ballot-ready" for candidate in members):

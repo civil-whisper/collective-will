@@ -16,11 +16,11 @@ Create a unified LLM interface with task-based routing to quality-first models i
 
 | Tier | Model | Use case | API |
 |------|-------|----------|-----|
-| `canonicalization` | Claude Sonnet 4.6 (v0 default) | Canonicalization (Farsi→English), structured extraction | Anthropic Messages API |
-| `farsi_messages` | Claude Sonnet 4.6 (v0 default) | User-facing Farsi messages (notifications/prompts) | Anthropic Messages API |
-| `english_reasoning` | Claude Sonnet 4.6 (v0 default) | Cluster summaries, complex English reasoning | Anthropic Messages API |
-| `option_generation` | Claude Sonnet 4.6 (v0 default) | Per-policy stance option generation (conditional grounding; JSON salvage before fallback) | Anthropic Messages API (fallback: OpenAI Responses / Chat via `gpt-4o`) |
-| `dispute_resolution` | Claude Sonnet 4.6 (v0 default) | Autonomous dispute adjudication and resolution rationale | Anthropic Messages API (+ optional ensemble tie-break) |
+| `canonicalization` | `gpt-5.4-mini` (current default) | Canonicalization (Farsi→English), structured extraction | OpenAI Responses / Chat API |
+| `farsi_messages` | `gpt-5.4-mini` (current default) | User-facing Farsi messages (notifications/prompts) | OpenAI Responses / Chat API |
+| `english_reasoning` | `gpt-5.4-mini` (current default) | Cluster summaries, complex English reasoning | OpenAI Responses / Chat API |
+| `option_generation` | `gpt-5.4-mini` (current default) | Per-policy stance option generation (conditional grounding; JSON salvage before fallback) | OpenAI Responses / Chat API (fallback: Anthropic Messages via Claude Sonnet 4.6) |
+| `dispute_resolution` | `gpt-5.4-mini` (current default) | Autonomous dispute adjudication and resolution rationale | OpenAI Responses / Chat API (+ optional ensemble tie-break) |
 | `embedding` | Gemini `gemini-embedding-001` (v0 default) | Compute vectors for clustering | Gemini batchEmbedContents API |
 
 ### Config-driven model registry
@@ -52,8 +52,8 @@ Routing behavior:
 - On retry exhaustion for farsi_messages, mandatory fallback -> `settings.farsi_messages_fallback_model`
 - `tier="english_reasoning"` -> `settings.english_reasoning_model`
 - On retry exhaustion for english_reasoning, mandatory fallback -> `settings.english_reasoning_fallback_model`
-- `tier="option_generation"` -> `settings.option_generation_model` (Claude Sonnet 4.6 primary; grounding is conditional and disabled by default)
-- On retry exhaustion or explicit parse-retry path for option_generation -> `settings.option_generation_fallback_model` (`gpt-4o`, preserving the same grounding decision when explicitly enabled)
+- `tier="option_generation"` -> `settings.option_generation_model` (`gpt-5.4-mini` primary; grounding is conditional and disabled by default)
+- On retry exhaustion or explicit parse-retry path for option_generation -> `settings.option_generation_fallback_model` (Claude Sonnet 4.6, preserving the same grounding decision when explicitly enabled)
 - `tier="dispute_resolution"` -> `settings.dispute_resolution_model`
 - On retry exhaustion for dispute_resolution, mandatory fallback -> `settings.dispute_resolution_fallback_model`
 - If dispute confidence is below `settings.dispute_resolution_confidence_threshold`, escalate via fallback/ensemble tie-break path
@@ -147,6 +147,8 @@ The cost estimator adjusts for Anthropic cached reads (90% discount) and cache w
 - Retry transient errors (429, 500, 502, 503) up to 3 times with exponential backoff
 - Timeout: 60 seconds per call
 - Raise clear exceptions for auth errors (401) and bad requests (400) — do not retry these
+- When `LLM_RETRY_DEBUG_LOGGING_ENABLED=true`, log retry attempts with model, attempt count, backoff, and a short provider error summary
+- When `LLM_FAIL_FAST_ON_TRANSIENT_ERRORS=true`, abort immediately on transient provider errors (for example 429 / timeout / connect errors) instead of retrying or falling back; this is mainly for debugging live test runs
 
 ## Constraints
 

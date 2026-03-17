@@ -52,6 +52,28 @@ class LLMRouter:
         self._transient_status_codes = self.settings.llm_transient_status_code_set()
         self._non_retriable_status_codes = self.settings.llm_non_retriable_status_code_set()
 
+    def _exception_summary(self, exc: Exception) -> str:
+        if isinstance(exc, httpx.HTTPStatusError):
+            status = exc.response.status_code
+            method = exc.request.method if exc.request is not None else "?"
+            url = str(exc.request.url) if exc.request is not None else "?"
+            body = exc.response.text.strip()
+            if len(body) > 200:
+                body = body[:200].rstrip() + "..."
+            return f"HTTP {status} for {method} {url}: {body or exc}"
+        if isinstance(exc, httpx.TimeoutException):
+            return f"Timeout: {exc}"
+        if isinstance(exc, httpx.ConnectError):
+            return f"Connect error: {exc}"
+        return f"{type(exc).__name__}: {exc}"
+
+    def _should_fail_fast(self, exc: Exception) -> bool:
+        if not self.settings.llm_fail_fast_on_transient_errors:
+            return False
+        if isinstance(exc, httpx.HTTPStatusError):
+            return exc.response.status_code in self._transient_status_codes
+        return isinstance(exc, (httpx.TimeoutException, httpx.ConnectError))
+
     def _completion_call_params(
         self,
         *,
@@ -97,6 +119,12 @@ class LLMRouter:
         if "mistral" in lowered:
             return "mistral"
         return "openai"
+
+    def _openai_chat_completion_token_field(self, model: str) -> str:
+        lowered = model.lower()
+        if lowered.startswith("gpt-5"):
+            return "max_completion_tokens"
+        return "max_tokens"
 
     async def _call_completion_api(
         self,
@@ -239,9 +267,16 @@ class LLMRouter:
                     headers={"Authorization": f"Bearer {self.settings.deepseek_api_key}"},
                 )
             else:
+                token_field = self._openai_chat_completion_token_field(model)
+                openai_body: dict[str, Any] = {
+                    "model": model,
+                    "messages": messages,
+                    token_field: max_tokens,
+                    "temperature": temperature,
+                }
                 response = await client.post(
                     "https://api.openai.com/v1/chat/completions",
-                    json={"model": model, "messages": messages, "max_tokens": max_tokens, "temperature": temperature},
+                    json=openai_body,
                     headers={"Authorization": f"Bearer {self.settings.openai_api_key}"},
                 )
             response.raise_for_status()
@@ -292,12 +327,36 @@ class LLMRouter:
                     raise
                 if exc.response.status_code in self._transient_status_codes:
                     last_exc = exc
-                    await asyncio.sleep(backoff_base * (2**attempt))
+                    backoff_s = backoff_base * (2**attempt)
+                    if self.settings.llm_retry_debug_logging_enabled:
+                        logger.warning(
+                            "Transient completion error for model=%s attempt=%d/%d: %s; backoff=%.2fs",
+                            model,
+                            attempt + 1,
+                            retry_count,
+                            self._exception_summary(exc),
+                            backoff_s,
+                        )
+                    if self._should_fail_fast(exc):
+                        raise
+                    await asyncio.sleep(backoff_s)
                     continue
                 raise
             except (httpx.TimeoutException, httpx.ConnectError) as exc:
                 last_exc = exc
-                await asyncio.sleep(backoff_base * (2**attempt))
+                backoff_s = backoff_base * (2**attempt)
+                if self.settings.llm_retry_debug_logging_enabled:
+                    logger.warning(
+                        "Transient completion transport error for model=%s attempt=%d/%d: %s; backoff=%.2fs",
+                        model,
+                        attempt + 1,
+                        retry_count,
+                        self._exception_summary(exc),
+                        backoff_s,
+                    )
+                if self._should_fail_fast(exc):
+                    raise
+                await asyncio.sleep(backoff_s)
                 continue
         raise last_exc or RuntimeError(f"Retries exhausted for model={model}")
 
@@ -352,7 +411,12 @@ class LLMRouter:
                 return response
             except Exception as exc:
                 errors.append(exc)
-                logger.warning("Model %s failed for tier=%s: %s", model, tier, exc)
+                summary = self._exception_summary(exc)
+                logger.warning("Model %s failed for tier=%s: %s", model, tier, summary)
+                if self._should_fail_fast(exc):
+                    raise RuntimeError(
+                        f"Fail-fast abort for tier={tier} model={model}: {summary}"
+                    ) from exc
         raise RuntimeError(f"All completion models failed for tier={tier}: {errors}")
 
     async def complete_with_model(
@@ -480,7 +544,12 @@ class LLMRouter:
                 return result
             except Exception as exc:
                 errors.append(exc)
-                logger.warning("Embedding model %s failed: %s", model, exc)
+                summary = self._exception_summary(exc)
+                logger.warning("Embedding model %s failed: %s", model, summary)
+                if self._should_fail_fast(exc):
+                    raise RuntimeError(
+                        f"Fail-fast abort for embedding model={model}: {summary}"
+                    ) from exc
         raise RuntimeError(f"All embedding models failed: {errors}")
 
     async def _call_embedding_with_retries(
@@ -502,11 +571,31 @@ class LLMRouter:
                     raise
                 if exc.response.status_code in self._transient_status_codes:
                     last_exc = exc
-                    await asyncio.sleep(backoff_base * (2**attempt))
+                    backoff_s = backoff_base * (2**attempt)
+                    if self.settings.llm_retry_debug_logging_enabled:
+                        logger.warning(
+                            "Transient embedding error for model=%s attempt=%d/%d: %s; backoff=%.2fs",
+                            model,
+                            attempt + 1,
+                            retry_count,
+                            self._exception_summary(exc),
+                            backoff_s,
+                        )
+                    if self._should_fail_fast(exc):
+                        raise
+                    await asyncio.sleep(backoff_s)
                     continue
                 raise
             except (httpx.TimeoutException, httpx.ConnectError, RuntimeError) as exc:
                 last_exc = exc
+                if self.settings.llm_retry_debug_logging_enabled:
+                    logger.warning(
+                        "Embedding call failed for model=%s attempt=%d/%d: %s",
+                        model,
+                        attempt + 1,
+                        retry_count,
+                        self._exception_summary(exc),
+                    )
                 break
         raise last_exc or RuntimeError(f"Embedding retries exhausted for model={model}")
 
@@ -540,6 +629,12 @@ class LLMRouter:
 
     def _completion_token_rates(self, model: str) -> tuple[float, float]:
         lowered = model.lower()
+        if "gpt-5.4-mini" in lowered:
+            return (0.00000075, 0.0000045)
+        if "gpt-5.4-nano" in lowered:
+            return (0.0000002, 0.00000125)
+        if "gpt-5.4" in lowered:
+            return (0.0000025, 0.000015)
         if "opus" in lowered:
             return (0.000015, 0.000075)
         if "haiku" in lowered:

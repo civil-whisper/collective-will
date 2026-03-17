@@ -34,6 +34,13 @@ _REMAP_SYSTEM_PROMPT = (
     "and decide how they should be grouped into ballot-level policy keys."
 )
 
+_REUSE_REVIEW_SYSTEM_PROMPT = (
+    "You are a policy analyst for a democratic deliberation platform. "
+    "Your job is to review candidates that currently share the same provisional policy key "
+    "and decide whether each new candidate truly belongs under that ballot-level proposition "
+    "or should receive a different key."
+)
+
 _REMAP_PROMPT_TEMPLATE = """\
 These policy submissions were identified as semantically similar based on \
 their content. Each currently has a policy_key assigned.
@@ -61,6 +68,37 @@ Reply with ONLY a raw JSON object (no markdown):
 "old-key-3": "old-key-3"}}}}
 """
 
+_REUSE_REVIEW_PROMPT_TEMPLATE = """\
+These candidates currently share the provisional policy key "{policy_key}".
+
+Existing open-cluster members for this key:
+{existing_block}
+
+New candidates to evaluate:
+{new_block}
+
+Rules:
+- Reuse the existing key only when the candidate expresses the SAME ballot-level proposition.
+- If assigning the candidate to the existing key would materially change ballot wording, option sets, or refinement output, assign a new key.
+- Do not create a new key for minor wording differences that still represent the same proposition.
+- New keys must be stance-neutral, descriptive, and lowercase-with-hyphens.
+- `policy_topic` should be a short browsing label, also lowercase-with-hyphens.
+- Return decisions for NEW candidates only.
+
+Reply with ONLY raw JSON (no markdown):
+{{
+  "decisions": [
+    {{
+      "candidate_id": "<new-candidate-id>",
+      "reuse_existing_key": true,
+      "policy_key": "{policy_key}",
+      "policy_topic": "<topic>",
+      "reason_code": "same_proposition"
+    }}
+  ]
+}}
+"""
+
 
 @dataclass(slots=True)
 class KeyMerge:
@@ -83,6 +121,177 @@ def _build_submissions_block(
         )
         lines.append(f"     {entry['summary']}")
     return "\n".join(lines)
+
+
+def _has_compound_shape(candidate: Any) -> bool:
+    return any(str(flag).strip().lower() == "compound_submission" for flag in getattr(candidate, "ambiguity_flags", []))
+
+
+def _same_key_group_needs_revalidation(candidates: list[Any]) -> bool:
+    if len(candidates) < 2:
+        return False
+
+    non_unclear_actors = {str(candidate.actor_scope) for candidate in candidates if str(candidate.actor_scope) != "unclear"}
+    non_unclear_mechanisms = {
+        str(candidate.action_mechanism) for candidate in candidates if str(candidate.action_mechanism) != "unclear"
+    }
+    non_unclear_targets = {str(candidate.target_scope) for candidate in candidates if str(candidate.target_scope) != "unclear"}
+    readiness_values = {str(candidate.ballot_readiness) for candidate in candidates}
+    compound_values = {_has_compound_shape(candidate) for candidate in candidates}
+
+    return (
+        len(non_unclear_actors) > 1
+        or len(non_unclear_mechanisms) > 1
+        or len(non_unclear_targets) > 1
+        or ("ballot-ready" in readiness_values and len(readiness_values) > 1)
+        or len(compound_values) > 1
+    )
+
+
+def _build_revalidation_candidate_block(candidates: list[Any]) -> str:
+    if not candidates:
+        return "(none)"
+
+    lines: list[str] = []
+    for candidate in candidates:
+        flags = ", ".join(str(flag) for flag in getattr(candidate, "ambiguity_flags", [])) or "none"
+        lines.append(
+            "- "
+            f'[candidate_id="{candidate.id}"; actor="{candidate.actor_scope}"; '
+            f'mechanism="{candidate.action_mechanism}"; target="{candidate.target_scope}"; '
+            f'readiness="{candidate.ballot_readiness}"; flags="{flags}"] '
+            f"{candidate.title}: {candidate.summary}"
+        )
+    return "\n".join(lines)
+
+
+def _parse_reuse_review_response(raw: str) -> dict[str, dict[str, Any]]:
+    text = raw.strip()
+    if text.startswith("```"):
+        nl = text.find("\n")
+        last = text.rfind("```")
+        text = text[nl + 1:last].strip()
+    if text and text[0] not in ("{", "["):
+        start = text.find("{")
+        if start != -1:
+            text = text[start:]
+    payload = json.loads(text)
+    decisions = payload.get("decisions", [])
+    return {
+        str(item["candidate_id"]): {
+            "reuse_existing_key": bool(item.get("reuse_existing_key", True)),
+            "policy_key": str(item.get("policy_key", "")),
+            "policy_topic": str(item.get("policy_topic", "")),
+            "reason_code": str(item.get("reason_code", "")) or "same_key_revalidation",
+        }
+        for item in decisions
+        if isinstance(item, dict) and item.get("candidate_id") is not None
+    }
+
+
+async def review_same_key_reuse(
+    *,
+    policy_key: str,
+    existing_members: list[Any],
+    new_candidates: list[Any],
+    llm_router: LLMRouter,
+) -> dict[str, dict[str, Any]]:
+    prompt = _REUSE_REVIEW_PROMPT_TEMPLATE.format(
+        policy_key=policy_key,
+        existing_block=_build_revalidation_candidate_block(existing_members),
+        new_block=_build_revalidation_candidate_block(new_candidates),
+    )
+    completion = await llm_router.complete(
+        tier="english_reasoning",
+        prompt=prompt,
+        system_prompt=_REUSE_REVIEW_SYSTEM_PROMPT,
+        temperature=0.0,
+    )
+    return _parse_reuse_review_response(completion.text)
+
+
+async def revalidate_candidate_key_reuse(
+    *,
+    session: AsyncSession,
+    new_candidates: list[PolicyCandidate],
+    llm_router: LLMRouter,
+) -> int:
+    keys = sorted({candidate.policy_key for candidate in new_candidates if candidate.policy_key != "unassigned"})
+    if not keys:
+        return 0
+
+    cluster_result = await session.execute(
+        select(Cluster).where(Cluster.status == "open", Cluster.policy_key.in_(keys))
+    )
+    open_clusters = {cluster.policy_key: cluster for cluster in cluster_result.scalars().all()}
+
+    existing_ids = {
+        candidate_id
+        for cluster in open_clusters.values()
+        for candidate_id in cluster.candidate_ids
+    }
+    existing_candidates_by_id: dict[Any, PolicyCandidate] = {}
+    if existing_ids:
+        existing_result = await session.execute(select(PolicyCandidate).where(PolicyCandidate.id.in_(existing_ids)))
+        existing_candidates_by_id = {candidate.id: candidate for candidate in existing_result.scalars().all()}
+
+    updated = 0
+    for key in keys:
+        key_new_candidates = [candidate for candidate in new_candidates if candidate.policy_key == key]
+        cluster = open_clusters.get(key)
+        existing_members = []
+        if cluster is not None:
+            existing_members = [
+                existing_candidates_by_id[candidate_id]
+                for candidate_id in cluster.candidate_ids
+                if candidate_id in existing_candidates_by_id
+            ]
+        combined = [*existing_members, *key_new_candidates]
+        if not _same_key_group_needs_revalidation(combined):
+            continue
+
+        decisions = await review_same_key_reuse(
+            policy_key=key,
+            existing_members=existing_members,
+            new_candidates=key_new_candidates,
+            llm_router=llm_router,
+        )
+        for candidate in key_new_candidates:
+            decision = decisions.get(str(candidate.id))
+            if decision is None or decision.get("reuse_existing_key", True):
+                continue
+
+            new_policy_key = str(decision.get("policy_key", "")).strip()
+            new_policy_topic = str(decision.get("policy_topic", "")).strip()
+            if not new_policy_key or new_policy_key == candidate.policy_key:
+                continue
+
+            old_policy_key = candidate.policy_key
+            old_policy_topic = candidate.policy_topic
+            candidate.policy_key = new_policy_key
+            if new_policy_topic:
+                candidate.policy_topic = new_policy_topic
+
+            await append_evidence(
+                session=session,
+                event_type="candidate_rekeyed",
+                entity_type="candidate",
+                entity_id=candidate.id,
+                payload={
+                    "candidate_id": str(candidate.id),
+                    "submission_id": str(candidate.submission_id),
+                    "stage": "same_key_revalidation",
+                    "old_policy_key": old_policy_key,
+                    "new_policy_key": candidate.policy_key,
+                    "old_policy_topic": old_policy_topic,
+                    "new_policy_topic": candidate.policy_topic,
+                    "old_ballot_readiness": candidate.ballot_readiness,
+                    "new_ballot_readiness": candidate.ballot_readiness,
+                    "reason_code": str(decision.get("reason_code", "same_key_revalidation")),
+                },
+            )
+            updated += 1
+    return updated
 
 
 def _parse_remap_response(raw: str) -> dict[str, str]:

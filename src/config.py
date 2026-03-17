@@ -80,20 +80,20 @@ class Settings(BaseSettings):
     ops_admin_emails: str = ""
     ops_event_buffer_size: int = 500
 
-    canonicalization_model: str = "claude-sonnet-4-6"
-    canonicalization_fallback_model: str = "gpt-4o"
-    farsi_messages_model: str = "claude-sonnet-4-6"
-    farsi_messages_fallback_model: str = "gpt-4o"
-    english_reasoning_model: str = "claude-sonnet-4-6"
-    english_reasoning_fallback_model: str = "gpt-4o"
-    option_generation_model: str = "claude-sonnet-4-6"
-    option_generation_fallback_model: str = "gpt-4o"
+    canonicalization_model: str = "gpt-5.4-mini"
+    canonicalization_fallback_model: str = "claude-sonnet-4-6"
+    farsi_messages_model: str = "gpt-5.4-mini"
+    farsi_messages_fallback_model: str = "claude-sonnet-4-6"
+    english_reasoning_model: str = "gpt-5.4-mini"
+    english_reasoning_fallback_model: str = "claude-sonnet-4-6"
+    option_generation_model: str = "gpt-5.4-mini"
+    option_generation_fallback_model: str = "claude-sonnet-4-6"
     option_generation_grounding_enabled: bool = False
     option_generation_grounding_topics: str = "digital-rights"
-    dispute_resolution_model: str = "claude-sonnet-4-6"
-    dispute_resolution_fallback_model: str = "gpt-4o"
+    dispute_resolution_model: str = "gpt-5.4-mini"
+    dispute_resolution_fallback_model: str = "claude-sonnet-4-6"
     dispute_resolution_ensemble_models: str = (
-        "claude-sonnet-4-6,gpt-4o"
+        "gpt-5.4-mini,claude-sonnet-4-6"
     )
     dispute_resolution_confidence_threshold: float = 0.75
 
@@ -123,6 +123,8 @@ class Settings(BaseSettings):
     llm_embedding_dimensions: int = 1024
     llm_transient_status_codes: str = "429,500,502,503"
     llm_non_retriable_status_codes: str = "400,401"
+    llm_fail_fast_on_transient_errors: bool = False
+    llm_retry_debug_logging_enabled: bool = False
     canonicalization_context_max_entries: int = 8
     canonicalization_context_summary_chars: int = 120
     llm_prompt_caching_enabled: bool = True

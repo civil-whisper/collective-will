@@ -56,6 +56,7 @@ GENERATE_MODE = bool(os.getenv("GENERATE_GROUPING_CACHE"))
 PROJECT_ROOT = Path(__file__).parent.parent.parent
 
 ROUND_SIZE = 25
+DEBUG_PROGRESS = GENERATE_MODE or bool(os.getenv("GROUPING_DEBUG_PROGRESS"))
 
 pytestmark = [
     pytest.mark.asyncio,
@@ -71,9 +72,21 @@ pytestmark = [
 
 GROUP_HIJAB = "hijab-dress-code"
 GROUP_INTERNET = "internet-censorship"
-GROUP_DEATH_PENALTY = "death-penalty"
-GROUP_LANGUAGE_RIGHTS = "ethnic-language-rights"
-GROUP_PRIVATIZATION = "state-privatization"
+GROUP_DEATH_PENALTY_ABOLITION = "death-penalty-abolition"
+GROUP_DEATH_PENALTY_LIMITS = "death-penalty-limits"
+GROUP_DEATH_PENALTY_DELIBERATION = "death-penalty-deliberation"
+GROUP_DEATH_PENALTY_PROCESS = "death-penalty-process"
+GROUP_LANGUAGE_EDUCATION = "ethnic-language-education"
+GROUP_LANGUAGE_OFFICIAL_STATUS = "ethnic-language-official-status"
+GROUP_LANGUAGE_MEDIA = "ethnic-language-media"
+GROUP_LANGUAGE_EQUALITY = "ethnic-language-equality"
+GROUP_LANGUAGE_UNITY_CONCERN = "ethnic-language-unity-concern"
+GROUP_PRIVATIZATION_MARKET = "state-privatization-market"
+GROUP_PRIVATIZATION_OVERSIGHT = "state-privatization-oversight"
+GROUP_PRIVATIZATION_STRATEGIC = "state-privatization-strategic-sectors"
+GROUP_PRIVATIZATION_LABOR = "state-privatization-labor"
+GROUP_PRIVATIZATION_POWER = "state-privatization-power-centers"
+GROUP_PRIVATIZATION_SKEPTICAL = "state-privatization-skeptical"
 GROUP_DOMESTIC_STRIKE = "domestic-economic-strike"
 GROUP_FOREIGN_SANCTIONS = "foreign-economic-sanctions"
 GROUP_FOREIGN_INTERVENTION = "foreign-military-intervention"
@@ -82,9 +95,21 @@ GROUP_OUTLIER = "outlier"
 EXPECTED_MAIN_GROUPS = {
     GROUP_HIJAB,
     GROUP_INTERNET,
-    GROUP_DEATH_PENALTY,
-    GROUP_LANGUAGE_RIGHTS,
-    GROUP_PRIVATIZATION,
+    GROUP_DEATH_PENALTY_ABOLITION,
+    GROUP_DEATH_PENALTY_LIMITS,
+    GROUP_DEATH_PENALTY_DELIBERATION,
+    GROUP_DEATH_PENALTY_PROCESS,
+    GROUP_LANGUAGE_EDUCATION,
+    GROUP_LANGUAGE_OFFICIAL_STATUS,
+    GROUP_LANGUAGE_MEDIA,
+    GROUP_LANGUAGE_EQUALITY,
+    GROUP_LANGUAGE_UNITY_CONCERN,
+    GROUP_PRIVATIZATION_MARKET,
+    GROUP_PRIVATIZATION_OVERSIGHT,
+    GROUP_PRIVATIZATION_STRATEGIC,
+    GROUP_PRIVATIZATION_LABOR,
+    GROUP_PRIVATIZATION_POWER,
+    GROUP_PRIVATIZATION_SKEPTICAL,
     GROUP_DOMESTIC_STRIKE,
     GROUP_FOREIGN_SANCTIONS,
     GROUP_FOREIGN_INTERVENTION,
@@ -269,278 +294,278 @@ SUBMISSIONS: list[dict[str, str]] = [
         "language": "en",
         "expected_group": GROUP_INTERNET,
     },
-    # --- Group 3: Death penalty / capital punishment (~18) ---
+    # --- Group 3: Death penalty / capital punishment families (~18) ---
     {
         "text": "اعدام باید کاملاً لغو بشه. هیچ دولتی حق گرفتن جان کسی رو نداره.",
         "language": "fa",
-        "expected_group": GROUP_DEATH_PENALTY,
+        "expected_group": GROUP_DEATH_PENALTY_ABOLITION,
     },
     {
         "text": "The death penalty should be abolished. It is a cruel and irreversible punishment.",
         "language": "en",
-        "expected_group": GROUP_DEATH_PENALTY,
+        "expected_group": GROUP_DEATH_PENALTY_ABOLITION,
     },
     {
         "text": "من فکر می‌کنم اعدام برای قتل عمد باید بمونه ولی برای جرائم مواد مخدر نه.",
         "language": "fa",
-        "expected_group": GROUP_DEATH_PENALTY,
+        "expected_group": GROUP_DEATH_PENALTY_LIMITS,
     },
     {
         "text": "Should capital punishment continue for drug offenses? The current laws are too harsh.",
         "language": "en",
-        "expected_group": GROUP_DEATH_PENALTY,
+        "expected_group": GROUP_DEATH_PENALTY_LIMITS,
     },
     {
         "text": "اعدام در ملأ عام یه عمل وحشیانه‌ست که باید فوراً متوقف بشه.",
         "language": "fa",
-        "expected_group": GROUP_DEATH_PENALTY,
+        "expected_group": GROUP_DEATH_PENALTY_LIMITS,
     },
     {
         "text": "I believe the death penalty deters serious crime and should remain for murder cases only.",
         "language": "en",
-        "expected_group": GROUP_DEATH_PENALTY,
+        "expected_group": GROUP_DEATH_PENALTY_LIMITS,
     },
     {
         "text": "آمار نشون میده اعدام بازدارندگی نداره. باید حبس ابد جایگزین بشه.",
         "language": "fa",
-        "expected_group": GROUP_DEATH_PENALTY,
+        "expected_group": GROUP_DEATH_PENALTY_ABOLITION,
     },
     {
         "text": "Public executions are a violation of human dignity. They traumatize entire communities.",
         "language": "en",
-        "expected_group": GROUP_DEATH_PENALTY,
+        "expected_group": GROUP_DEATH_PENALTY_LIMITS,
     },
     {
         "text": "حکم قصاص نفس باید بازبینی بشه. خانواده مقتول نباید تنها تصمیم‌گیرنده باشه.",
         "language": "fa",
-        "expected_group": GROUP_DEATH_PENALTY,
+        "expected_group": GROUP_DEATH_PENALTY_PROCESS,
     },
     {
         "text": "What alternatives to capital punishment should a democratic Iran implement?",
         "language": "en",
-        "expected_group": GROUP_DEATH_PENALTY,
+        "expected_group": GROUP_DEATH_PENALTY_DELIBERATION,
     },
     {
         "text": "ایران بیشترین اعدام سرانه رو داره. این یه بحران حقوق بشریه.",
         "language": "fa",
-        "expected_group": GROUP_DEATH_PENALTY,
+        "expected_group": GROUP_DEATH_PENALTY_ABOLITION,
     },
     {
         "text": "Juvenile executions must stop immediately. Iran is one of the few countries still doing this.",
         "language": "en",
-        "expected_group": GROUP_DEATH_PENALTY,
+        "expected_group": GROUP_DEATH_PENALTY_LIMITS,
     },
     {
         "text": "اعدام برای جرائم سیاسی و عقیدتی کاملاً غیرقابل قبوله.",
         "language": "fa",
-        "expected_group": GROUP_DEATH_PENALTY,
+        "expected_group": GROUP_DEATH_PENALTY_LIMITS,
     },
     {
         "text": "Replace death penalty with life imprisonment. The justice system makes too many errors.",
         "language": "en",
-        "expected_group": GROUP_DEATH_PENALTY,
+        "expected_group": GROUP_DEATH_PENALTY_ABOLITION,
     },
     {
         "text": "قوه قضاییه باید اصلاح بشه و مجازات اعدام به حداقل برسه.",
         "language": "fa",
-        "expected_group": GROUP_DEATH_PENALTY,
+        "expected_group": GROUP_DEATH_PENALTY_PROCESS,
     },
     {
         "text": "Capital punishment for drug crimes is disproportionate and targets the poorest citizens.",
         "language": "en",
-        "expected_group": GROUP_DEATH_PENALTY,
+        "expected_group": GROUP_DEATH_PENALTY_LIMITS,
     },
     {
         "text": "باید یه بحث ملی درباره اعدام داشته باشیم. نظر مردم مهمه.",
         "language": "fa",
-        "expected_group": GROUP_DEATH_PENALTY,
+        "expected_group": GROUP_DEATH_PENALTY_DELIBERATION,
     },
     {
         "text": "The death penalty debate needs public input. Put it to a national vote.",
         "language": "en",
-        "expected_group": GROUP_DEATH_PENALTY,
+        "expected_group": GROUP_DEATH_PENALTY_DELIBERATION,
     },
-    # --- Group 4: Ethnic minority language rights (~18) ---
+    # --- Group 4: Ethnic minority language-rights families (~18) ---
     {
         "text": "زبان‌های اقوام مثل کردی و آذری باید در مدارس تدریس بشه.",
         "language": "fa",
-        "expected_group": GROUP_LANGUAGE_RIGHTS,
+        "expected_group": GROUP_LANGUAGE_EDUCATION,
     },
     {
         "text": "Kurdish, Azerbaijani, Balochi and Arabic should be recognized as official regional languages.",
         "language": "en",
-        "expected_group": GROUP_LANGUAGE_RIGHTS,
+        "expected_group": GROUP_LANGUAGE_OFFICIAL_STATUS,
     },
     {
         "text": "حق آموزش به زبان مادری یه حق اساسیه. بچه‌های کرد و ترک باید به زبان خودشون درس بخونن.",
         "language": "fa",
-        "expected_group": GROUP_LANGUAGE_RIGHTS,
+        "expected_group": GROUP_LANGUAGE_EDUCATION,
     },
     {
         "text": "Should minority languages have official status in their provinces? I think yes.",
         "language": "en",
-        "expected_group": GROUP_LANGUAGE_RIGHTS,
+        "expected_group": GROUP_LANGUAGE_OFFICIAL_STATUS,
     },
     {
         "text": "فارسی زبان ملی باشه ولی زبان‌های محلی هم باید حمایت بشن. تنوع زبانی ثروته.",
         "language": "fa",
-        "expected_group": GROUP_LANGUAGE_RIGHTS,
+        "expected_group": GROUP_LANGUAGE_EQUALITY,
     },
     {
         "text": "I worry that making multiple languages official will divide the country. One language unites us.",
         "language": "en",
-        "expected_group": GROUP_LANGUAGE_RIGHTS,
+        "expected_group": GROUP_LANGUAGE_UNITY_CONCERN,
     },
     {
         "text": "بلوچ‌ها و عرب‌ها و ترکمن‌ها سال‌هاست از تبعیض زبانی رنج می‌برن. باید تمام بشه.",
         "language": "fa",
-        "expected_group": GROUP_LANGUAGE_RIGHTS,
+        "expected_group": GROUP_LANGUAGE_EQUALITY,
     },
     {
         "text": "Ethnic language education should be funded by the central government in all provinces.",
         "language": "en",
-        "expected_group": GROUP_LANGUAGE_RIGHTS,
+        "expected_group": GROUP_LANGUAGE_EDUCATION,
     },
     {
         "text": "آذری‌ها حق دارن که رسانه و تلویزیون به زبان ترکی داشته باشن.",
         "language": "fa",
-        "expected_group": GROUP_LANGUAGE_RIGHTS,
+        "expected_group": GROUP_LANGUAGE_MEDIA,
     },
     {
         "text": "A new constitution must guarantee the right to education in one's mother tongue.",
         "language": "en",
-        "expected_group": GROUP_LANGUAGE_RIGHTS,
+        "expected_group": GROUP_LANGUAGE_EDUCATION,
     },
     {
         "text": "تبعیض زبانی باعث شکاف اجتماعی شده. باید همه زبان‌ها رسمیت پیدا کنن.",
         "language": "fa",
-        "expected_group": GROUP_LANGUAGE_RIGHTS,
+        "expected_group": GROUP_LANGUAGE_OFFICIAL_STATUS,
     },
     {
         "text": "Language rights are human rights. Banning minority language instruction is cultural suppression.",
         "language": "en",
-        "expected_group": GROUP_LANGUAGE_RIGHTS,
+        "expected_group": GROUP_LANGUAGE_EDUCATION,
     },
     {
         "text": "کردی و ترکی و عربی باید در اسناد رسمی استانی قابل استفاده باشن.",
         "language": "fa",
-        "expected_group": GROUP_LANGUAGE_RIGHTS,
+        "expected_group": GROUP_LANGUAGE_OFFICIAL_STATUS,
     },
     {
         "text": "We should have bilingual education: Persian plus the regional language in each province.",
         "language": "en",
-        "expected_group": GROUP_LANGUAGE_RIGHTS,
+        "expected_group": GROUP_LANGUAGE_EDUCATION,
     },
     {
         "text": "زبان‌های اقلیت در خطر نابودی هستن. دولت باید برنامه حفاظت از زبان داشته باشه.",
         "language": "fa",
-        "expected_group": GROUP_LANGUAGE_RIGHTS,
+        "expected_group": GROUP_LANGUAGE_EQUALITY,
     },
     {
         "text": "Why can't government services be offered in Kurdish in Kurdistan province?",
         "language": "en",
-        "expected_group": GROUP_LANGUAGE_RIGHTS,
+        "expected_group": GROUP_LANGUAGE_OFFICIAL_STATUS,
     },
     {
         "text": "حق تحصیل به زبان مادری باید در قانون اساسی جدید تضمین بشه.",
         "language": "fa",
-        "expected_group": GROUP_LANGUAGE_RIGHTS,
+        "expected_group": GROUP_LANGUAGE_EDUCATION,
     },
     {
         "text": "State television should broadcast in all major ethnic languages, not just Persian.",
         "language": "en",
-        "expected_group": GROUP_LANGUAGE_RIGHTS,
+        "expected_group": GROUP_LANGUAGE_MEDIA,
     },
-    # --- Group 5: Privatization of state enterprises (~18) ---
+    # --- Group 5: Privatization proposition families (~18) ---
     {
         "text": "شرکت‌های دولتی باید خصوصی‌سازی بشن. دولت کارایی لازم رو نداره.",
         "language": "fa",
-        "expected_group": GROUP_PRIVATIZATION,
+        "expected_group": GROUP_PRIVATIZATION_MARKET,
     },
     {
         "text": "State-owned enterprises should be fully privatized to boost economic efficiency.",
         "language": "en",
-        "expected_group": GROUP_PRIVATIZATION,
+        "expected_group": GROUP_PRIVATIZATION_MARKET,
     },
     {
         "text": "خصوصی‌سازی بدون نظارت فقط به نفع آقازاده‌هاست. باید شفاف باشه.",
         "language": "fa",
-        "expected_group": GROUP_PRIVATIZATION,
+        "expected_group": GROUP_PRIVATIZATION_OVERSIGHT,
     },
     {
         "text": "Privatization without transparency has led to corruption. We need oversight mechanisms.",
         "language": "en",
-        "expected_group": GROUP_PRIVATIZATION,
+        "expected_group": GROUP_PRIVATIZATION_OVERSIGHT,
     },
     {
         "text": "صنایع استراتژیک مثل نفت و گاز نباید خصوصی بشن. منافع ملی در خطره.",
         "language": "fa",
-        "expected_group": GROUP_PRIVATIZATION,
+        "expected_group": GROUP_PRIVATIZATION_STRATEGIC,
     },
     {
         "text": "I oppose privatizing oil and gas. Natural resources belong to all citizens.",
         "language": "en",
-        "expected_group": GROUP_PRIVATIZATION,
+        "expected_group": GROUP_PRIVATIZATION_STRATEGIC,
     },
     {
         "text": "خصوصی‌سازی اصل ۴۴ فاجعه بود. دارایی‌های ملی به خودی‌ها فروخته شد.",
         "language": "fa",
-        "expected_group": GROUP_PRIVATIZATION,
+        "expected_group": GROUP_PRIVATIZATION_SKEPTICAL,
     },
     {
         "text": "How should state assets be distributed fairly during privatization? Workers should get shares.",
         "language": "en",
-        "expected_group": GROUP_PRIVATIZATION,
+        "expected_group": GROUP_PRIVATIZATION_OVERSIGHT,
     },
     {
         "text": "بانک‌های دولتی باید خصوصی بشن ولی با مقررات سختگیرانه.",
         "language": "fa",
-        "expected_group": GROUP_PRIVATIZATION,
+        "expected_group": GROUP_PRIVATIZATION_MARKET,
     },
     {
         "text": "Partial privatization with government retaining a golden share is the best approach.",
         "language": "en",
-        "expected_group": GROUP_PRIVATIZATION,
+        "expected_group": GROUP_PRIVATIZATION_MARKET,
     },
     {
         "text": "سپاه و بنیادها باید از اقتصاد خارج بشن. این بزرگ‌ترین مانع خصوصی‌سازی واقعیه.",
         "language": "fa",
-        "expected_group": GROUP_PRIVATIZATION,
+        "expected_group": GROUP_PRIVATIZATION_POWER,
     },
     {
         "text": "Military-controlled companies must be privatized first. They distort the entire market.",
         "language": "en",
-        "expected_group": GROUP_PRIVATIZATION,
+        "expected_group": GROUP_PRIVATIZATION_POWER,
     },
     {
         "text": "خصوصی‌سازی بدون اصلاح قوانین کار فقط به بیکاری بیشتر منجر میشه.",
         "language": "fa",
-        "expected_group": GROUP_PRIVATIZATION,
+        "expected_group": GROUP_PRIVATIZATION_LABOR,
     },
     {
         "text": "Workers' rights must be protected during any privatization process. No mass layoffs.",
         "language": "en",
-        "expected_group": GROUP_PRIVATIZATION,
+        "expected_group": GROUP_PRIVATIZATION_LABOR,
     },
     {
         "text": "آیا خصوصی‌سازی واقعاً اقتصاد رو بهتر می‌کنه؟ تجربه ایران نشون داده نه.",
         "language": "fa",
-        "expected_group": GROUP_PRIVATIZATION,
+        "expected_group": GROUP_PRIVATIZATION_SKEPTICAL,
     },
     {
         "text": "Create a transparent privatization agency with citizen oversight and public auctions.",
         "language": "en",
-        "expected_group": GROUP_PRIVATIZATION,
+        "expected_group": GROUP_PRIVATIZATION_OVERSIGHT,
     },
     {
         "text": "سهام عدالت یه شوخی بود. خصوصی‌سازی واقعی باید با مشارکت مردم باشه.",
         "language": "fa",
-        "expected_group": GROUP_PRIVATIZATION,
+        "expected_group": GROUP_PRIVATIZATION_SKEPTICAL,
     },
     {
         "text": "State enterprise reform is urgent. Corruption thrives in government-run companies.",
         "language": "en",
-        "expected_group": GROUP_PRIVATIZATION,
+        "expected_group": GROUP_PRIVATIZATION_SKEPTICAL,
     },
     # --- Group 6: Domestic economic strike against the regime (~6) ---
     {
@@ -687,7 +712,12 @@ SUBMISSIONS: list[dict[str, str]] = [
 
 
 def _dataset_fingerprint() -> str:
-    material = json.dumps(SUBMISSIONS, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    # Cache validity should track the actual model inputs, not test-only expected labels.
+    cache_inputs = [
+        {"text": item["text"], "language": item["language"]}
+        for item in SUBMISSIONS
+    ]
+    material = json.dumps(cache_inputs, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(material.encode("utf-8")).hexdigest()[:16]
 
 
@@ -724,6 +754,12 @@ class CachingLLMRouter(LLMRouter):
         self.cache_hits = 0
         self.cache_misses = 0
 
+    def _enable_live_debug_fail_fast(self) -> None:
+        # Any cache miss means we are about to spend money and wait on providers,
+        # so make transient failures visible and abort immediately.
+        self.settings.llm_fail_fast_on_transient_errors = True
+        self.settings.llm_retry_debug_logging_enabled = True
+
     async def complete(
         self,
         *,
@@ -734,13 +770,15 @@ class CachingLLMRouter(LLMRouter):
         temperature: float = 0.0,
         timeout_s: float = 120.0,
     ) -> LLMResponse:
-        key = _cache_key(f"{tier}::{prompt}")
+        primary, fallback = self._resolve_tier_models(tier)
+        key = _cache_key(f"{tier}::{primary}::{fallback}::{prompt}")
         cached = self._cache["completions"].get(key)
         if cached is not None:
             self.cache_hits += 1
             return LLMResponse(**cached)
 
         self.cache_misses += 1
+        self._enable_live_debug_fail_fast()
         result = await super().complete(
             tier=tier,
             prompt=prompt,
@@ -755,13 +793,21 @@ class CachingLLMRouter(LLMRouter):
     async def embed(
         self, texts: list[str], timeout_s: float | None = None,
     ) -> EmbeddingResult:
-        key = _cache_key("embed::" + "||".join(texts))
+        key = _cache_key(
+            "embed::"
+            + self.settings.embedding_model
+            + "::"
+            + self.settings.embedding_fallback_model
+            + "::"
+            + "||".join(texts)
+        )
         cached = self._cache["embeddings"].get(key)
         if cached is not None:
             self.cache_hits += 1
             return EmbeddingResult(**cached)
 
         self.cache_misses += 1
+        self._enable_live_debug_fail_fast()
         result = await super().embed(texts, timeout_s=timeout_s)
         self._cache["embeddings"][key] = result.model_dump()
         return result
@@ -771,6 +817,11 @@ class CachingLLMRouter(LLMRouter):
 
     def stats(self) -> str:
         return f"hits={self.cache_hits}, misses={self.cache_misses}"
+
+
+def _progress(message: str) -> None:
+    if DEBUG_PROGRESS:
+        print(message, flush=True)
 
 
 # ---------------------------------------------------------------------------
@@ -867,6 +918,8 @@ async def _normalize_in_memory(
                 "Normalization LLM call failed for cluster with keys %s",
                 distinct_keys,
             )
+            if llm_router.settings.llm_fail_fast_on_transient_errors:
+                raise
             continue
 
         merges = _extract_merges_from_mapping(key_mapping, distinct_keys)
@@ -1057,10 +1110,17 @@ async def test_grouping_pipeline(_mock_evidence: AsyncMock) -> None:
                 end,
                 len(round_subs),
             )
+            _progress(
+                f"[grouping] round {round_num + 1}/{total_rounds}: submissions {start + 1}-{end}"
+            )
 
             # Step A: Serial canonicalization
             for i, sub in enumerate(round_subs):
                 policy_context = accumulator.format_context() or " "
+                _progress(
+                    f"[grouping] canonicalize {start + i + 1}/{len(submissions)} "
+                    f"group={sub['expected_group']} text={sub['text'][:70]!r}"
+                )
                 result = await canonicalize_single(
                     session=mock_session,
                     submission_id=uuid4(),
@@ -1137,6 +1197,9 @@ async def test_grouping_pipeline(_mock_evidence: AsyncMock) -> None:
                 "--- Normalizing after round %d (%d candidates so far) ---",
                 round_num + 1,
                 len(all_candidates),
+            )
+            _progress(
+                f"[grouping] normalize after round {round_num + 1}: {len(all_candidates)} candidates"
             )
             keys_before = set(c["policy_key"] for c in all_candidates)
             all_candidates = await _normalize_in_memory(all_candidates, router)

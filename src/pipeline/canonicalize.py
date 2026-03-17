@@ -27,6 +27,7 @@ _ALLOWED_ACTOR_SCOPES = {
     "international-organization",
     "civil-society",
     "public-governance",
+    "other",
     "unclear",
 }
 _ALLOWED_ACTION_MECHANISMS = {
@@ -38,6 +39,7 @@ _ALLOWED_ACTION_MECHANISMS = {
     "civil-society-support",
     "governance-design",
     "discussion-only",
+    "other",
     "unclear",
 }
 _ALLOWED_TARGET_SCOPES = {
@@ -45,6 +47,7 @@ _ALLOWED_TARGET_SCOPES = {
     "iranian-economy",
     "public-governance",
     "civil-rights",
+    "other",
     "unclear",
 }
 _ALLOWED_BALLOT_READINESS = {"ballot-ready", "needs-refinement", "discussion-only"}
@@ -124,43 +127,34 @@ def _sanitize_semantic_value(value: str, *, allowed: set[str], default: str) -> 
 _CANONICALIZATION_INSTRUCTIONS = (
     "Canonicalize this civic submission into JSON.\n\n"
     "Rules:\n"
-    "- Detect input language automatically.\n"
-    "- title, summary, entities, policy_topic, policy_key, actor_scope, action_mechanism, "
-    "target_scope, ballot_readiness, and ballot_readiness_reason must be in English.\n"
-    "- rejection_reason must be in the input language.\n"
-    "- Valid submissions include policy positions, policy questions, concerns, or interest "
+    "- Detect input language.\n"
+    "- Canonical fields (title, summary, entities, policy_topic, policy_key, actor_scope, "
+    "action_mechanism, target_scope, ballot_readiness, ballot_readiness_reason) must be in English.\n"
+    "- rejection_reason is the only user-facing field that must stay in the input language.\n"
+    "- If the input is English, rejection_reason must be English, not Farsi.\n"
+    "- If the input is Farsi, rejection_reason must be Farsi, not English.\n"
+    "- Valid submissions include civic or policy positions, questions, concerns, and expressions of interest "
     "about governance, rights, economy, foreign policy, or public affairs.\n"
-    "- Broad but real civic concerns are still valid if they identify a public issue; use "
-    "discussion-only or needs-refinement instead of rejecting them.\n"
-    "- Use discussion-only only for broad, exploratory, or open-ended civic discussion with no implied proposition.\n"
-    "- Use needs-refinement when the submission implies a real proposition or direction but still needs narrower scope, "
-    "actor, mechanism, or target clarification.\n"
-    "- If the submission already states a specific constitutional, legal, or policy rule that citizens could support "
-    "or oppose, it can still be ballot-ready even when phrased as a question.\n"
     "- Invalid submissions include greetings, spam, personal/off-topic text, and platform/how-to questions.\n"
+    "- discussion-only = broad exploration with no implied proposition.\n"
+    "- needs-refinement = a real proposition or direction exists, but scope, actor, mechanism, or target is still unclear.\n"
+    "- ballot-ready can include a clearly stated constitutional, legal, or policy rule, even when phrased as a question.\n"
     "- policy_topic is UI metadata only.\n"
-    "- policy_key must be stance-neutral, lowercase-with-hyphens, and specific enough for one ballot-level issue.\n"
-    "- Keep labor strikes, sanctions, diplomatic pressure, military action, and governance design separate "
-    "unless they are truly the same proposition.\n"
-    "- Keep general economic concerns, environmental/public-health concerns, "
-    "governance-transition questions, election-design questions, and election-integrity "
-    "safeguards separate when the underlying public issue differs.\n\n"
-    "- If a submission mixes multiple mechanisms or actors, do not collapse them into a vague merged issue. "
-    "Choose the dominant proposition, add ambiguity flag compound_submission, and usually classify it as "
-    "needs-refinement unless one concrete proposition clearly dominates.\n"
-    "- For compound submissions, policy_key/title/summary must describe only the dominant proposition. "
-    "Keep secondary ideas in ambiguity_flags or ballot_readiness_reason, not in the canonical identity.\n"
+    "- policy_key must be stance-neutral, lowercase-with-hyphens, and represent one ballot-level issue.\n"
+    "- For actor_scope, action_mechanism, and target_scope, use other when the dimension is clear but outside the listed buckets; use unclear only when it is genuinely unclear.\n"
+    "- Do not merge distinct propositions. Create a new policy_key when actor, mechanism, or target materially differs, "
+    "or when reuse would change ballot wording, option sets, or refinement output.\n"
+    "- For compound submissions, keep only the dominant proposition in policy_key/title/summary. "
+    "Put secondary ideas in ambiguity_flags or ballot_readiness_reason, and use compound_submission when appropriate.\n"
     "Return JSON only with fields:\n"
     f"is_valid_policy, rejection_reason, title, summary, stance ({_STANCES}), policy_topic, "
     "policy_key, actor_scope, action_mechanism, target_scope, ballot_readiness, "
     "ballot_readiness_reason, entities, confidence, ambiguity_flags.\n"
-    "Allowed actor_scope: domestic-citizens, foreign-state, international-organization, "
-    "civil-society, public-governance, unclear.\n"
-    "Allowed action_mechanism: labor-strike, economic-sanctions, economic-pressure, "
-    "military-action, diplomatic-pressure, civil-society-support, governance-design, "
-    "discussion-only, unclear.\n"
-    "Allowed target_scope: iranian-regime, iranian-economy, public-governance, civil-rights, unclear.\n"
-    "Allowed ballot_readiness: ballot-ready, needs-refinement, discussion-only.\n"
+    "actor_scope: domestic-citizens, foreign-state, international-organization, civil-society, public-governance, other, unclear.\n"
+    "action_mechanism: labor-strike, economic-sanctions, economic-pressure, military-action, diplomatic-pressure, "
+    "civil-society-support, governance-design, discussion-only, other, unclear.\n"
+    "target_scope: iranian-regime, iranian-economy, public-governance, civil-rights, other, unclear.\n"
+    "ballot_readiness: ballot-ready, needs-refinement, discussion-only.\n"
     "If invalid, set policy_topic=policy_key=unassigned, actor_scope/action_mechanism/target_scope=unclear, "
     "ballot_readiness=discussion-only, confidence=0.\n"
 )
@@ -175,7 +169,8 @@ def _prompt_for_item(item: dict[str, Any], policy_context: str = "") -> str:
             "\nExisting open policy keys (reuse only if actor, mechanism, and target materially match):\n"
             f"{policy_context}\n"
             "Reuse only on a true actor/mechanism/target match. "
-            "If actor or mechanism differs, create a new policy_key.\n\n"
+            "If actor or mechanism differs, create a new policy_key. "
+            "Also create a new key whenever reuse would change the ballot-level proposition, wording, or option set.\n\n"
         )
     return (
         _CANONICALIZATION_INSTRUCTIONS
@@ -193,6 +188,46 @@ class CanonicalizationRejection:
 
 def _prompt_version(prompt: str) -> str:
     return hashlib.sha256(prompt.encode("utf-8")).hexdigest()[:16]
+
+
+_FARSI_SCRIPT_RE = re.compile(r"[\u0600-\u06FF]")
+_LATIN_SCRIPT_RE = re.compile(r"[A-Za-z]")
+_BROAD_CONFLICT_TERM_RE = re.compile(r"(war|conflict|intervention|military|جنگ|درگیری|مداخله|نظامی)", flags=re.IGNORECASE)
+_EXPLICIT_IRANIAN_REGIME_TARGET_RE = re.compile(
+    r"(regime|regime change|government of iran|iranian government|حکومت|رژیم|دولت)",
+    flags=re.IGNORECASE,
+)
+
+
+def _default_rejection_reason(language: str) -> str:
+    if language.lower().startswith("fa"):
+        return "این متن به اندازه کافی مشخص نیست که به عنوان یک پیشنهاد سیاستی در نظر گرفته شود."
+    return "This submission is not specific enough to be treated as a policy proposal."
+
+
+def _normalize_rejection_reason(reason: object, *, language: str) -> tuple[str, bool]:
+    text = str(reason or "").strip()
+    if not text:
+        return _default_rejection_reason(language), True
+
+    has_farsi = bool(_FARSI_SCRIPT_RE.search(text))
+    has_latin = bool(_LATIN_SCRIPT_RE.search(text))
+    normalized_language = language.lower()
+    if normalized_language.startswith("fa"):
+        if has_latin and not has_farsi:
+            return _default_rejection_reason(language), True
+        return text, False
+    if has_farsi and not has_latin:
+        return _default_rejection_reason(language), True
+    return text, False
+
+
+def _should_downgrade_target_scope(*, raw_text: str, target_scope: str) -> bool:
+    if target_scope != "iranian-regime":
+        return False
+    if not _BROAD_CONFLICT_TERM_RE.search(raw_text):
+        return False
+    return _EXPLICIT_IRANIAN_REGIME_TARGET_RE.search(raw_text) is None
 
 
 def _parse_candidate_payload(payload: str) -> tuple[dict[str, Any], str | None]:
@@ -263,10 +298,12 @@ async def _parse_candidate_payload_with_repair(
 def _build_candidate_create(
     output: dict[str, Any],
     submission_id: UUID,
+    raw_text: str,
 ) -> PolicyCandidateCreate:
     """Build a PolicyCandidateCreate from parsed LLM output."""
     confidence = float(output.get("confidence", 0.0))
-    flags = list(output.get("ambiguity_flags", []))
+    raw_flags = output.get("ambiguity_flags")
+    flags = list(raw_flags) if isinstance(raw_flags, list) else []
     if confidence < 0.7 and "low_confidence" not in flags:
         flags.append("low_confidence")
 
@@ -307,6 +344,11 @@ def _build_candidate_create(
         default=_DEFAULT_BALLOT_READINESS,
     )
     ballot_readiness_reason = str(output.get("ballot_readiness_reason", "")).strip() or None
+
+    if _should_downgrade_target_scope(raw_text=raw_text, target_scope=target_scope):
+        target_scope = _DEFAULT_TARGET_SCOPE
+        if "target_scope_unclear_from_input" not in flags:
+            flags.append("target_scope_unclear_from_input")
 
     return PolicyCandidateCreate(
         submission_id=submission_id,
@@ -372,7 +414,7 @@ async def canonicalize_single(
         )
 
     if not parsed.get("is_valid_policy", True):
-        reason = str(parsed.get("rejection_reason") or "Submission is not a valid policy proposal.")
+        reason, normalized_reason = _normalize_rejection_reason(parsed.get("rejection_reason"), language=language)
         await append_evidence(
             session=session,
             event_type="submission_rejected_not_policy",
@@ -381,6 +423,7 @@ async def canonicalize_single(
             payload={
                 "submission_id": str(submission_id),
                 "rejection_reason": reason,
+                "rejection_reason_language_normalized": normalized_reason,
                 "model_version": parsed["model_version"],
                 "prompt_version": parsed["prompt_version"],
             },
@@ -391,7 +434,7 @@ async def canonicalize_single(
             prompt_version=str(parsed["prompt_version"]),
         )
 
-    candidate = _build_candidate_create(parsed, submission_id)
+    candidate = _build_candidate_create(parsed, submission_id, raw_text=raw_text)
     await append_evidence(
         session=session,
         event_type="candidate_created",
@@ -463,7 +506,10 @@ async def canonicalize_batch(
     candidates: list[PolicyCandidateCreate] = []
     for idx, output in enumerate(ordered):
         if not output.get("is_valid_policy", True):
-            reason = str(output.get("rejection_reason") or "Submission is not a valid policy proposal.")
+            reason, normalized_reason = _normalize_rejection_reason(
+                output.get("rejection_reason"),
+                language=str(submissions[idx].get("language", "en")),
+            )
             await append_evidence(
                 session=session,
                 event_type="submission_rejected_not_policy",
@@ -472,13 +518,18 @@ async def canonicalize_batch(
                 payload={
                     "submission_id": str(submissions[idx]["id"]),
                     "rejection_reason": reason,
+                    "rejection_reason_language_normalized": normalized_reason,
                     "model_version": str(output.get("model_version", "")),
                     "prompt_version": str(output.get("prompt_version", "")),
                 },
             )
             continue
 
-        candidate = _build_candidate_create(output, submissions[idx]["id"])
+        candidate = _build_candidate_create(
+            output,
+            submissions[idx]["id"],
+            raw_text=str(submissions[idx].get("raw_text", "")),
+        )
         candidates.append(candidate)
         await append_evidence(
             session=session,

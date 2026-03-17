@@ -18,18 +18,18 @@ def _settings(**overrides: str) -> Settings:
         "openai_api_key": "test-openai",
         "deepseek_api_key": "test-deepseek",
         "evolution_api_key": "test-evo",
-        "canonicalization_model": "claude-sonnet-4-6",
-        "canonicalization_fallback_model": "gpt-4o",
-        "farsi_messages_model": "claude-sonnet-4-6",
-        "farsi_messages_fallback_model": "gpt-4o",
-        "english_reasoning_model": "claude-sonnet-4-6",
-        "english_reasoning_fallback_model": "gpt-4o",
-        "option_generation_model": "claude-sonnet-4-6",
-        "option_generation_fallback_model": "gpt-4o",
+        "canonicalization_model": "gpt-5.4-mini",
+        "canonicalization_fallback_model": "claude-sonnet-4-6",
+        "farsi_messages_model": "gpt-5.4-mini",
+        "farsi_messages_fallback_model": "claude-sonnet-4-6",
+        "english_reasoning_model": "gpt-5.4-mini",
+        "english_reasoning_fallback_model": "claude-sonnet-4-6",
+        "option_generation_model": "gpt-5.4-mini",
+        "option_generation_fallback_model": "claude-sonnet-4-6",
         "option_generation_grounding_enabled": False,
         "option_generation_grounding_topics": "digital-rights",
-        "dispute_resolution_model": "claude-sonnet-4-6",
-        "dispute_resolution_fallback_model": "gpt-4o",
+        "dispute_resolution_model": "gpt-5.4-mini",
+        "dispute_resolution_fallback_model": "claude-sonnet-4-6",
         "embedding_model": "gemini-embedding-001",
         "embedding_fallback_model": "text-embedding-3-large",
     }
@@ -41,9 +41,9 @@ def _make_completion_payload(text: str = "ok") -> dict[str, object]:
     return {"text": text, "usage": {"input_tokens": 10, "output_tokens": 5}}
 
 
-# --- 1. canonicalization routes to Anthropic Sonnet ---
+# --- 1. canonicalization routes to configured primary ---
 @pytest.mark.asyncio
-async def test_complete_canonicalization_routes_to_anthropic() -> None:
+async def test_complete_canonicalization_routes_to_primary() -> None:
     router = LLMRouter(settings=_settings())
     calls: list[str] = []
 
@@ -53,7 +53,7 @@ async def test_complete_canonicalization_routes_to_anthropic() -> None:
 
     router._call_with_retries = _fake  # type: ignore[method-assign]
     result = await router.complete(tier="canonicalization", prompt="x")
-    assert "sonnet" in calls[0].lower()
+    assert calls[0] == "gpt-5.4-mini"
     assert isinstance(result, LLMResponse)
 
 
@@ -69,7 +69,7 @@ async def test_complete_farsi_messages_routes_primary() -> None:
 
     router._call_with_retries = _fake  # type: ignore[method-assign]
     await router.complete(tier="farsi_messages", prompt="x")
-    assert calls[0] == "claude-sonnet-4-6"
+    assert calls[0] == "gpt-5.4-mini"
 
 
 # --- 3. farsi_messages falls back on primary failure ---
@@ -87,7 +87,7 @@ async def test_complete_farsi_messages_fallback() -> None:
     router._call_with_retries = _fake  # type: ignore[method-assign]
     result = await router.complete(tier="farsi_messages", prompt="x")
     assert len(calls) == 2
-    assert result.model == "gpt-4o"
+    assert result.model == "claude-sonnet-4-6"
 
 
 # --- 4. english_reasoning routes primary ---
@@ -102,7 +102,7 @@ async def test_complete_english_reasoning_primary() -> None:
 
     router._call_with_retries = _fake  # type: ignore[method-assign]
     await router.complete(tier="english_reasoning", prompt="x")
-    assert calls[0] == "claude-sonnet-4-6"
+    assert calls[0] == "gpt-5.4-mini"
 
 
 # --- 5. english_reasoning falls back ---
@@ -119,7 +119,7 @@ async def test_complete_english_reasoning_fallback() -> None:
 
     router._call_with_retries = _fake  # type: ignore[method-assign]
     result = await router.complete(tier="english_reasoning", prompt="x")
-    assert result.model == "gpt-4o"
+    assert result.model == "claude-sonnet-4-6"
 
 
 # --- 6. dispute_resolution routes primary ---
@@ -134,7 +134,7 @@ async def test_complete_dispute_resolution_primary() -> None:
 
     router._call_with_retries = _fake  # type: ignore[method-assign]
     await router.complete(tier="dispute_resolution", prompt="x")
-    assert calls[0] == "claude-sonnet-4-6"
+    assert calls[0] == "gpt-5.4-mini"
 
 
 # --- 7. dispute_resolution falls back ---
@@ -151,7 +151,7 @@ async def test_complete_dispute_resolution_fallback() -> None:
 
     router._call_with_retries = _fake  # type: ignore[method-assign]
     result = await router.complete(tier="dispute_resolution", prompt="x")
-    assert result.model == "gpt-4o"
+    assert result.model == "claude-sonnet-4-6"
 
 
 # --- 8/9/10. Dispute resolution threshold and ensemble ---
@@ -243,7 +243,7 @@ async def test_llm_response_fields() -> None:
     router._call_with_retries = _fake  # type: ignore[method-assign]
     result = await router.complete(tier="canonicalization", prompt="x")
     assert result.text == "hello"
-    assert result.model == "claude-sonnet-4-6"
+    assert result.model == "gpt-5.4-mini"
     assert result.input_tokens == 100
     assert result.output_tokens == 50
     assert result.cost_usd >= 0
@@ -267,6 +267,23 @@ async def test_retry_on_429() -> None:
     result = await router.complete(tier="canonicalization", prompt="x")
     assert result.text == "ok"
     assert attempt == 2
+
+
+@pytest.mark.asyncio
+async def test_retry_on_429_fail_fast_aborts_without_fallback() -> None:
+    router = LLMRouter(settings=_settings(llm_fail_fast_on_transient_errors="true"))
+    attempt = 0
+
+    async def _fake(*, model: str, **kw: object) -> dict[str, object]:
+        nonlocal attempt
+        attempt += 1
+        resp = httpx.Response(429, request=httpx.Request("POST", "https://example.com"))
+        raise httpx.HTTPStatusError("rate limited", request=resp.request, response=resp)
+
+    router._call_completion_api = _fake  # type: ignore[method-assign]
+    with pytest.raises(RuntimeError, match="Fail-fast abort for tier=canonicalization model=gpt-5.4-mini"):
+        await router.complete(tier="canonicalization", prompt="x")
+    assert attempt == 1
 
 
 # --- 17. Auth error 401 not retried ---
@@ -298,6 +315,11 @@ def test_cost_estimate_non_negative() -> None:
     gpt_cost = router._estimate_completion_cost(model="gpt-4o", usage=usage)
     assert gpt_cost >= 0
     assert gpt_cost > 0
+
+    gpt5_mini_cost = router._estimate_completion_cost(model="gpt-5.4-mini", usage=usage)
+    assert gpt5_mini_cost >= 0
+    assert gpt5_mini_cost > 0
+    assert gpt5_mini_cost < gpt_cost
 
 
 # --- 19. Provider detection for Gemini models ---
@@ -365,9 +387,9 @@ def test_gemini_cost_estimates() -> None:
     assert pro_cost < sonnet_cost  # gemini pro cheaper than sonnet
 
 
-# --- 23. option_generation tier routes to Claude with grounding ---
+# --- 23. option_generation tier routes to configured primary with grounding ---
 @pytest.mark.asyncio
-async def test_option_generation_routes_to_claude_with_grounding() -> None:
+async def test_option_generation_routes_to_primary_with_grounding() -> None:
     router = LLMRouter(settings=_settings())
     calls: list[tuple[str, bool]] = []
 
@@ -377,28 +399,28 @@ async def test_option_generation_routes_to_claude_with_grounding() -> None:
 
     router._call_with_retries = _fake  # type: ignore[method-assign]
     await router.complete(tier="option_generation", prompt="x", grounding=True)
-    assert calls[0][0] == "claude-sonnet-4-6"
+    assert calls[0][0] == "gpt-5.4-mini"
     assert calls[0][1] is True
 
 
 # --- 24. grounding is enabled for all supported providers ---
 @pytest.mark.asyncio
-async def test_grounding_enabled_for_anthropic_and_openai_fallback() -> None:
+async def test_grounding_enabled_for_openai_and_anthropic_fallback() -> None:
     router = LLMRouter(settings=_settings())
     calls: list[tuple[str, bool]] = []
 
     async def _fake(*, model: str, grounding: bool = False, **kw: object) -> dict[str, object]:
         calls.append((model, grounding))
-        if "claude" in model:
-            raise RuntimeError("claude down")
+        if model == "gpt-5.4-mini":
+            raise RuntimeError("openai down")
         return _make_completion_payload()
 
     router._call_with_retries = _fake  # type: ignore[method-assign]
     result = await router.complete(tier="option_generation", prompt="x", grounding=True)
     assert len(calls) == 2
-    assert calls[0] == ("claude-sonnet-4-6", True)
-    assert calls[1] == ("gpt-4o", True)
-    assert result.model == "gpt-4o"
+    assert calls[0] == ("gpt-5.4-mini", True)
+    assert calls[1] == ("claude-sonnet-4-6", True)
+    assert result.model == "claude-sonnet-4-6"
 
 
 # --- 25. grounding=False does not add tools ---
@@ -534,6 +556,39 @@ async def test_openai_cache_read_tokens_captured(monkeypatch: pytest.MonkeyPatch
 
 
 @pytest.mark.asyncio
+async def test_gpt5_chat_completions_uses_max_completion_tokens(monkeypatch: pytest.MonkeyPatch) -> None:
+    router = LLMRouter(settings=_settings())
+    captured_body: dict[str, object] = {}
+
+    class _FakeResponse:
+        def raise_for_status(self) -> None:
+            return None
+
+        def json(self) -> dict[str, object]:
+            return {
+                "choices": [{"message": {"content": "ok"}}],
+                "usage": {"prompt_tokens": 100, "completion_tokens": 20},
+            }
+
+    class _FakeClient:
+        def __init__(self, *a: object, **kw: object) -> None:
+            pass
+        async def __aenter__(self) -> _FakeClient:
+            return self
+        async def __aexit__(self, *a: object) -> None:
+            return None
+        async def post(self, url: str, json: dict[str, object], headers: dict[str, str]) -> _FakeResponse:
+            captured_body.update(json)
+            return _FakeResponse()
+
+    monkeypatch.setattr(httpx, "AsyncClient", _FakeClient)
+    payload = await router._call_completion_api(model="gpt-5.4-mini", prompt="x", max_tokens=321)
+    assert payload["usage"]["output_tokens"] == 20
+    assert captured_body["max_completion_tokens"] == 321
+    assert "max_tokens" not in captured_body
+
+
+@pytest.mark.asyncio
 async def test_anthropic_cache_telemetry_and_block_system(monkeypatch: pytest.MonkeyPatch) -> None:
     router = LLMRouter(settings=_settings())
     captured_body: dict[str, object] = {}
@@ -646,8 +701,8 @@ async def test_fallback_sets_primary_model_failed() -> None:
     router._call_with_retries = _fake  # type: ignore[method-assign]
     result = await router.complete(tier="english_reasoning", prompt="x")
     assert result.primary_model_failed is True
-    assert result.fallback_from == "claude-sonnet-4-6"
-    assert result.model == "gpt-4o"
+    assert result.fallback_from == "gpt-5.4-mini"
+    assert result.model == "claude-sonnet-4-6"
 
 
 @pytest.mark.asyncio

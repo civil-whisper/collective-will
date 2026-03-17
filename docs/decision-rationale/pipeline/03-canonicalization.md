@@ -14,6 +14,7 @@
 - All canonical output (`title`, `summary`, `entities`) is always in English regardless of input language.
 - Validity is broad: questions, concerns, and expressions of interest about policy topics are accepted — not just explicit stances. This is because submissions cluster by topic and the option generator creates the votable stances.
 - Garbage/non-policy submissions are rejected at canonicalization time with feedback in the user's input language.
+- Because language compliance is not perfect across LLMs, user-facing rejection reasons are prompt-guided and then code-normalized into the submission language when the model slips.
 
 ## Decision: Inline Gemini canonicalization with broad validity assessment
 
@@ -46,5 +47,6 @@
 3. Claude Sonnet fallback for continuity, with fallback results explicitly flagged.
 4. Graceful degradation: inline failure → status="pending" → batch retries.
 5. `rejection_reason` in input language so user understands why their submission was rejected.
+6. Deterministic post-parse normalization for `rejection_reason` so mixed-language failures do not leak through to users or audit output.
 
 **Verdict**: **Keep with guardrail**

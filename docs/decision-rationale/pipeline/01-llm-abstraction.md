@@ -8,13 +8,13 @@
 
 ## Decision Alignment
 
-- **Claude-first strategy**: All primary tiers default to `claude-sonnet-4-6` for reliable throughput (no restrictive RPD limits). Gemini 3.1 Pro rate limits (25 RPD on Paid Tier 1) caused persistent 429 errors under normal workload.
-- All fallbacks default to `gpt-4o` for cross-provider resilience (switched from `gemini-3.1-pro-preview` due to Gemini rate limits).
+- **OpenAI-first strategy for now**: All primary completion tiers now default to `gpt-5.4-mini`, with Claude Sonnet 4.6 as fallback. This is a temporary operational preference to reduce disruption from current Anthropic rate limiting and OpenAI `gpt-4o` TPM pressure during long pipeline runs.
+- All fallbacks default to Claude Sonnet 4.6 for cross-provider resilience.
 - Embeddings: `gemini-embedding-001` primary, `text-embedding-3-large` fallback (Gemini embedding quotas are generous — 3K RPM, unlimited RPD).
-- Policy option generation (`option_generation`) uses Claude Sonnet 4.6 as primary and `gpt-4o` as explicit fallback. Grounding is conditional and disabled by default; it is only enabled for configured research-heavy topics. Wrapped prose / fenced JSON responses are salvaged before model fallback.
-- Dispute adjudication is autonomous via the `dispute_resolution` tier, with ensemble tie-break using Claude Sonnet 4.6 + `gpt-4o`.
+- Policy option generation (`option_generation`) uses `gpt-5.4-mini` as primary and Claude Sonnet 4.6 as explicit fallback. Grounding is conditional and disabled by default; it is only enabled for configured research-heavy topics. Wrapped prose / fenced JSON responses are salvaged before model fallback.
+- Dispute adjudication is autonomous via the `dispute_resolution` tier, with ensemble tie-break using `gpt-5.4-mini` + Claude Sonnet 4.6.
 
-## Decision: Claude-first tier routing by task
+## Decision: OpenAI-first tier routing for now
 
 **Why this is correct**
 
@@ -23,7 +23,7 @@
 - Avoids accidental model coupling between extraction quality and user-message generation.
 - Keeps routing simple and explicit: one tier per job category.
 - Enables model swaps via config/env (tier -> model mapping) without touching business logic.
-- Cross-provider fallback (Claude primary → GPT-4o fallback) provides resilience against single-provider outages.
+- Cross-provider fallback (OpenAI primary → Claude fallback) provides resilience against single-provider outages.
 - Supports no-human per-item dispute handling by routing dispute resolution through explicit model policy instead of operator decisions.
 
 **Guardrail**
@@ -38,5 +38,6 @@
 - Cost telemetry must normalize provider-specific usage fields and distinguish input/output token pricing so replay spend is explainable.
 - Provider-side prompt caching is a router feature (`LLM_PROMPT_CACHING_ENABLED`), not a caller concern. Callers structure their prompts for cache-friendliness (stable prefix first, dynamic suffix last) but never reference caching APIs directly.
 - Cache telemetry (read/write tokens) is tracked in `LLMResponse` and replay stats for cost attribution; no schema changes were introduced.
+- User-facing wording steps (`canonicalization` rejection reasons, endorsement wording, refinement drafts) must not rely on prompt compliance alone; each step needs lightweight post-LLM validation or normalization where contract violations would be user-visible.
 
 **Verdict**: **Keep with guardrail**

@@ -92,6 +92,9 @@ These drafts are website-visible and evidence-logged, but they do not automatica
 
 Only clusters with at least one `needs-refinement` member should trigger refinement draft generation. Pure `discussion-only` clusters remain visible as open civic discussion topics, but the scheduler should not manufacture proposition drafts for them.
 
+Refinement generation is prompt-guided but not prompt-only. After parsing the LLM JSON, the pipeline must validate that the draft is still anchored in the cluster evidence. If the draft introduces a new local actor/jurisdiction, changes the cluster's overall direction, or adds a specific target that is not grounded in the source submissions, the pipeline should null out the draft, set `refinement_requires_clarification=true`, and record the validation reason in `refinement_notes`.
+When `refinement_requires_clarification=true`, refinement drafts should still remain proposition-style, but prefer less slogan-like wording. For example, prefer `X should be opposed` or `A labor strike ... should be supported` over blunt imperative forms like `Oppose X` or `Support X`. Refinement drafts should also stay statement-form rather than question-form; if the model returns `Should ... ?`, the pipeline should normalize it back into a one-sentence proposition statement.
+
 ### Auto-open voting cycles
 
 After the agenda is built, `_maybe_open_cycle()` in `scheduler/main.py` automatically opens a `VotingCycle` when all conditions are met:
@@ -128,10 +131,12 @@ After neutral wording generation, `src/pipeline/options.py` generates 2–4 dist
 Cluster wording must sound like public-facing civic text, not internal workflow text.
 
 - `ballot-ready`: write direct proposition language describing what voters would decide
-- `needs-refinement`: write a concise draftable civic prompt around the core proposition, with only brief mention of unresolved scope
+- `needs-refinement`: write a concise draftable civic prompt around the core proposition, with only brief mention of unresolved scope, and prefer deliberative wording such as `debate over whether ...` or `discussion of whether ...` over slogan-like advocacy phrasing
 - `discussion-only`: write a public discussion topic, not meta-process language
 
 Avoid phrases like `move forward`, `structured discussion`, `public consideration`, `further refinement`, or `agenda-setting`.
+
+Ballot-question generation is prompt-guided but not prompt-only. After parsing the LLM JSON, the pipeline must validate that ballot wording remains anchored in candidate evidence. If the wording invents a new actor/jurisdiction (for example, naming the United States when the source only says "war in Iran") or adds a specific target not grounded in the submissions, the pipeline should replace it with a safer actor-neutral fallback derived from the cluster semantics rather than saving the overcommitted phrasing.
 
 ```python
 async def generate_policy_options(
@@ -158,7 +163,9 @@ The options are used in the per-policy voting flow (see `messaging/08-message-co
 - Only aggregated/anonymized content is sent to the LLM. Never individual submissions or user data.
 - Full candidate summaries are passed without truncation — the LLM sees the complete citizen input.
 - Ballot inclusion uses combined support plus ballot-readiness. Broad concerns must not be silently upgraded into ballot items.
+- Ballot wording validators must prefer a safer actor-neutral fallback over polished but unfaithful language.
 - Autonomous refinement drafts may be generated for broad concerns, but they remain advisory until the cluster itself becomes `ballot-ready`.
+- Refinement validators must prefer dropping an unsafe draft over saving a polished but unfaithful proposition.
 - Do not generate policy options for `discussion-only` or `needs-refinement` clusters.
 - Small clusters (below threshold) are NOT deleted. They remain visible on the analytics dashboard but don't appear in the voting ballot.
 - Summary generation must always have a fallback path configured for risk management (`english_reasoning_fallback_model`).
