@@ -60,7 +60,7 @@ export default function VerifyPage() {
         const message = err instanceof Error ? err.message : "";
         setErrorDetail(message.includes("expired") ? "expired" : "invalid");
       });
-  }, [token, router]);
+  }, [token, router, locale]);
 
   const handleCopy = useCallback(() => {
     if (!linkingCode) return;
