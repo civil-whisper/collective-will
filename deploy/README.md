@@ -323,22 +323,54 @@ The other settings have sensible defaults in `public.env.<env>` and can be overr
 ### Systemd timer installation (automatic)
 
 The `deploy.sh` script automatically installs and enables the systemd timer on
-every deploy. No manual steps required — it copies the unit files, runs
-`daemon-reload`, and enables the timer idempotently.
+every deploy by calling a root-owned wrapper script on the VPS:
+`sudo -n /usr/local/sbin/cw-install-monitor-timer.sh`.
 
-**Prerequisite (one-time)**: the `deploy` user needs passwordless sudo for
-systemctl and cp to `/etc/systemd/system/`. This is already required for the
-Caddy apply step. If sudo is not available, install manually:
+**Prerequisite (one-time)**: install the wrapper and allow the `deploy` user to
+run only that script without a password:
 
 ```bash
-sudo cp /opt/collective-will/repo-deploy/systemd/collective-will-monitor.service \
-        /etc/systemd/system/
-sudo cp /opt/collective-will/repo-deploy/systemd/collective-will-monitor.timer \
-        /etc/systemd/system/
-sudo mkdir -p /var/lib/collective-will-monitor
-sudo chown deploy:deploy /var/lib/collective-will-monitor
-sudo systemctl daemon-reload
-sudo systemctl enable --now collective-will-monitor.timer
+sudo install -d -m 755 /usr/local/sbin
+
+sudo tee /usr/local/sbin/cw-install-monitor-timer.sh >/dev/null <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+
+REPO_DEPLOY_DIR="/opt/collective-will/repo-deploy"
+SERVICE_SRC="$REPO_DEPLOY_DIR/systemd/collective-will-monitor.service"
+TIMER_SRC="$REPO_DEPLOY_DIR/systemd/collective-will-monitor.timer"
+MONITOR_SCRIPT_SRC="$REPO_DEPLOY_DIR/monitor-ops.sh"
+MONITOR_SCRIPT_DST="$REPO_DEPLOY_DIR/scripts/monitor-ops.sh"
+STATE_DIR="/var/lib/collective-will-monitor"
+
+[[ -f "$SERVICE_SRC" ]] || { echo "Missing $SERVICE_SRC" >&2; exit 1; }
+[[ -f "$TIMER_SRC" ]] || { echo "Missing $TIMER_SRC" >&2; exit 1; }
+[[ -f "$MONITOR_SCRIPT_SRC" ]] || { echo "Missing $MONITOR_SCRIPT_SRC" >&2; exit 1; }
+
+install -d -o deploy -g deploy -m 755 "$STATE_DIR"
+install -d -o deploy -g deploy -m 755 "$(dirname "$MONITOR_SCRIPT_DST")"
+install -o deploy -g deploy -m 755 "$MONITOR_SCRIPT_SRC" "$MONITOR_SCRIPT_DST"
+
+install -o root -g root -m 644 "$SERVICE_SRC" /etc/systemd/system/collective-will-monitor.service
+install -o root -g root -m 644 "$TIMER_SRC" /etc/systemd/system/collective-will-monitor.timer
+
+systemctl daemon-reload
+systemctl enable collective-will-monitor.timer
+systemctl restart collective-will-monitor.timer
+systemctl is-active collective-will-monitor.timer
+EOF
+
+sudo chown root:root /usr/local/sbin/cw-install-monitor-timer.sh
+sudo chmod 755 /usr/local/sbin/cw-install-monitor-timer.sh
+
+sudo tee /etc/sudoers.d/collective-will-monitor >/dev/null <<'EOF'
+deploy ALL=(root) NOPASSWD: /usr/local/sbin/cw-install-monitor-timer.sh
+EOF
+
+sudo chmod 440 /etc/sudoers.d/collective-will-monitor
+sudo visudo -cf /etc/sudoers.d/collective-will-monitor
+
+sudo -n /usr/local/sbin/cw-install-monitor-timer.sh
 ```
 
 ### Deploy notification email

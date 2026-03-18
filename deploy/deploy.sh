@@ -353,41 +353,17 @@ fi
 MONITOR_SERVICE_SRC="${DEPLOY_SRC}/systemd/collective-will-monitor.service"
 MONITOR_TIMER_SRC="${DEPLOY_SRC}/systemd/collective-will-monitor.timer"
 MONITOR_SCRIPT_SRC="${DEPLOY_SRC}/monitor-ops.sh"
-MONITOR_SCRIPT_DST="${DEPLOY_SRC}/scripts/monitor-ops.sh"
+MONITOR_INSTALL_WRAPPER="/usr/local/sbin/cw-install-monitor-timer.sh"
 
 if [[ -f "$MONITOR_SERVICE_SRC" && -f "$MONITOR_TIMER_SRC" ]]; then
   echo "==> Installing ops monitor systemd timer..."
-
-  # Ensure the scripts directory exists and the monitor script is executable
-  mkdir -p "$(dirname "$MONITOR_SCRIPT_DST")"
-  if [[ -f "$MONITOR_SCRIPT_SRC" ]]; then
-    cp "$MONITOR_SCRIPT_SRC" "$MONITOR_SCRIPT_DST"
-    chmod +x "$MONITOR_SCRIPT_DST"
-  fi
-
-  NEED_RELOAD=0
-  if command -v sudo >/dev/null 2>&1; then
-    sudo -n mkdir -p /var/lib/collective-will-monitor
-    sudo -n chown "$(whoami):$(id -gn)" /var/lib/collective-will-monitor
-
-    for unit_file in "$MONITOR_SERVICE_SRC" "$MONITOR_TIMER_SRC"; do
-      unit_name="$(basename "$unit_file")"
-      dest="/etc/systemd/system/${unit_name}"
-      if ! sudo -n cmp -s "$unit_file" "$dest" 2>/dev/null; then
-        sudo -n cp "$unit_file" "$dest"
-        NEED_RELOAD=1
-      fi
-    done
-
-    if [[ "$NEED_RELOAD" -eq 1 ]]; then
-      sudo -n systemctl daemon-reload
-    fi
-    sudo -n systemctl enable collective-will-monitor.timer 2>/dev/null || true
-    sudo -n systemctl start collective-will-monitor.timer 2>/dev/null || true
-    echo "==> Ops monitor timer installed and running"
-    systemctl is-active collective-will-monitor.timer 2>/dev/null && echo "==> Timer status: active" || echo "==> Timer status: check manually"
+  if [[ ! -f "$MONITOR_SCRIPT_SRC" ]]; then
+    echo "==> Monitor helper script not found in deploy bundle, skipping"
+  elif command -v sudo >/dev/null 2>&1 && [[ -x "$MONITOR_INSTALL_WRAPPER" ]]; then
+    sudo -n "$MONITOR_INSTALL_WRAPPER"
+    echo "==> Ops monitor timer installed via wrapper"
   else
-    echo "==> sudo not available; install systemd units manually (see deploy/README.md)"
+    echo "==> Monitor install wrapper not available; run one-time VPS setup in deploy/README.md"
   fi
 else
   echo "==> Monitor systemd units not found in deploy bundle, skipping"
