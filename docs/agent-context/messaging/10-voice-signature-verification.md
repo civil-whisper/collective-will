@@ -67,8 +67,8 @@ Cloud-based: no local voice-service container.
 |---------|---------|---------|
 | `voice_embedding_endpoint_url` | `""` | Modal embedding endpoint URL |
 | `voice_embedding_auth_token` | `""` | Optional auth token for Modal endpoint |
-| `voice_embedding_timeout_seconds` | `15.0` | HTTP timeout for Modal embedding calls |
-| `voice_transcription_timeout_seconds` | `10.0` | HTTP timeout for OpenAI transcription calls |
+| `voice_embedding_timeout_seconds` | `30.0` | HTTP timeout for Modal embedding calls |
+| `voice_transcription_timeout_seconds` | `20.0` | HTTP timeout for OpenAI transcription calls |
 | `voice_cloud_max_retries` | `2` | Retry count on cloud API failures |
 | `voice_embedding_similarity_high` | `0.45` | Unified embedding high threshold (same-speaker min ~0.57, cross-speaker max ~0.31) |
 | `voice_embedding_similarity_delta` | `0.07` | Moderate = high - delta = 0.38 |

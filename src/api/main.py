@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import logging
+
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -9,7 +11,25 @@ from src.config import get_settings
 from src.db.connection import check_db_health
 from src.ops.events import configure_ops_event_logging
 
+
+def _configure_stdout_logging() -> None:
+    root_logger = logging.getLogger()
+    has_stream_handler = any(
+        isinstance(handler, logging.StreamHandler)
+        for handler in root_logger.handlers
+    )
+    if not has_stream_handler:
+        handler = logging.StreamHandler()
+        handler.setFormatter(
+            logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s")
+        )
+        root_logger.addHandler(handler)
+    if root_logger.level == logging.NOTSET or root_logger.level > logging.INFO:
+        root_logger.setLevel(logging.INFO)
+
+
 settings = get_settings()
+_configure_stdout_logging()
 configure_ops_event_logging(max_size=settings.ops_event_buffer_size)
 
 app = FastAPI(title="Collective Will", version="0.1.0")

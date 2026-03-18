@@ -53,8 +53,8 @@ class Settings(BaseSettings):
     # Voice verification — cloud APIs
     voice_embedding_endpoint_url: str = ""  # Modal web endpoint URL
     voice_embedding_auth_token: str | None = None
-    voice_embedding_timeout_seconds: float = 15.0
-    voice_transcription_timeout_seconds: float = 10.0
+    voice_embedding_timeout_seconds: float = 30.0
+    voice_transcription_timeout_seconds: float = 20.0
     voice_cloud_max_retries: int = 2
     # Unified embedding thresholds (ECAPA2: same-speaker min ~0.57, cross-speaker max ~0.31)
     voice_embedding_similarity_high: float = 0.45

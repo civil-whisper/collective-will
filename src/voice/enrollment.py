@@ -20,7 +20,7 @@ from src.db.evidence import append_evidence
 from src.models.enrollment_audio import EnrollmentAudio
 from src.models.user import User
 from src.voice.audio import AudioValidationError, download_and_validate_audio
-from src.voice.client import VoiceCloudClient
+from src.voice.client import VoiceCloudClient, VoiceProviderError
 from src.voice.phrases import get_phrase, select_phrases
 from src.voice.scoring import average_embeddings, serialize_embedding
 
@@ -100,6 +100,14 @@ async def process_enrollment_audio(
     try:
         phrase_id, phrase_text = get_current_phrase(state, locale)
         result = await client.process_audio(audio_bytes, phrase_text, language=locale)
+    except VoiceProviderError as e:
+        logger.exception(
+            "Voice service error during enrollment [%s] (%s: %s)",
+            e.provider,
+            type(e.cause).__name__,
+            e.cause,
+        )
+        return "service_error", state
     except Exception:
         logger.exception("Voice service error during enrollment")
         return "service_error", state

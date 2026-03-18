@@ -56,8 +56,22 @@ async def transcribe_audio(audio_bytes: bytes, language: str | None = None) -> s
         except (httpx.ConnectError, httpx.TimeoutException, httpx.HTTPStatusError) as exc:
             last_exc = exc
             logger.warning(
-                "OpenAI transcription attempt %d/%d failed: %s",
-                attempt, max_retries, exc,
+                "OpenAI transcription attempt %d/%d failed after %.1fs timeout (%s: %s)",
+                attempt,
+                max_retries,
+                timeout,
+                type(exc).__name__,
+                exc,
+                extra={
+                    "ops_payload": {
+                        "provider": "openai_transcription",
+                        "attempt": attempt,
+                        "max_retries": max_retries,
+                        "timeout_seconds": timeout,
+                        "exception_type": type(exc).__name__,
+                        "error_message": str(exc),
+                    }
+                },
             )
 
     raise last_exc  # type: ignore[misc]

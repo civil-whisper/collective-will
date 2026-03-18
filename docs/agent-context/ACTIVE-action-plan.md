@@ -1243,6 +1243,15 @@ heartbeat when everything is healthy. Runs as a systemd timer on the VPS.
     - 2 monitor-health endpoint tests (no-auth access, DB error detection)
     - Updated `CONTEXT-shared.md` and `ACTIVE-action-plan.md`
 
+### P1 — Voice Timeout Observability
+
+167. [done] Make V003 upstream failures visible and more resilient
+     - `VoiceCloudClient` now wraps failures with provider context: `openai_transcription`, `modal_embedding`, or `multiple`
+     - Verification/enrollment logs include the upstream name in V003 errors
+     - Backend app logging now emits `src.*` errors to container stdout in addition to the ops event buffer
+     - Increased voice cloud timeouts/retries: transcription 20s, embedding 25s, retries 3
+     - Updated voice client tests and messaging context docs
+
 ### P1 — Opinion Question Track
 
 Design plan: `.cursor/plans/opinion-question-path.plan.md`

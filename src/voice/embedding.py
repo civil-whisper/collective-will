@@ -48,8 +48,23 @@ async def get_speaker_embedding(audio_bytes: bytes) -> tuple[list[float], str]:
         except (httpx.ConnectError, httpx.TimeoutException, httpx.HTTPStatusError) as exc:
             last_exc = exc
             logger.warning(
-                "Embedding service attempt %d/%d failed: %s",
-                attempt, max_retries, exc,
+                "Embedding service attempt %d/%d failed after %.1fs timeout (%s: %s)",
+                attempt,
+                max_retries,
+                timeout,
+                type(exc).__name__,
+                exc,
+                extra={
+                    "ops_payload": {
+                        "provider": "modal_embedding",
+                        "attempt": attempt,
+                        "max_retries": max_retries,
+                        "timeout_seconds": timeout,
+                        "endpoint_url": endpoint_url,
+                        "exception_type": type(exc).__name__,
+                        "error_message": str(exc),
+                    }
+                },
             )
 
     raise last_exc  # type: ignore[misc]

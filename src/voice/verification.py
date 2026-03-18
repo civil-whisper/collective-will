@@ -13,7 +13,7 @@ from src.config import get_settings
 from src.db.evidence import append_evidence
 from src.models.user import User
 from src.voice.audio import AudioValidationError, download_and_validate_audio
-from src.voice.client import VoiceCloudClient
+from src.voice.client import VoiceCloudClient, VoiceProviderError
 from src.voice.errors import VoiceErrorCode
 from src.voice.phrases import get_phrase, select_phrases
 from src.voice.scoring import cosine_similarity, deserialize_embedding, voice_decision
@@ -59,7 +59,10 @@ async def verify_voice(
         audio_bytes = await download_and_validate_audio(channel, file_id, duration)
     except AudioValidationError as e:
         logger.warning("Verification audio validation failed (%s)", e.reason)
-        return ("audio_error", e.reason)  # "too_short" | "too_long" → user-facing message
+        reason: Literal["too_short", "too_long"] = (
+            "too_short" if e.reason == "too_short" else "too_long"
+        )
+        return ("audio_error", reason)
     except Exception as e:
         logger.exception(
             "Verification audio_error V002: download failed (%s: %s)",
@@ -75,6 +78,14 @@ async def verify_voice(
         result = await client.process_audio(
             audio_bytes, phrase_text, language=user.locale
         )
+    except VoiceProviderError as e:
+        logger.exception(
+            "Verification service_error V003: process_audio failed [%s] (%s: %s)",
+            e.provider,
+            type(e.cause).__name__,
+            e.cause,
+        )
+        return ("service_error", "V003")
     except Exception as e:
         logger.exception(
             "Verification service_error V003: process_audio failed (%s: %s)",

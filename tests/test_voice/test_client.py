@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from src.voice.client import VoiceCloudClient
+from src.voice.client import VoiceCloudClient, VoiceProviderError
 
 
 class TestVoiceCloudClient:
@@ -70,7 +70,7 @@ class TestVoiceCloudClient:
             mock_embed.return_value = ([0.1] * 192, "Jenthe/ECAPA2")
 
             client = VoiceCloudClient()
-            with pytest.raises(Exception, match="API error"):
+            with pytest.raises(VoiceProviderError, match="openai_transcription failed"):
                 await client.process_audio(b"audio", "hello", language="en")
 
     @pytest.mark.asyncio
@@ -83,5 +83,18 @@ class TestVoiceCloudClient:
             mock_embed.side_effect = Exception("Modal down")
 
             client = VoiceCloudClient()
-            with pytest.raises(Exception, match="Modal down"):
+            with pytest.raises(VoiceProviderError, match="modal_embedding failed"):
+                await client.process_audio(b"audio", "hello", language="en")
+
+    @pytest.mark.asyncio
+    async def test_both_upstreams_error_propagates_multiple_provider_context(self) -> None:
+        with (
+            patch("src.voice.client.transcribe_audio", new_callable=AsyncMock) as mock_transcribe,
+            patch("src.voice.client.get_speaker_embedding", new_callable=AsyncMock) as mock_embed,
+        ):
+            mock_transcribe.side_effect = TimeoutError("OpenAI timeout")
+            mock_embed.side_effect = TimeoutError("Modal timeout")
+
+            client = VoiceCloudClient()
+            with pytest.raises(VoiceProviderError, match="multiple failed"):
                 await client.process_audio(b"audio", "hello", language="en")
