@@ -365,22 +365,20 @@ if [[ -f "$MONITOR_SERVICE_SRC" && -f "$MONITOR_TIMER_SRC" ]]; then
     chmod +x "$MONITOR_SCRIPT_DST"
   fi
 
-  mkdir -p /var/lib/collective-will-monitor
-  chown "$(whoami):$(id -gn)" /var/lib/collective-will-monitor 2>/dev/null || true
-
   NEED_RELOAD=0
-  for unit_file in "$MONITOR_SERVICE_SRC" "$MONITOR_TIMER_SRC"; do
-    unit_name="$(basename "$unit_file")"
-    dest="/etc/systemd/system/${unit_name}"
-    if command -v sudo >/dev/null 2>&1; then
+  if command -v sudo >/dev/null 2>&1; then
+    sudo -n mkdir -p /var/lib/collective-will-monitor
+    sudo -n chown "$(whoami):$(id -gn)" /var/lib/collective-will-monitor
+
+    for unit_file in "$MONITOR_SERVICE_SRC" "$MONITOR_TIMER_SRC"; do
+      unit_name="$(basename "$unit_file")"
+      dest="/etc/systemd/system/${unit_name}"
       if ! sudo -n cmp -s "$unit_file" "$dest" 2>/dev/null; then
         sudo -n cp "$unit_file" "$dest"
         NEED_RELOAD=1
       fi
-    fi
-  done
+    done
 
-  if command -v sudo >/dev/null 2>&1; then
     if [[ "$NEED_RELOAD" -eq 1 ]]; then
       sudo -n systemctl daemon-reload
     fi
