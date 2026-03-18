@@ -32,6 +32,14 @@ class OpsStatusResponse(BaseModel):
     services: list[ServiceStatus]
 
 
+class MonitorErrorSummary(BaseModel):
+    timestamp: str
+    component: str
+    event_type: str
+    message: str
+    exception_type: str | None = None
+
+
 class MonitorHealthResponse(BaseModel):
     generated_at: str
     overall_status: Literal["ok", "degraded", "error"]
@@ -39,6 +47,7 @@ class MonitorHealthResponse(BaseModel):
     recent_error_count: int
     recent_warning_count: int
     pipeline_degradation_count: int
+    recent_error_events: list[MonitorErrorSummary] = Field(default_factory=list)
     telegram_webhook_url: str | None = None
     telegram_pending_updates: int | None = None
     telegram_last_error: str | None = None
@@ -225,8 +234,28 @@ async def monitor_health(
     mem_events = ops_events.ops_event_buffer.recent(limit=500)
     cutoff = datetime.now(UTC) - timedelta(minutes=lookback)
     cutoff_iso = cutoff.isoformat(timespec="milliseconds").replace("+00:00", "Z")
-    recent_errors = sum(1 for e in mem_events if e["level"] == "error" and e["timestamp"] >= cutoff_iso)
-    recent_warnings = sum(1 for e in mem_events if e["level"] == "warning" and e["timestamp"] >= cutoff_iso)
+    recent_error_events = [
+        e for e in mem_events if e["level"] == "error" and e["timestamp"] >= cutoff_iso
+    ]
+    recent_warning_events = [
+        e for e in mem_events if e["level"] == "warning" and e["timestamp"] >= cutoff_iso
+    ]
+    recent_errors = len(recent_error_events)
+    recent_warnings = len(recent_warning_events)
+    recent_error_summaries = [
+        MonitorErrorSummary(
+            timestamp=event["timestamp"],
+            component=event["component"],
+            event_type=event["event_type"],
+            message=event["message"][:240],
+            exception_type=(
+                event["payload"].get("exception_type")
+                if isinstance(event.get("payload"), dict)
+                else None
+            ),
+        )
+        for event in recent_error_events[:5]
+    ]
 
     # Pipeline degradation count from evidence (last N minutes)
     since = datetime.now(UTC) - timedelta(minutes=lookback)
@@ -243,6 +272,16 @@ async def monitor_health(
         ServiceStatus(name="api", status="ok"),
         ServiceStatus(name="database", status="ok" if db_ok else "error",
                        detail=None if db_ok else "database health check failed"),
+        ServiceStatus(
+            name="backend_runtime",
+            status="error" if recent_errors else "ok",
+            detail=(
+                f"{recent_errors} recent backend error(s) in last {lookback}m; latest: "
+                f"{recent_error_summaries[0].component}: {recent_error_summaries[0].message}"
+            )
+            if recent_errors and recent_error_summaries
+            else None,
+        ),
         ServiceStatus(name="telegram_webhook", status=tg_status, detail=tg_detail),
         ServiceStatus(
             name="email_transport",
@@ -268,6 +307,7 @@ async def monitor_health(
         recent_error_count=recent_errors,
         recent_warning_count=recent_warnings,
         pipeline_degradation_count=pipeline_deg_count,
+        recent_error_events=recent_error_summaries,
         telegram_webhook_url=tg_webhook_url,
         telegram_pending_updates=tg_pending,
         telegram_last_error=tg_last_error,

@@ -28,12 +28,14 @@ def _ok_health(generated_at: str | None = None) -> dict:
         "services": [
             {"name": "api", "status": "ok", "detail": None},
             {"name": "database", "status": "ok", "detail": None},
+            {"name": "backend_runtime", "status": "ok", "detail": None},
             {"name": "telegram_webhook", "status": "ok", "detail": "webhook healthy"},
             {"name": "scheduler", "status": "ok", "detail": "ok"},
         ],
         "recent_error_count": 0,
         "recent_warning_count": 0,
         "pipeline_degradation_count": 0,
+        "recent_error_events": [],
     }
 
 
@@ -44,11 +46,28 @@ def _error_health() -> dict:
         "services": [
             {"name": "api", "status": "ok", "detail": None},
             {"name": "database", "status": "error", "detail": "database health check failed"},
+            {
+                "name": "backend_runtime",
+                "status": "error",
+                "detail": (
+                    "1 recent backend error(s) in last 10m; latest: "
+                    "src.voice.verification: Verification service_error V003: process_audio failed"
+                ),
+            },
             {"name": "telegram_webhook", "status": "error", "detail": "webhook URL not set"},
         ],
         "recent_error_count": 5,
         "recent_warning_count": 2,
         "pipeline_degradation_count": 1,
+        "recent_error_events": [
+            {
+                "timestamp": "2026-03-18T10:00:00Z",
+                "component": "src.voice.verification",
+                "event_type": "src.voice.verification",
+                "message": "Verification service_error V003: process_audio failed",
+                "exception_type": "TimeoutException",
+            }
+        ],
     }
 
 
@@ -89,6 +108,8 @@ class TestFormatting:
         assert "STAGING" in text
         assert "database" in text
         assert "unreachable" in text
+        assert "Recent backend errors:" in text
+        assert "V003" in text
 
     def test_heartbeat_text_includes_services(self) -> None:
         health = _ok_health()

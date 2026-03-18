@@ -413,6 +413,46 @@ def test_monitor_health_db_error(monkeypatch: pytest.MonkeyPatch) -> None:
         app.dependency_overrides.pop(get_db, None)
 
 
+def test_monitor_health_runtime_error_promotes_backend_runtime(monkeypatch: pytest.MonkeyPatch) -> None:
+    async def _db_ok() -> bool:
+        return True
+
+    monkeypatch.setattr("src.api.routes.ops.check_db_health", _db_ok)
+    monkeypatch.setattr("src.api.routes.ops.httpx.AsyncClient", _mock_httpx_client_ok)
+
+    ops_events.configure_ops_event_logging(max_size=500)
+    ops_events.ops_event_buffer.add(
+        {
+            "timestamp": datetime.now(UTC).isoformat(timespec="milliseconds").replace("+00:00", "Z"),
+            "level": "error",
+            "component": "src.voice.verification",
+            "event_type": "src.voice.verification",
+            "message": "Verification service_error V003: process_audio failed (TimeoutException: upstream timeout)",
+            "correlation_id": "trace-voice-1",
+            "payload": {"exception_type": "TimeoutException"},
+        }
+    )
+
+    session = _mock_session()
+    app.dependency_overrides[get_settings] = lambda: _settings(enabled=True)
+    app.dependency_overrides[get_db] = lambda: session
+    try:
+        client = TestClient(app)
+        response = client.get("/ops/monitor-health")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["overall_status"] == "error"
+        assert data["recent_error_count"] == 1
+        services = {s["name"]: s for s in data["services"]}
+        assert services["backend_runtime"]["status"] == "error"
+        assert "V003" in services["backend_runtime"]["detail"]
+        assert data["recent_error_events"][0]["exception_type"] == "TimeoutException"
+        assert "process_audio failed" in data["recent_error_events"][0]["message"]
+    finally:
+        app.dependency_overrides.pop(get_settings, None)
+        app.dependency_overrides.pop(get_db, None)
+
+
 def test_ops_status_scheduler_error_when_heartbeat_error(monkeypatch: pytest.MonkeyPatch) -> None:
     async def _db_ok() -> bool:
         return True

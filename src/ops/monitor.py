@@ -85,6 +85,18 @@ def _format_alert_text(env: str, failures: list[dict[str, str]], health: dict[st
         if tg_error:
             lines.append(f"  Last error: {tg_error}")
 
+    error_events = health.get("recent_error_events", [])
+    if error_events:
+        lines.append("")
+        lines.append("Recent backend errors:")
+        for event in error_events[:3]:
+            exception_type = event.get("exception_type")
+            suffix = f" ({exception_type})" if exception_type else ""
+            lines.append(
+                f"  [{event.get('timestamp', 'unknown')}] {event.get('component', 'unknown')}: "
+                f"{event.get('message', '')}{suffix}"
+            )
+
     return "\n".join(lines)
 
 
@@ -99,6 +111,24 @@ def _format_alert_html(env: str, failures: list[dict[str, str]], health: dict[st
     error_count = health.get("recent_error_count", 0)
     warning_count = health.get("recent_warning_count", 0)
     pipeline_count = health.get("pipeline_degradation_count", 0)
+    error_events = health.get("recent_error_events", [])
+    error_event_items = ""
+    for event in error_events[:3]:
+        exception_type = event.get("exception_type")
+        suffix = f" ({exception_type})" if exception_type else ""
+        error_event_items += (
+            "<li style=\"margin:0 0 8px;\">"
+            f"<strong>{event.get('timestamp', 'unknown')}</strong> — "
+            f"{event.get('component', 'unknown')}: {event.get('message', '')}{suffix}"
+            "</li>"
+        )
+    error_events_html = ""
+    if error_event_items:
+        error_events_html = (
+            "<h3 style=\"margin:20px 0 8px;font-size:15px;\">Recent backend errors</h3>"
+            "<ul style=\"padding-left:18px;margin:0;font-size:13px;line-height:1.5;\">"
+            f"{error_event_items}</ul>"
+        )
 
     return f"""\
 <!DOCTYPE html>
@@ -116,6 +146,7 @@ def _format_alert_html(env: str, failures: list[dict[str, str]], health: dict[st
 <p style="margin:16px 0 0;font-size:13px;color:#6b7280;">
 Errors: {error_count} &nbsp;|&nbsp; Warnings: {warning_count} &nbsp;|&nbsp; Pipeline degradations: {pipeline_count}
 </p>
+{error_events_html}
 </div></body></html>"""
 
 

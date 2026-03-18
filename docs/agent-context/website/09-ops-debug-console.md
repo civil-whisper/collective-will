@@ -73,6 +73,10 @@ Create backend endpoints under `/ops`:
 
 - `GET /ops/status`
   - Returns health and subsystem status summary
+- `GET /ops/monitor-health`
+  - Returns unauthenticated monitor summary for the VPS timer
+  - Includes active service health, recent error/warning counts, and redacted summaries of the latest backend exception events
+  - Recent backend exceptions are promoted into a `backend_runtime` service so ops email alerts fire on unexpected voice/API/channel failures
 - `GET /ops/events?limit=100&level=error|warning|info&type=...`
   - Returns recent structured events/errors
 - `GET /ops/jobs`

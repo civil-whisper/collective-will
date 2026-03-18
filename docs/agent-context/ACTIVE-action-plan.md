@@ -1216,6 +1216,7 @@ heartbeat when everything is healthy. Runs as a systemd timer on the VPS.
     - Active Telegram `getWebhookInfo` verification (URL match, pending updates, last error)
     - DB, scheduler, email transport health
     - Recent error/warning counts from ops event buffer
+    - Promote recent backend exceptions into `backend_runtime` service status with redacted summaries
     - Pipeline degradation count from evidence log
     - Overall status derivation (`ok`/`degraded`/`error`)
 
