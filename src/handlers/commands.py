@@ -26,6 +26,7 @@ from src.voice.enrollment import (
     process_enrollment_audio,
     start_enrollment,
 )
+from src.voice.phrases import get_phrase
 from src.voice.verification import pick_verification_phrase, verify_voice
 
 # ---------------------------------------------------------------------------
@@ -1288,6 +1289,28 @@ async def _start_voice_verification(
     return "voice_verification_prompted"
 
 
+async def _repeat_voice_verification_prompt(
+    user: User, message: UnifiedMessage, channel: BaseChannel, db: AsyncSession,
+) -> str:
+    """Re-send the current verification phrase while keeping the same challenge."""
+    state = user.bot_state_data or {}
+    phrase_id_raw = state.get("phrase_id")
+    if phrase_id_raw is None:
+        return await _start_voice_verification(user, message, channel, db)
+
+    try:
+        phrase_text = get_phrase(user.locale, int(phrase_id_raw))
+    except Exception:
+        return await _start_voice_verification(user, message, channel, db)
+
+    await channel.send_message(OutboundMessage(
+        recipient_ref=message.sender_ref,
+        text=_msg(user.locale, "voice_verify_prompt", phrase=phrase_text),
+        reply_markup=_voice_verify_keyboard(user.locale),
+    ))
+    return "voice_verification_nudge"
+
+
 async def _handle_verification_voice(
     user: User, message: UnifiedMessage, channel: BaseChannel, db: AsyncSession,
 ) -> str:
@@ -1570,12 +1593,8 @@ async def route_message(
             text_lower = (message.text or "").strip().lower()
             if text_lower in ("cancel", "main", "menu", "انصراف"):
                 return await _handle_cancel(user, message, channel, session)
-            # Otherwise nudge to send voice
-            await channel.send_message(OutboundMessage(
-                recipient_ref=message.sender_ref,
-                text=_msg(user.locale, "voice_verify_nudge"),
-            ))
-            return "voice_verification_nudge"
+            # Otherwise repeat the current phrase prompt so the user knows exactly what to read.
+            return await _repeat_voice_verification_prompt(user, message, channel, session)
         return await _start_voice_verification(user, message, channel, session)
 
     # --- End voice gate --- (session is active, proceed normally)

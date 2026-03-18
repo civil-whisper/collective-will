@@ -207,6 +207,33 @@ class TestVoiceGateExpiredSession:
 
         assert result == "voice_verification_prompted"
 
+    @pytest.mark.asyncio
+    async def test_text_during_awaiting_voice_repeats_current_phrase(self) -> None:
+        user = _make_user(
+            enrolled=True,
+            session_active=False,
+            bot_state="awaiting_voice",
+            bot_state_data={"verification": True, "phrase_id": 1},
+        )
+        session = AsyncMock()
+        channel = AsyncMock()
+        msg = _make_text_message("Hi")
+
+        mock_result = MagicMock()
+        mock_result.scalar_one_or_none.return_value = user
+        session.execute = AsyncMock(return_value=mock_result)
+
+        settings_with_fixture = _voice_phrases_settings()
+        with patch("src.config.get_settings", return_value=settings_with_fixture):
+            result = await route_message(session=session, message=msg, channel=channel)
+
+        assert result == "voice_verification_nudge"
+        channel.send_message.assert_called_once()
+        sent = channel.send_message.call_args[0][0]
+        assert "please read the following phrase" in sent.text.lower()
+        assert "please send a voice message to verify your identity" not in sent.text.lower()
+        assert sent.reply_markup is not None
+
 
 class TestVoiceGateActiveSession:
     """User is enrolled and session is active — should pass through."""
