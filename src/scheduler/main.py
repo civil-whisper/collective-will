@@ -37,6 +37,7 @@ from src.pipeline.embeddings import compute_and_store_embeddings
 from src.pipeline.endorsement import generate_ballot_questions
 from src.pipeline.llm import LLMRouter
 from src.pipeline.normalize import normalize_policy_keys, revalidate_candidate_key_reuse
+from src.pipeline.opinion_options import generate_opinion_options
 from src.pipeline.options import generate_policy_options
 from src.pipeline.refinement import generate_refinement_drafts
 
@@ -113,20 +114,21 @@ async def run_pipeline(*, session: AsyncSession, llm_router: LLMRouter | None = 
                         event_type="candidate_classified",
                         entity_type="candidate",
                         entity_id=db_candidate.id,
-                        payload={
-                            "candidate_id": str(db_candidate.id),
-                            "submission_id": str(db_candidate.submission_id),
-                            "policy_topic": db_candidate.policy_topic,
-                            "policy_key": db_candidate.policy_key,
-                            "actor_scope": db_candidate.actor_scope,
-                            "action_mechanism": db_candidate.action_mechanism,
-                            "target_scope": db_candidate.target_scope,
-                            "ballot_readiness": db_candidate.ballot_readiness,
-                            "ballot_readiness_reason": db_candidate.ballot_readiness_reason,
-                            "confidence": db_candidate.confidence,
-                            "model_version": db_candidate.model_version,
-                            "prompt_version": db_candidate.prompt_version,
-                        },
+                    payload={
+                        "candidate_id": str(db_candidate.id),
+                        "submission_id": str(db_candidate.submission_id),
+                        "policy_topic": db_candidate.policy_topic,
+                        "policy_key": db_candidate.policy_key,
+                        "actor_scope": db_candidate.actor_scope,
+                        "action_mechanism": db_candidate.action_mechanism,
+                        "target_scope": db_candidate.target_scope,
+                        "ballot_readiness": db_candidate.ballot_readiness,
+                        "ballot_readiness_reason": db_candidate.ballot_readiness_reason,
+                        "submission_lane": db_candidate.submission_lane,
+                        "confidence": db_candidate.confidence,
+                        "model_version": db_candidate.model_version,
+                        "prompt_version": db_candidate.prompt_version,
+                    },
                     )
                     await session.refresh(db_candidate)
                 await session.flush()
@@ -158,9 +160,13 @@ async def run_pipeline(*, session: AsyncSession, llm_router: LLMRouter | None = 
 
             groups = group_by_policy_key(candidates=db_candidates)
             db_clusters: list[Cluster] = []
-            for policy_key, members in groups.items():
+            for composite_key, members in groups.items():
+                parts = composite_key.rsplit("|", 1)
+                policy_key = parts[0]
+                lane = parts[1] if len(parts) > 1 else "policy_proposal"
                 cluster = await _find_or_create_cluster(
                     session=session, policy_key=policy_key, members=members,
+                    submission_lane=lane,
                 )
                 db_clusters.append(cluster)
             result.created_clusters = len(db_clusters)
@@ -205,18 +211,35 @@ async def run_pipeline(*, session: AsyncSession, llm_router: LLMRouter | None = 
                         llm_router=router,
                     )
 
-            qualified_clusters = [
-                c for c in all_clusters
+            proposal_clusters = [c for c in all_clusters if c.submission_lane == "policy_proposal"]
+            opinion_clusters = [c for c in all_clusters if c.submission_lane == "opinion_question"]
+
+            qualified_proposals = [
+                c for c in proposal_clusters
                 if c.ballot_question and not c.needs_resummarize
                 and _cluster_is_ballot_ready(c, candidates_by_id)
             ]
-            clusters_needing_options = [
-                c for c in qualified_clusters
+            proposals_needing_options = [
+                c for c in qualified_proposals
                 if not await _has_options(session, c.id)
             ]
-            if clusters_needing_options:
+            if proposals_needing_options:
                 await generate_policy_options(
-                    session=session, clusters=clusters_needing_options,
+                    session=session, clusters=proposals_needing_options,
+                    candidates_by_id=candidates_by_id, llm_router=router,
+                )
+
+            qualified_opinions = [
+                c for c in opinion_clusters
+                if c.ballot_question and not c.needs_resummarize
+            ]
+            opinions_needing_options = [
+                c for c in qualified_opinions
+                if not await _has_options(session, c.id)
+            ]
+            if opinions_needing_options:
+                await generate_opinion_options(
+                    session=session, clusters=opinions_needing_options,
                     candidates_by_id=candidates_by_id, llm_router=router,
                 )
 
@@ -330,11 +353,13 @@ async def _maybe_open_cycle(session: AsyncSession) -> VotingCycle | None:
 
     vote_ready: list[Cluster] = []
     for c in all_clusters:
+        is_proposal = c.submission_lane == "policy_proposal"
+        ballot_ready = await _cluster_is_ballot_ready_db(session, c) if is_proposal else True
         if (
             str(c.id) in qualified_ids
             and c.ballot_question
             and not c.needs_resummarize
-            and await _cluster_is_ballot_ready_db(session, c)
+            and ballot_ready
             and await _has_options(session, c.id)
         ):
             vote_ready.append(c)
@@ -364,13 +389,15 @@ async def _find_or_create_cluster(
     session: AsyncSession,
     policy_key: str,
     members: list[PolicyCandidate],
+    submission_lane: str = "policy_proposal",
 ) -> Cluster:
-    """Find an existing cluster by policy_key, or create a new one."""
+    """Find an existing cluster by (policy_key, submission_lane), or create a new one."""
     from src.models.cluster import ClusterCreate
 
     result = await session.execute(
         select(Cluster).where(
             Cluster.policy_key == policy_key,
+            Cluster.submission_lane == submission_lane,
             Cluster.status == "open",
         )
     )
@@ -406,6 +433,7 @@ async def _find_or_create_cluster(
     data = ClusterCreate(
         policy_topic=topic,
         policy_key=policy_key,
+        submission_lane=submission_lane,
         summary=f"New policy discussion: {policy_key}",
         candidate_ids=[m.id for m in members],
         member_count=len(members),

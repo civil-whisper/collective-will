@@ -104,6 +104,7 @@ The full system flow is documented in `docs/architecture-flow.md`. The short ver
 | `src/pipeline/cluster.py` | Policy-key grouping into `Cluster` records |
 | `src/pipeline/normalize.py` | Hybrid normalization (embedding similarity + LLM merge) |
 | `src/pipeline/options.py` | LLM-generated per-policy stance options |
+| `src/pipeline/opinion_options.py` | LLM-generated answer options for opinion-question clusters |
 | `src/pipeline/agenda.py` | Endorsement threshold → ballot qualification |
 | `src/pipeline/endorsement.py` | Ballot question generation |
 | `src/db/evidence.py` | Append-only hash-chain evidence store |

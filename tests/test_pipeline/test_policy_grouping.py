@@ -19,6 +19,7 @@ class FakeCandidate:
     title: str = ""
     summary: str = ""
     stance: str = "neutral"
+    submission_lane: str = "policy_proposal"
 
 
 class TestSanitizePolicySlug:
@@ -69,8 +70,8 @@ class TestGroupByPolicyKey:
         groups = group_by_policy_key(candidates=candidates)
 
         assert len(groups) == 2
-        assert len(groups["mandatory-hijab-policy"]) == 2
-        assert len(groups["political-internet-censorship"]) == 1
+        assert len(groups["mandatory-hijab-policy|policy_proposal"]) == 2
+        assert len(groups["political-internet-censorship|policy_proposal"]) == 1
 
     def test_skips_unassigned(self) -> None:
         c1 = FakeCandidate(
@@ -84,7 +85,7 @@ class TestGroupByPolicyKey:
         candidates = cast(list[PolicyCandidate], [c1, c2])
         groups = group_by_policy_key(candidates=candidates)
 
-        assert "unassigned" not in groups
+        assert all("unassigned" not in k for k in groups)
         assert len(groups) == 1
 
     def test_empty_input(self) -> None:
@@ -104,7 +105,7 @@ class TestGroupByPolicyKey:
         )
         groups = group_by_policy_key(candidates=candidates)
         assert len(groups) == 1
-        assert len(groups["death-penalty"]) == 5
+        assert len(groups["death-penalty|policy_proposal"]) == 5
 
     def test_mixed_stances_same_key(self) -> None:
         """Different stances on the same policy land in the same group."""
@@ -121,7 +122,7 @@ class TestGroupByPolicyKey:
         )
         groups = group_by_policy_key(candidates=candidates)
         assert len(groups) == 1
-        assert len(groups["mandatory-hijab-policy"]) == 5
+        assert len(groups["mandatory-hijab-policy|policy_proposal"]) == 5
 
 
 class TestComputeCentroid:

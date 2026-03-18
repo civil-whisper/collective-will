@@ -29,7 +29,7 @@ These are locked. Do not deviate.
 | **Cluster summaries** | `english_reasoning` tier defaults to `gpt-5.4-mini`. Mandatory fallback (Claude Sonnet 4.6) is required for risk management via abstraction config. |
 | **Policy option generation** | `option_generation` defaults to `gpt-5.4-mini` with explicit Claude Sonnet 4.6 fallback. Grounding is **conditional and off by default**; enable it only for configured research-heavy topics (for example `digital-rights`) via `OPTION_GENERATION_GROUNDING_*` settings. Parser salvage runs before model fallback so wrapper prose/fenced JSON does not trigger generic fallback unnecessarily. |
 | **User-facing messages** | Locale-aware (Farsi + English, keyed by `user.locale`). LLM-generated content (rejection reasons) matches the input language, and canonicalization now enforces that contract with post-parse normalization when the model returns the wrong language/script. Template-based messages (confirmation, errors) use the `_MESSAGES` dict with locale selection. LLM tier `farsi_messages` defaults to `gpt-5.4-mini` with mandatory fallback (Claude Sonnet 4.6) via abstraction config. |
-| **Clustering** | LLM-driven policy-key grouping. Each submission is assigned a stance-neutral `policy_key` as the ballot-level identity. `policy_topic` is retained only as browsing/display metadata, sanitized to simple lowercase-with-hyphens, and must not drive grouping or merge decisions. Canonicalization also emits semantic fields (`actor_scope`, `action_mechanism`, `target_scope`) plus `ballot_readiness` (`ballot-ready`, `needs-refinement`, `discussion-only`). For the three semantic fields, `other` means the dimension is clear but outside the small canonical bucket list; `unclear` is reserved for genuinely ambiguous cases. `discussion-only` is reserved for open exploration with no implied proposition; `needs-refinement` means a real proposition exists but needs narrower scope. Compound submissions should be flagged with `compound_submission` rather than silently merged into vague keys. Open-key reuse must preserve ballot-level proposition identity as well as actor/mechanism/target compatibility: if reuse would materially change ballot wording, refinement output, or option sets, create a new `policy_key`. Clusters are persistent entities keyed by `policy_key`; only ballot-ready clusters may advance to policy option generation and voting. Hybrid normalization must preserve actor/mechanism/target compatibility and abstain when items would not share the same proposition and option set. |
+| **Clustering** | LLM-driven policy-key grouping. Each submission is assigned a stance-neutral `policy_key` as the ballot-level identity plus a `submission_lane` (`policy_proposal`, `opinion_question`, `discussion_only`) that classifies the civic input type. `policy_topic` is retained only as browsing/display metadata, sanitized to simple lowercase-with-hyphens, and must not drive grouping or merge decisions. Candidates with the same `policy_key` but different lanes are kept in separate clusters (composite grouping key `<policy_key>|<submission_lane>`). The unique index on open clusters is scoped by both `policy_key` and `submission_lane`. Canonicalization also emits semantic fields (`actor_scope`, `action_mechanism`, `target_scope`) plus `ballot_readiness` (`ballot-ready`, `needs-refinement`, `discussion-only`). For the three semantic fields, `other` means the dimension is clear but outside the small canonical bucket list; `unclear` is reserved for genuinely ambiguous cases. `discussion-only` is reserved for open exploration with no implied proposition; `needs-refinement` means a real proposition exists but needs narrower scope. Compound submissions should be flagged with `compound_submission` rather than silently merged into vague keys. Open-key reuse must preserve ballot-level proposition identity as well as actor/mechanism/target compatibility: if reuse would materially change ballot wording, refinement output, or option sets, create a new `policy_key`. Clusters are persistent entities keyed by `policy_key`; only ballot-ready `policy_proposal` clusters require the `_cluster_is_ballot_ready_db` check to advance to policy option generation and voting; `opinion_question` clusters bypass that check and use a dedicated option generator (`src/pipeline/opinion_options.py`) that produces neutral sentiment-capture answer choices. Hybrid normalization must preserve actor/mechanism/target compatibility and abstain when items would not share the same proposition and option set; cross-lane merges are forbidden. |
 | **Identity** | Email magic-link + WhatsApp account linking. No phone verification, no OAuth, no vouching. Signup controls: exempt major email providers from per-domain cap; enforce `MAX_SIGNUPS_PER_DOMAIN_PER_DAY=3` for non-major domains; enforce per-IP signup cap (`MAX_SIGNUPS_PER_IP_PER_DAY`) and keep telemetry signals (domain diversity, disposable-domain scoring, velocity logs). |
 | **Sealed account mapping** | Store messaging linkage as random opaque account refs (UUIDv4). Raw platform IDs (Telegram chat_id, WhatsApp wa_id) live only in the `sealed_account_mappings` DB table and are stripped from logs/exports. The sealed mapping is persisted to database (not in-memory) so it survives restarts. |
 | **Auth token persistence** | Magic link tokens and linking codes are stored in the `verification_tokens` DB table with expiry timestamps. No in-memory token storage — tokens must survive process restarts and be shared across background workers. |
@@ -274,6 +274,7 @@ summary: str                        # 1-3 sentences, always English
 stance: "support" | "oppose" | "neutral" | "unclear"  # "unclear" = model uncertainty; "neutral" = descriptive/no explicit side
 policy_topic: str                   # Stance-neutral umbrella topic (e.g., "internet-censorship"), lowercase-with-hyphens
 policy_key: str                     # Stance-neutral ballot-level discussion (e.g., "political-internet-censorship"), lowercase-with-hyphens
+submission_lane: str                # "policy_proposal" | "opinion_question" | "discussion_only" — classifies civic input type
 entities: list[str]
 embedding: list[float]              # pgvector column
 confidence: float                   # 0-1
@@ -289,7 +290,8 @@ evidence_log_id: int
 ```
 id: UUID
 policy_topic: str                   # Stance-neutral umbrella topic (e.g., "internet-censorship")
-policy_key: str                     # Stance-neutral ballot-level key (partial unique index where status='open')
+policy_key: str                     # Stance-neutral ballot-level key (partial unique index where status='open', scoped by submission_lane)
+submission_lane: str                # "policy_proposal" | "opinion_question" | "discussion_only" — inherited from members
 status: str                         # "open" (active) or "archived" (voted on, frozen)
 summary: str                        # English (canonical language; base fields are always English)
 ballot_question: str | None         # Stance-neutral English ballot question for endorsement step
@@ -342,7 +344,7 @@ created_at: datetime
 evidence_log_id: int | None
 ```
 
-Generated by `src/pipeline/options.py` after cluster summarization. Each cluster receives 2–4 distinct stance options. Option generation first attempts JSON salvage/repair of wrapped responses before escalating to the explicit fallback model; generic support/oppose fallback is reserved for genuine model/infrastructure failure after those attempts.
+Generated by `src/pipeline/options.py` (policy proposals) or `src/pipeline/opinion_options.py` (opinion questions) after cluster summarization. Each cluster receives 2–4 distinct options. Policy proposal options represent policy stances; opinion question options represent neutral sentiment-capture positions. Option generation first attempts JSON salvage/repair of wrapped responses before escalating to the explicit fallback model; generic support/oppose (or agree/disagree for opinions) fallback is reserved for genuine model/infrastructure failure after those attempts.
 
 ### VotingCycle
 
@@ -539,6 +541,7 @@ collective-will/
 │   │   ├── endorsement.py       # Ballot question generation per policy_key
 │   │   ├── summarize.py         # Cluster summaries (legacy)
 │   │   ├── options.py           # LLM-generated per-policy stance options
+│   │   ├── opinion_options.py   # LLM-generated answer options for opinion-question clusters
 │   │   └── agenda.py            # Agenda building
 │   ├── voice/
 │   │   ├── __init__.py

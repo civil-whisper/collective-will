@@ -22,8 +22,9 @@ class Cluster(Base):
     __tablename__ = "clusters"
     __table_args__ = (
         sa.Index(
-            "uq_cluster_policy_key_open",
+            "uq_cluster_policy_key_lane_open",
             "policy_key",
+            "submission_lane",
             unique=True,
             postgresql_where=sa.text("status = 'open'"),
         ),
@@ -38,6 +39,9 @@ class Cluster(Base):
     )
     status: Mapped[str] = mapped_column(
         String(16), nullable=False, server_default="open", index=True
+    )
+    submission_lane: Mapped[str] = mapped_column(
+        String(32), nullable=False, server_default="policy_proposal", index=True
     )
     summary: Mapped[str] = mapped_column(String, nullable=False)
     ballot_question: Mapped[str | None] = mapped_column(String, nullable=True)
@@ -69,6 +73,7 @@ class Cluster(Base):
 class ClusterCreate(BaseModel):
     policy_topic: str
     policy_key: str
+    submission_lane: str = "policy_proposal"
     summary: str
     ballot_question: str | None = None
     ballot_question_fa: str | None = None
@@ -89,6 +94,7 @@ class ClusterRead(BaseModel):
     id: UUID
     policy_topic: str
     policy_key: str
+    submission_lane: str
     status: str
     summary: str
     ballot_question: str | None
@@ -112,6 +118,7 @@ class ClusterRead(BaseModel):
             id=db_cluster.id,
             policy_topic=db_cluster.policy_topic,
             policy_key=db_cluster.policy_key,
+            submission_lane=db_cluster.submission_lane,
             status=db_cluster.status,
             summary=db_cluster.summary,
             ballot_question=db_cluster.ballot_question,

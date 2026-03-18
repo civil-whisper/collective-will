@@ -232,8 +232,13 @@ async def revalidate_candidate_key_reuse(
     if not keys:
         return 0
 
+    lanes = {candidate.submission_lane for candidate in new_candidates}
     cluster_result = await session.execute(
-        select(Cluster).where(Cluster.status == "open", Cluster.policy_key.in_(keys))
+        select(Cluster).where(
+            Cluster.status == "open",
+            Cluster.policy_key.in_(keys),
+            Cluster.submission_lane.in_(lanes),
+        )
     )
     open_clusters = {cluster.policy_key: cluster for cluster in cluster_result.scalars().all()}
 
@@ -369,6 +374,10 @@ async def normalize_policy_keys(
 
     all_merges: list[KeyMerge] = []
     for _label, members in groups.items():
+        distinct_lanes = {c.submission_lane for c in members}
+        if len(distinct_lanes) > 1:
+            continue
+
         distinct_keys = {c.policy_key for c in members}
         if len(distinct_keys) < 2:
             continue
@@ -412,12 +421,14 @@ async def normalize_policy_keys(
             )
             continue
 
+        group_lane = next(iter({c.submission_lane for c in members}))
         merges = _extract_merges_from_mapping(key_mapping, distinct_keys)
         for survivor_key, merged_keys in merges.items():
             await execute_key_merge(
                 session=session,
                 survivor_key=survivor_key,
                 merged_keys=merged_keys,
+                submission_lane=group_lane,
             )
             survivor_topic = _topic_for_key(members, survivor_key)
             all_merges.append(
@@ -521,11 +532,13 @@ async def execute_key_merge(
     session: AsyncSession,
     survivor_key: str,
     merged_keys: list[str],
+    submission_lane: str = "policy_proposal",
 ) -> None:
     """Move candidates and endorsements from merged clusters to the survivor."""
     survivor_result = await session.execute(
         select(Cluster).where(
             Cluster.policy_key == survivor_key,
+            Cluster.submission_lane == submission_lane,
             Cluster.status == "open",
         )
     )
@@ -542,6 +555,7 @@ async def execute_key_merge(
         merged_result = await session.execute(
             select(Cluster).where(
                 Cluster.policy_key == merged_key,
+                Cluster.submission_lane == submission_lane,
                 Cluster.status == "open",
             )
         )

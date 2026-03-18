@@ -16,6 +16,8 @@ from src.db.connection import Base
 if TYPE_CHECKING:
     from src.models.user import User
 
+VALID_SUBMISSION_LANES = {"policy_proposal", "opinion_question", "discussion_only"}
+
 
 class Submission(Base):
     __tablename__ = "submissions"
@@ -58,6 +60,9 @@ class PolicyCandidate(Base):
     target_scope: Mapped[str] = mapped_column(String(64), nullable=False, server_default="unclear")
     ballot_readiness: Mapped[str] = mapped_column(String(32), nullable=False, server_default="discussion-only")
     ballot_readiness_reason: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    submission_lane: Mapped[str] = mapped_column(
+        String(32), nullable=False, server_default="policy_proposal", index=True
+    )
     entities: Mapped[list[str]] = mapped_column(JSONB, nullable=False, default=list)
     embedding: Mapped[list[float] | None] = mapped_column(Vector(1024), nullable=True)
     confidence: Mapped[float] = mapped_column(Float, nullable=False)
@@ -123,6 +128,10 @@ class PolicyCandidateCreate(BaseModel):
         pattern="^(ballot-ready|needs-refinement|discussion-only)$",
     )
     ballot_readiness_reason: str | None = None
+    submission_lane: str = Field(
+        default="policy_proposal",
+        pattern="^(policy_proposal|opinion_question|discussion_only)$",
+    )
     entities: list[str]
     embedding: list[float] | None = None
     confidence: float = Field(ge=0, le=1)
@@ -144,6 +153,7 @@ class PolicyCandidateRead(BaseModel):
     target_scope: str
     ballot_readiness: str
     ballot_readiness_reason: str | None
+    submission_lane: str
     entities: list[str]
     embedding: list[float] | None
     confidence: float
@@ -171,6 +181,7 @@ class PolicyCandidateRead(BaseModel):
             target_scope=db_candidate.target_scope,
             ballot_readiness=db_candidate.ballot_readiness,
             ballot_readiness_reason=db_candidate.ballot_readiness_reason,
+            submission_lane=db_candidate.submission_lane,
             entities=list(db_candidate.entities),
             embedding=embedding,
             confidence=db_candidate.confidence,

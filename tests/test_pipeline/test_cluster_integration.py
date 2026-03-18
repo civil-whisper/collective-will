@@ -48,6 +48,7 @@ class TaggedCandidate:
     expected_cluster: str
     policy_key: str = "unassigned"
     policy_topic: str = "unassigned"
+    submission_lane: str = "policy_proposal"
 
 
 # ---------------------------------------------------------------------------
@@ -187,7 +188,7 @@ class TestGroupByPolicyKeyIntegration:
         groups = group_by_policy_key(
             candidates=cast(list[PolicyCandidate], candidates),
         )
-        non_empty = {k: v for k, v in groups.items() if k != "unassigned"}
+        non_empty = {k: v for k, v in groups.items() if not k.startswith("unassigned|")}
         assert len(non_empty) >= 3, (
             f"Expected >=3 policy_key groups, got {len(non_empty)}"
         )

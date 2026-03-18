@@ -51,6 +51,8 @@ _ALLOWED_TARGET_SCOPES = {
     "unclear",
 }
 _ALLOWED_BALLOT_READINESS = {"ballot-ready", "needs-refinement", "discussion-only"}
+_ALLOWED_SUBMISSION_LANES = {"policy_proposal", "opinion_question", "discussion_only"}
+_DEFAULT_SUBMISSION_LANE = "policy_proposal"
 
 def _sanitize_policy_slug(value: str) -> str:
     """Normalize a policy_topic or policy_key to lowercase-with-hyphens."""
@@ -72,6 +74,7 @@ async def load_existing_policy_context(session: AsyncSession) -> str:
             Cluster.policy_key,
             Cluster.member_count,
             Cluster.summary,
+            Cluster.submission_lane,
         )
         .where(Cluster.status == "open")
         .order_by(Cluster.member_count.desc(), Cluster.policy_key.asc())
@@ -80,12 +83,12 @@ async def load_existing_policy_context(session: AsyncSession) -> str:
     if not rows:
         return ""
 
-    entries: list[tuple[str, int, str]] = []
-    for key, count, summary in rows:
+    entries: list[tuple[str, int, str, str]] = []
+    for key, count, summary, lane in rows:
         if key == "unassigned":
             continue
         clean_summary = (summary or "").replace("\n", " ")
-        entries.append((key, count, clean_summary))
+        entries.append((key, count, clean_summary, lane))
 
     if not entries:
         return ""
@@ -93,11 +96,11 @@ async def load_existing_policy_context(session: AsyncSession) -> str:
     lines: list[str] = []
     summary_chars = max(40, settings.canonicalization_context_summary_chars)
     max_entries = max(1, settings.canonicalization_context_max_entries)
-    for key, count, desc in entries[:max_entries]:
+    for key, count, desc, lane in entries[:max_entries]:
         short_desc = desc[:summary_chars].rstrip()
         if len(desc) > summary_chars:
             short_desc += "..."
-        lines.append(f'  - "{key}" ({count}) — {short_desc}')
+        lines.append(f'  - "{key}" [{lane}] ({count}) — {short_desc}')
     return "\n".join(lines)
 
 
@@ -129,7 +132,7 @@ _CANONICALIZATION_INSTRUCTIONS = (
     "Rules:\n"
     "- Detect input language.\n"
     "- Canonical fields (title, summary, entities, policy_topic, policy_key, actor_scope, "
-    "action_mechanism, target_scope, ballot_readiness, ballot_readiness_reason) must be in English.\n"
+    "action_mechanism, target_scope, ballot_readiness, ballot_readiness_reason, submission_lane) must be in English.\n"
     "- rejection_reason is the only user-facing field that must stay in the input language.\n"
     "- If the input is English, rejection_reason must be English, not Farsi.\n"
     "- If the input is Farsi, rejection_reason must be Farsi, not English.\n"
@@ -150,18 +153,26 @@ _CANONICALIZATION_INSTRUCTIONS = (
     "or when reuse would change ballot wording, option sets, or refinement output.\n"
     "- For compound submissions, keep only the dominant proposition in policy_key/title/summary. "
     "Put secondary ideas in ambiguity_flags or ballot_readiness_reason, and use compound_submission when appropriate.\n"
+    "- submission_lane classifies the type of civic input:\n"
+    "  - policy_proposal: an actionable proposition, stance, or policy recommendation.\n"
+    "  - opinion_question: asks what people think about a public issue where the desired output "
+    "is sentiment distribution, not a drafted policy rule. The submission invites a range of "
+    "opinions rather than proposing a specific action.\n"
+    "  - discussion_only: broad exploration, observation, or open conversation that is not "
+    "yet a proposition or a sentiment question.\n"
     "Return JSON only with fields:\n"
     f"is_valid_policy, rejection_reason, title, summary, stance ({_STANCES}), policy_topic, "
     "policy_key, actor_scope, action_mechanism, target_scope, ballot_readiness, "
-    "ballot_readiness_reason, entities, confidence, ambiguity_flags.\n"
+    "ballot_readiness_reason, submission_lane, entities, confidence, ambiguity_flags.\n"
     "actor_scope: domestic-citizens, foreign-state, international-organization, "
     "civil-society, public-governance, other, unclear.\n"
     "action_mechanism: labor-strike, economic-sanctions, economic-pressure, military-action, diplomatic-pressure, "
     "civil-society-support, governance-design, discussion-only, other, unclear.\n"
     "target_scope: iranian-regime, iranian-economy, public-governance, civil-rights, other, unclear.\n"
     "ballot_readiness: ballot-ready, needs-refinement, discussion-only.\n"
+    "submission_lane: policy_proposal, opinion_question, discussion_only.\n"
     "If invalid, set policy_topic=policy_key=unassigned, actor_scope/action_mechanism/target_scope=unclear, "
-    "ballot_readiness=discussion-only, confidence=0.\n"
+    "ballot_readiness=discussion-only, submission_lane=discussion_only, confidence=0.\n"
 )
 
 _INSTRUCTION_VERSION = hashlib.sha256(_CANONICALIZATION_INSTRUCTIONS.encode("utf-8")).hexdigest()[:16]
@@ -354,6 +365,10 @@ def _build_candidate_create(
     )
     ballot_readiness_reason = str(output.get("ballot_readiness_reason", "")).strip() or None
 
+    raw_lane = str(output.get("submission_lane", _DEFAULT_SUBMISSION_LANE)).strip().lower()
+    raw_lane = raw_lane.replace("-", "_")
+    submission_lane = raw_lane if raw_lane in _ALLOWED_SUBMISSION_LANES else _DEFAULT_SUBMISSION_LANE
+
     if _should_downgrade_target_scope(raw_text=raw_text, target_scope=target_scope):
         target_scope = _DEFAULT_TARGET_SCOPE
         if "target_scope_unclear_from_input" not in flags:
@@ -371,6 +386,7 @@ def _build_candidate_create(
         target_scope=target_scope,
         ballot_readiness=ballot_readiness,
         ballot_readiness_reason=ballot_readiness_reason,
+        submission_lane=submission_lane,
         entities=entities,
         confidence=confidence,
         ambiguity_flags=flags,
@@ -461,6 +477,7 @@ async def canonicalize_single(
             "target_scope": candidate.target_scope,
             "ballot_readiness": candidate.ballot_readiness,
             "ballot_readiness_reason": candidate.ballot_readiness_reason,
+            "submission_lane": candidate.submission_lane,
             "confidence": candidate.confidence,
             "model_version": candidate.model_version,
             "prompt_version": candidate.prompt_version,
@@ -557,6 +574,7 @@ async def canonicalize_batch(
                 "target_scope": candidate.target_scope,
                 "ballot_readiness": candidate.ballot_readiness,
                 "ballot_readiness_reason": candidate.ballot_readiness_reason,
+                "submission_lane": candidate.submission_lane,
                 "confidence": candidate.confidence,
                 "model_version": candidate.model_version,
                 "prompt_version": candidate.prompt_version,

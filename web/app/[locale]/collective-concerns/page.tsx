@@ -25,6 +25,7 @@ type Cluster = {
   id: string;
   policy_topic: string;
   policy_key: string;
+  submission_lane: "policy_proposal" | "opinion_question" | "discussion_only";
   status: string;
   summary: string;
   member_count: number;
@@ -256,6 +257,29 @@ export default async function AnalyticsPage() {
   );
 }
 
+function LaneBadge({
+  lane,
+  t,
+}: {
+  lane: "policy_proposal" | "opinion_question" | "discussion_only";
+  t: (key: string) => string;
+}) {
+  if (lane === "policy_proposal") return null;
+  const labels: Record<string, string> = {
+    opinion_question: t("laneOpinion"),
+    discussion_only: t("laneDiscussion"),
+  };
+  const colors: Record<string, string> = {
+    opinion_question: "bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-300",
+    discussion_only: "bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-300",
+  };
+  return (
+    <span className={`rounded px-1.5 py-0.5 text-xs font-medium ${colors[lane]}`}>
+      {labels[lane]}
+    </span>
+  );
+}
+
 function StageBadge({
   stage,
   t,
@@ -302,6 +326,7 @@ function ConcernList({
           <div className="min-w-0 flex-1">
             <p className="font-medium">{concern.summary}</p>
             <div className="mt-2 flex flex-wrap items-center gap-2">
+              <LaneBadge lane={concern.submission_lane} t={t} />
               <TopicBadge topic={concern.policy_topic} />
               <StageBadge stage={concern.ballot_stage} t={t} />
               {concern.status === "archived" && (

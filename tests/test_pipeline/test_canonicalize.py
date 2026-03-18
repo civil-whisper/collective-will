@@ -251,9 +251,9 @@ def test_prompt_includes_readiness_and_compound_guidance() -> None:
 async def test_load_existing_policy_context_caps_entries_and_summary_length(monkeypatch: pytest.MonkeyPatch) -> None:
     session = _make_mock_session()
     rows = [
-        ("key-one", 9, "A" * 200),
-        ("key-two", 8, "B" * 200),
-        ("key-three", 7, "C" * 200),
+        ("key-one", 9, "A" * 200, "policy_proposal"),
+        ("key-two", 8, "B" * 200, "opinion_question"),
+        ("key-three", 7, "C" * 200, "policy_proposal"),
     ]
     session.execute = AsyncMock(return_value=MagicMock(all=MagicMock(return_value=rows)))
     monkeypatch.setenv("CANONICALIZATION_CONTEXT_MAX_ENTRIES", "2")
@@ -262,8 +262,8 @@ async def test_load_existing_policy_context_caps_entries_and_summary_length(monk
     context = await load_existing_policy_context(session)
 
     assert context.count("\n") == 1
-    assert '"key-one" (9)' in context
-    assert '"key-two" (8)' in context
+    assert '"key-one" [policy_proposal] (9)' in context
+    assert '"key-two" [opinion_question] (8)' in context
     assert "key-three" not in context
     assert "AAAAAAAAAAAAAAAAAAAA..." in context
 

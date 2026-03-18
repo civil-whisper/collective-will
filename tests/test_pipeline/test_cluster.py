@@ -16,6 +16,7 @@ class FakeCandidate:
     embedding: list[float] | None
     policy_key: str = "test-policy"
     policy_topic: str = "test-topic"
+    submission_lane: str = "policy_proposal"
 
 
 class TestGroupByPolicyKey:
@@ -30,8 +31,8 @@ class TestGroupByPolicyKey:
         )
         groups = group_by_policy_key(candidates=candidates)
         assert len(groups) == 2
-        assert len(groups["healthcare-access"]) == 2
-        assert len(groups["internet-censorship"]) == 1
+        assert len(groups["healthcare-access|policy_proposal"]) == 2
+        assert len(groups["internet-censorship|policy_proposal"]) == 1
 
     def test_skips_unassigned(self) -> None:
         candidates = cast(
@@ -43,7 +44,7 @@ class TestGroupByPolicyKey:
         )
         groups = group_by_policy_key(candidates=candidates)
         assert len(groups) == 1
-        assert "unassigned" not in groups
+        assert all("unassigned" not in k for k in groups)
 
     def test_empty_candidates(self) -> None:
         groups = group_by_policy_key(candidates=[])
@@ -56,7 +57,7 @@ class TestGroupByPolicyKey:
         )
         groups = group_by_policy_key(candidates=candidates)
         assert len(groups) == 1
-        assert len(groups["housing"]) == 5
+        assert len(groups["housing|policy_proposal"]) == 5
 
 
 class TestComputeCentroid:

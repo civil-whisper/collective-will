@@ -184,6 +184,7 @@ async def test_batch_canonicalization_increments_contribution_count() -> None:
     mock_candidate.target_scope = "public-governance"
     mock_candidate.ballot_readiness = "ballot-ready"
     mock_candidate.ballot_readiness_reason = "Concrete proposition"
+    mock_candidate.submission_lane = "policy_proposal"
     mock_candidate.confidence = 0.9
     mock_candidate.model_version = "test-model"
     mock_candidate.prompt_version = "test-prompt"
@@ -198,6 +199,7 @@ async def test_batch_canonicalization_increments_contribution_count() -> None:
         patch("src.scheduler.main._find_or_create_cluster", new_callable=AsyncMock),
         patch("src.scheduler.main.generate_ballot_questions", new_callable=AsyncMock),
         patch("src.scheduler.main.generate_policy_options", new_callable=AsyncMock),
+        patch("src.scheduler.main.generate_opinion_options", new_callable=AsyncMock),
         patch("src.scheduler.main.build_agenda", return_value=[]),
         patch("src.scheduler.main._prune_ip_signup_log", new_callable=AsyncMock),
         patch("src.scheduler.main._run_daily_anchoring", new_callable=AsyncMock),
@@ -231,6 +233,7 @@ async def test_pipeline_generates_refinement_drafts_for_non_ballot_ready_cluster
     candidate.policy_key = "public-transport-access"
     candidate.policy_topic = "transport-policy"
     candidate.ballot_readiness = "needs-refinement"
+    candidate.submission_lane = "policy_proposal"
 
     cluster = MagicMock()
     cluster.id = uuid4()
@@ -240,6 +243,7 @@ async def test_pipeline_generates_refinement_drafts_for_non_ballot_ready_cluster
     cluster.needs_resummarize = True
     cluster.ballot_question = None
     cluster.status = "open"
+    cluster.submission_lane = "policy_proposal"
 
     call_count = 0
 
@@ -270,6 +274,7 @@ async def test_pipeline_generates_refinement_drafts_for_non_ballot_ready_cluster
         patch("src.scheduler.main.generate_ballot_questions", new_callable=AsyncMock),
         patch("src.scheduler.main.generate_refinement_drafts", new_callable=AsyncMock) as mock_refine,
         patch("src.scheduler.main.generate_policy_options", new_callable=AsyncMock),
+        patch("src.scheduler.main.generate_opinion_options", new_callable=AsyncMock),
         patch("src.scheduler.main.build_agenda", return_value=[]),
         patch("src.scheduler.main._prune_ip_signup_log", new_callable=AsyncMock),
         patch("src.scheduler.main._run_daily_anchoring", new_callable=AsyncMock),
@@ -553,6 +558,7 @@ class _FakeCluster:
         self, *, member_count: int = 5, ballot_question: str | None = "Q?",
         needs_resummarize: bool = False, policy_key: str = "clean-water",
         status: str = "open", candidate_ids: list[object] | None = None,
+        submission_lane: str = "policy_proposal",
     ) -> None:
         self.id = uuid4()
         self.policy_key = policy_key
@@ -561,6 +567,7 @@ class _FakeCluster:
         self.needs_resummarize = needs_resummarize
         self.status = status
         self.candidate_ids = candidate_ids if candidate_ids is not None else []
+        self.submission_lane = submission_lane
 
 
 def _settings_patch(**overrides: object) -> MagicMock:

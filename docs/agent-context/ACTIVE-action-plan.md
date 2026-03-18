@@ -1243,6 +1243,50 @@ heartbeat when everything is healthy. Runs as a systemd timer on the VPS.
     - 2 monitor-health endpoint tests (no-auth access, DB error detection)
     - Updated `CONTEXT-shared.md` and `ACTIVE-action-plan.md`
 
+### P1 — Opinion Question Track
+
+Design plan: `.cursor/plans/opinion-question-path.plan.md`
+
+Goal: Enable the platform to surface public opinion on selected issues alongside
+policy proposals. Submissions are classified by `submission_lane` (`policy_proposal`,
+`opinion_question`, `discussion_only`). Opinion questions follow the same cluster→endorse→vote
+pipeline but use a dedicated option generator for neutral sentiment-capture answers.
+
+161. [done] Add `submission_lane` to PolicyCandidate and Cluster models
+     - New `submission_lane` column (String(32), server_default `policy_proposal`, indexed)
+     - Cluster unique index scoped by `(policy_key, submission_lane)` where `status='open'`
+     - Alembic migration `009_submission_lane`
+     - Pydantic schemas updated (create + read)
+
+162. [done] Update canonicalization for lane classification
+     - LLM prompt includes `submission_lane` classification rules
+     - `_build_candidate_create` parses and sanitizes lane from LLM output
+     - Evidence payloads include `submission_lane`
+     - `load_existing_policy_context` displays lane info
+
+163. [done] Make clustering and normalization lane-aware
+     - `group_by_policy_key` uses composite key `<policy_key>|<submission_lane>`
+     - `normalize_policy_keys` prevents cross-lane merges
+     - `execute_key_merge` and `revalidate_candidate_key_reuse` are lane-scoped
+
+164. [done] Lane-aware scheduler and opinion option generation
+     - Scheduler parses composite key, passes lane to `_find_or_create_cluster`
+     - `generate_policy_options` runs for `policy_proposal` clusters
+     - New `src/pipeline/opinion_options.py` runs for `opinion_question` clusters
+     - `_maybe_open_cycle` conditionally applies ballot-readiness check by lane
+
+165. [done] API and frontend lane support
+     - Analytics endpoints return `submission_lane` in cluster and candidate responses
+     - `LaneBadge` component on submission detail and collective concerns pages
+     - i18n keys for lane display (EN + FA)
+
+166. [done] Regression tests and context updates
+     - New `test_opinion_options.py` (19 tests: parsing, coercion, fallback, generation, lane-aware grouping)
+     - Updated `test_cluster.py`, `test_policy_grouping.py`, `test_cluster_integration.py` for composite keys
+     - Updated `test_scheduler.py` for `submission_lane` on fake clusters/candidates
+     - Updated `test_canonicalize.py` for 4-column policy context query
+     - Updated `CONTEXT-shared.md`, `CLAUDE.md`, `ACTIVE-action-plan.md`
+
 ## Definition of Done (This Cycle)
 
 - No CI/CD job performs paid LLM API calls

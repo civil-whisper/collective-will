@@ -24,6 +24,7 @@ type CandidateSnapshot = {
   summary: string;
   policy_topic: string;
   policy_key: string;
+  submission_lane: "policy_proposal" | "opinion_question" | "discussion_only";
   actor_scope: string;
   action_mechanism: string;
   target_scope: string;
@@ -47,6 +48,30 @@ type CandidatePipelineHistory = {
 type Props = {
   params: Promise<{id: string}>;
 };
+
+function LaneBadge({
+  lane,
+  t,
+}: {
+  lane: "policy_proposal" | "opinion_question" | "discussion_only";
+  t: (key: string) => string;
+}) {
+  const labels: Record<string, string> = {
+    policy_proposal: t("laneProposal"),
+    opinion_question: t("laneOpinion"),
+    discussion_only: t("laneDiscussion"),
+  };
+  const colors: Record<string, string> = {
+    policy_proposal: "bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300",
+    opinion_question: "bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-300",
+    discussion_only: "bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-300",
+  };
+  return (
+    <span className={`rounded px-1.5 py-0.5 text-xs font-medium ${colors[lane]}`}>
+      {labels[lane]}
+    </span>
+  );
+}
 
 function StageBadge({
   stage,
@@ -110,6 +135,7 @@ export default async function SubmissionRedirectPage({params}: Props) {
       title={history.candidate.title}
       actions={(
         <div className="flex items-center gap-2">
+          <LaneBadge lane={history.candidate.submission_lane} t={t} />
           <TopicBadge topic={history.candidate.policy_topic} />
           <StageBadge stage={history.candidate.ballot_readiness} t={t} />
         </div>

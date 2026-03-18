@@ -75,6 +75,7 @@ async def create_policy_candidate(
         target_scope=data.target_scope,
         ballot_readiness=data.ballot_readiness,
         ballot_readiness_reason=data.ballot_readiness_reason,
+        submission_lane=data.submission_lane,
         entities=data.entities,
         embedding=data.embedding,
         confidence=data.confidence,
@@ -92,6 +93,7 @@ async def create_cluster(session: AsyncSession, data: ClusterCreate) -> Cluster:
     cluster = Cluster(
         policy_topic=data.policy_topic,
         policy_key=data.policy_key,
+        submission_lane=data.submission_lane,
         summary=data.summary,
         ballot_question=data.ballot_question,
         ballot_question_fa=data.ballot_question_fa,

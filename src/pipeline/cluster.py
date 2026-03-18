@@ -11,12 +11,20 @@ def group_by_policy_key(
     *,
     candidates: list[PolicyCandidate],
 ) -> dict[str, list[PolicyCandidate]]:
-    """Group candidates by their LLM-assigned policy_key."""
+    """Group candidates by their LLM-assigned policy_key.
+
+    Candidates with different ``submission_lane`` values are kept in separate
+    groups even when they share a ``policy_key``.  The returned dict uses a
+    composite key ``"<policy_key>|<submission_lane>"`` as the group
+    identifier so the scheduler can pass each group to the lane-aware cluster
+    creation logic.
+    """
     groups: dict[str, list[PolicyCandidate]] = defaultdict(list)
     for candidate in candidates:
         key = candidate.policy_key
         if key and key != "unassigned":
-            groups[key].append(candidate)
+            composite = f"{key}|{candidate.submission_lane}"
+            groups[composite].append(candidate)
     return dict(groups)
 
 
