@@ -79,6 +79,10 @@ class Settings(BaseSettings):
     ops_console_require_admin: bool = True
     ops_admin_emails: str = ""
     ops_event_buffer_size: int = 500
+    ops_alert_emails: str = ""
+    ops_heartbeat_hour_utc: int = 8
+    ops_monitor_lookback_minutes: int = 10
+    ops_alert_dedup_minutes: int = 60
 
     canonicalization_model: str = "gpt-5.4-mini"
     canonicalization_fallback_model: str = "claude-sonnet-4-6"
@@ -173,6 +177,9 @@ class Settings(BaseSettings):
 
     def ops_admin_email_list(self) -> list[str]:
         return [item.strip().lower() for item in self.ops_admin_emails.split(",") if item.strip()]
+
+    def ops_alert_email_list(self) -> list[str]:
+        return [item.strip().lower() for item in self.ops_alert_emails.split(",") if item.strip()]
 
     def cors_allow_origin_list(self) -> list[str]:
         return [item.strip() for item in self.cors_allow_origins.split(",") if item.strip()]

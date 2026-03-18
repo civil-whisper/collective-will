@@ -80,15 +80,29 @@ def test_telegram_webhook_returns_404_when_token_not_configured(monkeypatch: pyt
     assert response.status_code == 404
 
 
+FAKE_TG_TOKEN = "fake-bot-token"
+FAKE_TG_WEBHOOK_SECRET = "test-webhook-secret-abc123"
+
+
+def _tg_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Set Telegram bot token + webhook secret and clear the settings cache."""
+    monkeypatch.setenv("TELEGRAM_BOT_TOKEN", FAKE_TG_TOKEN)
+    monkeypatch.setenv("TELEGRAM_WEBHOOK_SECRET", FAKE_TG_WEBHOOK_SECRET)
+    from src.config import get_settings
+
+    get_settings.cache_clear()
+
+
+def _tg_headers() -> dict[str, str]:
+    return {"X-Telegram-Bot-Api-Secret-Token": FAKE_TG_WEBHOOK_SECRET}
+
+
 @patch("src.channels.telegram.get_or_create_account_ref", new_callable=AsyncMock, return_value="opaque-ref")
 @patch("src.api.routes.webhooks.route_message", new_callable=AsyncMock)
 def test_telegram_webhook_accepts_valid_message(
     mock_route: AsyncMock, mock_mapping: AsyncMock, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "fake-bot-token")
-    from src.config import get_settings
-
-    get_settings.cache_clear()
+    _tg_env(monkeypatch)
     client = TestClient(app)
     payload = {
         "update_id": 123,
@@ -100,7 +114,7 @@ def test_telegram_webhook_accepts_valid_message(
             "text": "سلام",
         },
     }
-    response = client.post("/webhooks/telegram", json=payload)
+    response = client.post("/webhooks/telegram", json=payload, headers=_tg_headers())
     assert response.status_code == 200
     assert response.json()["status"] == "accepted"
 
@@ -109,10 +123,7 @@ def test_telegram_webhook_accepts_valid_message(
 def test_telegram_webhook_ignores_non_text(
     mock_mapping: AsyncMock, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "fake-bot-token")
-    from src.config import get_settings
-
-    get_settings.cache_clear()
+    _tg_env(monkeypatch)
     client = TestClient(app)
     payload = {
         "update_id": 124,
@@ -123,7 +134,7 @@ def test_telegram_webhook_ignores_non_text(
             "photo": [{"file_id": "ABC"}],
         },
     }
-    response = client.post("/webhooks/telegram", json=payload)
+    response = client.post("/webhooks/telegram", json=payload, headers=_tg_headers())
     assert response.status_code == 200
     assert response.json()["status"] == "ignored"
 
@@ -133,10 +144,7 @@ def test_telegram_webhook_ignores_non_text(
 def test_telegram_webhook_accepts_callback_query(
     mock_route: AsyncMock, mock_mapping: AsyncMock, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "fake-bot-token")
-    from src.config import get_settings
-
-    get_settings.cache_clear()
+    _tg_env(monkeypatch)
     client = TestClient(app)
     payload = {
         "update_id": 125,
@@ -152,6 +160,24 @@ def test_telegram_webhook_accepts_callback_query(
             "data": "vote",
         },
     }
-    response = client.post("/webhooks/telegram", json=payload)
+    response = client.post("/webhooks/telegram", json=payload, headers=_tg_headers())
     assert response.status_code == 200
     assert response.json()["status"] == "accepted"
+
+
+def test_telegram_webhook_rejects_missing_secret(monkeypatch: pytest.MonkeyPatch) -> None:
+    _tg_env(monkeypatch)
+    client = TestClient(app)
+    payload = {"update_id": 126, "message": {"message_id": 1, "chat": {"id": 123}, "text": "hi"}}
+    response = client.post("/webhooks/telegram", json=payload)
+    assert response.status_code == 401
+
+
+def test_telegram_webhook_rejects_wrong_secret(monkeypatch: pytest.MonkeyPatch) -> None:
+    _tg_env(monkeypatch)
+    client = TestClient(app)
+    payload = {"update_id": 127, "message": {"message_id": 1, "chat": {"id": 123}, "text": "hi"}}
+    response = client.post(
+        "/webhooks/telegram", json=payload, headers={"X-Telegram-Bot-Api-Secret-Token": "wrong"}
+    )
+    assert response.status_code == 401

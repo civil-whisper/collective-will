@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 from typing import Annotated, Any, Literal
 
+import httpx
 from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from pydantic import BaseModel, Field
 from sqlalchemy import select
@@ -29,6 +30,18 @@ class OpsStatusResponse(BaseModel):
     generated_at: str
     require_admin: bool
     services: list[ServiceStatus]
+
+
+class MonitorHealthResponse(BaseModel):
+    generated_at: str
+    overall_status: Literal["ok", "degraded", "error"]
+    services: list[ServiceStatus]
+    recent_error_count: int
+    recent_warning_count: int
+    pipeline_degradation_count: int
+    telegram_webhook_url: str | None = None
+    telegram_pending_updates: int | None = None
+    telegram_last_error: str | None = None
 
 
 class OpsEventResponse(BaseModel):
@@ -106,7 +119,7 @@ async def status(
             sched_detail = f"last heartbeat {hours_ago:.1f}h ago (expected every {expected_interval:.1f}h)"
         else:
             sched_status = "ok"
-            sched_detail = heartbeat.detail
+            sched_detail = heartbeat.detail or "ok"
 
     services = [
         ServiceStatus(name="api", status="ok"),
@@ -131,6 +144,133 @@ async def status(
         generated_at=datetime.now(UTC).isoformat(timespec="milliseconds").replace("+00:00", "Z"),
         require_admin=settings.ops_console_require_admin,
         services=services,
+    )
+
+
+@router.get("/monitor-health", response_model=MonitorHealthResponse)
+async def monitor_health(
+    settings: Annotated[Settings, Depends(get_settings)],
+    session: AsyncSession = Depends(get_db),
+) -> MonitorHealthResponse:
+    """Unauthenticated health summary for the external monitoring script."""
+    db_ok = await check_db_health()
+    email_ready = bool(settings.resend_api_key)
+
+    heartbeat = await get_heartbeat(session)
+    if heartbeat is None:
+        sched_status: Literal["ok", "degraded", "error", "unknown"] = "unknown"
+        sched_detail = "no heartbeat recorded yet"
+    else:
+        age = datetime.now(UTC) - heartbeat.last_run_at
+        expected_interval = max(
+            settings.pipeline_interval_hours,
+            settings.pipeline_min_interval_hours,
+        )
+        stale_threshold = timedelta(hours=expected_interval * 2.5)
+        if heartbeat.status == "error":
+            sched_status = "error"
+            sched_detail = heartbeat.detail or "last run had errors"
+        elif age > stale_threshold:
+            sched_status = "degraded"
+            hours_ago = age.total_seconds() / 3600
+            sched_detail = f"last heartbeat {hours_ago:.1f}h ago (expected every {expected_interval:.1f}h)"
+        else:
+            sched_status = "ok"
+            sched_detail = heartbeat.detail or "ok"
+
+    # Active Telegram verification via getWebhookInfo
+    tg_status: Literal["ok", "degraded", "error", "unknown"] = "unknown"
+    tg_detail: str | None = None
+    tg_webhook_url: str | None = None
+    tg_pending: int | None = None
+    tg_last_error: str | None = None
+
+    if settings.telegram_bot_token:
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                resp = await client.get(
+                    f"https://api.telegram.org/bot{settings.telegram_bot_token}/getWebhookInfo"
+                )
+                resp.raise_for_status()
+                info = resp.json().get("result", {})
+            tg_webhook_url = info.get("url") or None
+            tg_pending = info.get("pending_update_count")
+            tg_last_error = info.get("last_error_message") or None
+
+            expected_url = f"{settings.app_public_base_url.rstrip('/')}/api/webhooks/telegram"
+            if not tg_webhook_url:
+                tg_status = "error"
+                tg_detail = "webhook URL not set"
+            elif tg_webhook_url != expected_url:
+                tg_status = "error"
+                tg_detail = f"webhook URL mismatch: {tg_webhook_url}"
+            elif tg_last_error:
+                tg_status = "error"
+                tg_detail = f"telegram error: {tg_last_error}"
+            elif tg_pending and tg_pending > 100:
+                tg_status = "degraded"
+                tg_detail = f"{tg_pending} pending updates"
+            else:
+                tg_status = "ok"
+                tg_detail = "webhook healthy"
+        except Exception as exc:
+            tg_status = "error"
+            tg_detail = f"failed to query Telegram API: {type(exc).__name__}"
+    else:
+        tg_status = "degraded"
+        tg_detail = "telegram token missing"
+
+    # Count recent errors/warnings from ops event buffer
+    lookback = settings.ops_monitor_lookback_minutes
+    mem_events = ops_events.ops_event_buffer.recent(limit=500)
+    cutoff = datetime.now(UTC) - timedelta(minutes=lookback)
+    cutoff_iso = cutoff.isoformat(timespec="milliseconds").replace("+00:00", "Z")
+    recent_errors = sum(1 for e in mem_events if e["level"] == "error" and e["timestamp"] >= cutoff_iso)
+    recent_warnings = sum(1 for e in mem_events if e["level"] == "warning" and e["timestamp"] >= cutoff_iso)
+
+    # Pipeline degradation count from evidence (last N minutes)
+    since = datetime.now(UTC) - timedelta(minutes=lookback)
+    result = await session.execute(
+        select(EvidenceLogEntry)
+        .where(
+            EvidenceLogEntry.event_type.in_(PIPELINE_DEGRADATION_EVENTS),
+            EvidenceLogEntry.timestamp >= since,
+        )
+    )
+    pipeline_deg_count = len(list(result.scalars().all()))
+
+    services = [
+        ServiceStatus(name="api", status="ok"),
+        ServiceStatus(name="database", status="ok" if db_ok else "error",
+                       detail=None if db_ok else "database health check failed"),
+        ServiceStatus(name="telegram_webhook", status=tg_status, detail=tg_detail),
+        ServiceStatus(
+            name="email_transport",
+            status="ok" if email_ready else "degraded",
+            detail="resend enabled" if email_ready else "console fallback mode",
+        ),
+        ServiceStatus(name="scheduler", status=sched_status, detail=sched_detail),
+    ]
+
+    # Derive overall status
+    statuses = [s.status for s in services]
+    if "error" in statuses:
+        overall: Literal["ok", "degraded", "error"] = "error"
+    elif "degraded" in statuses or "unknown" in statuses:
+        overall = "degraded"
+    else:
+        overall = "ok"
+
+    return MonitorHealthResponse(
+        generated_at=datetime.now(UTC).isoformat(timespec="milliseconds").replace("+00:00", "Z"),
+        overall_status=overall,
+        services=services,
+        recent_error_count=recent_errors,
+        recent_warning_count=recent_warnings,
+        pipeline_degradation_count=pipeline_deg_count,
+        telegram_webhook_url=tg_webhook_url,
+        telegram_pending_updates=tg_pending,
+        telegram_last_error=tg_last_error,
     )
 
 

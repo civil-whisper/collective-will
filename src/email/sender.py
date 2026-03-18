@@ -79,6 +79,53 @@ def _build_plain_text(magic_link_url: str, locale: str, *, expiry_minutes: int) 
     )
 
 
+async def send_operator_email(
+    *,
+    to: list[str],
+    subject: str,
+    body_text: str,
+    body_html: str | None = None,
+    resend_api_key: str | None,
+    email_from: str,
+    http_timeout_seconds: float,
+) -> bool:
+    """Send an operator alert or heartbeat email via Resend.
+
+    Returns True on success, False on failure.
+    """
+    if not resend_api_key:
+        logger.info("Operator email skipped (no RESEND_API_KEY): %s", subject)
+        return True
+
+    payload: dict[str, object] = {
+        "from": email_from,
+        "to": to,
+        "subject": subject,
+        "text": body_text,
+    }
+    if body_html:
+        payload["html"] = body_html
+
+    try:
+        async with httpx.AsyncClient(timeout=http_timeout_seconds) as client:
+            response = await client.post(
+                RESEND_API_URL,
+                json=payload,
+                headers={
+                    "Authorization": f"Bearer {resend_api_key}",
+                    "Content-Type": "application/json",
+                },
+            )
+        if response.status_code >= 400:
+            logger.error("Resend API error %d for operator email: %s", response.status_code, response.text)
+            return False
+        logger.info("Operator email sent to %s (Resend ID: %s)", to, response.json().get("id", "unknown"))
+        return True
+    except httpx.HTTPError:
+        logger.exception("Failed to send operator email to %s", to)
+        return False
+
+
 async def send_magic_link_email(
     *,
     to: str,

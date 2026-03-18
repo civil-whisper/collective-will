@@ -122,6 +122,8 @@ The full system flow is documented in `docs/architecture-flow.md`. The short ver
 | `src/voice/phrases.py` | Phrase pool loaded from `voice-phrases.json` (gitignored secret), random selection |
 | `src/models/enrollment_audio.py` | Raw enrollment audio storage for model portability |
 | `modal_functions/voice_embedding.py` | Modal serverless function: ECAPA2 speaker embedding |
+| `src/ops/monitor.py` | Ops monitor: health checks, alert/heartbeat emails, dedup state |
+| `src/email/sender.py` | Email transport: magic links + operator alerts via Resend |
 | `src/scheduler/main.py` | `run_pipeline()` — full batch pipeline orchestration |
 | `web/lib/api.ts` | Auto-selects `BACKEND_API_BASE_URL` (server) vs `NEXT_PUBLIC_API_BASE_URL` (browser) |
 | `web/app/` | Next.js App Router pages |

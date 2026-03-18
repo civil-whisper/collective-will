@@ -21,6 +21,7 @@ jobs:
         run: |
           cp .env.secrets.example deploy/.env.secrets.example
           cp voice-phrases.json.example deploy/voice-phrases.json.example
+          cp scripts/monitor-ops.sh deploy/monitor-ops.sh
 
       - name: Copy deploy files to VPS
         uses: appleboy/scp-action@v0.1.7
@@ -28,7 +29,7 @@ jobs:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
-          source: "deploy/docker-compose.prod.yml,deploy/deploy.sh,deploy/Caddyfile,deploy/public.env.staging,deploy/public.env.production,deploy/.env.secrets.example,deploy/voice-phrases.json.example"
+          source: "deploy/docker-compose.prod.yml,deploy/deploy.sh,deploy/Caddyfile,deploy/public.env.staging,deploy/public.env.production,deploy/.env.secrets.example,deploy/voice-phrases.json.example,deploy/systemd/collective-will-monitor.service,deploy/systemd/collective-will-monitor.timer,deploy/monitor-ops.sh"
           target: /opt/collective-will/repo-deploy
           strip_components: 1
 

@@ -1207,6 +1207,41 @@ Design docs:
     - Extended refinement normalization so question-shaped drafts (`Should ... ?`, `آیا باید ... ؟`) are converted back into statement-form propositions before publishing
     - Fresh guarded replay after the refinement tone pass: 19 submissions → 16 candidates → 13 clusters, 3 rejected, 0 degradations, $0.167 estimated cost
 
+### P0 — Ops Email Monitoring
+
+Goal: Detect service failures quickly and alert operators via email, with one daily
+heartbeat when everything is healthy. Runs as a systemd timer on the VPS.
+
+156. [done] Upgrade `/ops/monitor-health` endpoint (unauthenticated)
+    - Active Telegram `getWebhookInfo` verification (URL match, pending updates, last error)
+    - DB, scheduler, email transport health
+    - Recent error/warning counts from ops event buffer
+    - Pipeline degradation count from evidence log
+    - Overall status derivation (`ok`/`degraded`/`error`)
+
+157. [done] Add operator email sender (`send_operator_email()`)
+    - Reuses existing Resend transport from `src/email/sender.py`
+    - Supports text + HTML, multiple recipients
+    - Config: `OPS_ALERT_EMAILS`, `OPS_HEARTBEAT_HOUR_UTC`, `OPS_MONITOR_LOOKBACK_MINUTES`, `OPS_ALERT_DEDUP_MINUTES`
+
+158. [done] Implement monitor module (`src/ops/monitor.py`)
+    - `check_and_alert()`: queries backend health, classifies failures, sends alert emails
+    - Fingerprint-based dedup (suppresses repeat alerts for configurable window)
+    - Daily heartbeat email when all services OK
+    - Local state persistence in `/var/lib/collective-will-monitor/`
+    - Runnable via `python -m src.ops.monitor`
+
+159. [done] Add systemd service/timer and shell wrapper
+    - `scripts/monitor-ops.sh`: loads env, runs monitor via Docker
+    - `deploy/systemd/collective-will-monitor.{service,timer}`: 5-minute timer
+    - Install instructions in `deploy/README.md`
+
+160. [done] Tests and documentation
+    - 11 monitor tests (fingerprint, state, formatting, alert/dedup/heartbeat/unreachable scenarios)
+    - 4 operator email tests (skip, text-only, html, API error)
+    - 2 monitor-health endpoint tests (no-auth access, DB error detection)
+    - Updated `CONTEXT-shared.md` and `ACTIVE-action-plan.md`
+
 ## Definition of Done (This Cycle)
 
 - No CI/CD job performs paid LLM API calls

@@ -9,6 +9,7 @@ from src.email.sender import (
     _build_magic_link_html,
     _build_plain_text,
     send_magic_link_email,
+    send_operator_email,
 )
 
 LINK = "https://example.com/verify?token=abc123"
@@ -189,3 +190,99 @@ class TestSendMagicLinkEmail:
         payload = mock_client.post.call_args[1]["json"]
         assert "تأیید ایمیل" in payload["subject"]
         assert 'dir="rtl"' in payload["html"]
+
+
+class TestSendOperatorEmail:
+    @pytest.mark.asyncio
+    async def test_skips_when_no_api_key(self) -> None:
+        with patch("src.email.sender.logger") as mock_logger:
+            result = await send_operator_email(
+                to=["ops@example.com"],
+                subject="Test alert",
+                body_text="Test body",
+                resend_api_key=None,
+                email_from="ops@resend.dev",
+                http_timeout_seconds=10.0,
+            )
+        assert result is True
+        mock_logger.info.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_sends_text_only_email(self) -> None:
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"id": "op_email_1"}
+
+        with patch("src.email.sender.httpx.AsyncClient") as mock_client_cls:
+            mock_client = AsyncMock()
+            mock_client.post.return_value = mock_response
+            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_client.__aexit__ = AsyncMock(return_value=False)
+            mock_client_cls.return_value = mock_client
+
+            result = await send_operator_email(
+                to=["ops@example.com", "admin@example.com"],
+                subject="Alert: DB down",
+                body_text="Database is unreachable.",
+                resend_api_key="re_test_key",
+                email_from="ops@resend.dev",
+                http_timeout_seconds=10.0,
+            )
+
+        assert result is True
+        payload = mock_client.post.call_args[1]["json"]
+        assert payload["to"] == ["ops@example.com", "admin@example.com"]
+        assert payload["subject"] == "Alert: DB down"
+        assert payload["text"] == "Database is unreachable."
+        assert "html" not in payload
+
+    @pytest.mark.asyncio
+    async def test_sends_html_and_text_email(self) -> None:
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"id": "op_email_2"}
+
+        with patch("src.email.sender.httpx.AsyncClient") as mock_client_cls:
+            mock_client = AsyncMock()
+            mock_client.post.return_value = mock_response
+            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_client.__aexit__ = AsyncMock(return_value=False)
+            mock_client_cls.return_value = mock_client
+
+            result = await send_operator_email(
+                to=["ops@example.com"],
+                subject="Heartbeat",
+                body_text="All OK",
+                body_html="<p>All OK</p>",
+                resend_api_key="re_test_key",
+                email_from="ops@resend.dev",
+                http_timeout_seconds=10.0,
+            )
+
+        assert result is True
+        payload = mock_client.post.call_args[1]["json"]
+        assert payload["html"] == "<p>All OK</p>"
+
+    @pytest.mark.asyncio
+    async def test_returns_false_on_api_error(self) -> None:
+        mock_response = MagicMock()
+        mock_response.status_code = 500
+        mock_response.text = "Internal error"
+
+        with patch("src.email.sender.httpx.AsyncClient") as mock_client_cls:
+            mock_client = AsyncMock()
+            mock_client.post.return_value = mock_response
+            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_client.__aexit__ = AsyncMock(return_value=False)
+            mock_client_cls.return_value = mock_client
+
+            result = await send_operator_email(
+                to=["ops@example.com"],
+                subject="Alert",
+                body_text="Failure",
+                resend_api_key="re_test_key",
+                email_from="ops@resend.dev",
+                http_timeout_seconds=10.0,
+            )
+
+        assert result is False

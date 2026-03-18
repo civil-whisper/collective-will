@@ -1,0 +1,12 @@
+[Unit]
+Description=Collective Will ops monitor
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=deploy
+ExecStart=/opt/collective-will/repo-deploy/scripts/monitor-ops.sh
+StandardOutput=journal
+StandardError=journal
+TimeoutStartSec=120

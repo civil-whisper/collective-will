@@ -39,6 +39,8 @@ def _settings(
         ops_event_buffer_size=500,
         pipeline_interval_hours=6.0,
         pipeline_min_interval_hours=0.01,
+        ops_monitor_lookback_minutes=10,
+        app_public_base_url="https://example.com",
     )
 
 
@@ -53,6 +55,39 @@ def _mock_session(
     session.execute.return_value = result
     session.get.return_value = heartbeat
     return session
+
+
+class _FakeResponse:
+    status_code = 200
+
+    def raise_for_status(self) -> None:
+        pass
+
+    def json(self) -> dict:
+        return {
+            "ok": True,
+            "result": {
+                "url": "https://example.com/api/webhooks/telegram",
+                "pending_update_count": 0,
+                "last_error_message": "",
+            },
+        }
+
+
+class _mock_httpx_client_ok:
+    """Drop-in replacement for ``httpx.AsyncClient`` used by monitor_health."""
+
+    def __init__(self, **kwargs: object) -> None:
+        pass
+
+    async def get(self, url: str) -> _FakeResponse:
+        return _FakeResponse()
+
+    async def __aenter__(self) -> _mock_httpx_client_ok:
+        return self
+
+    async def __aexit__(self, *args: object) -> None:
+        pass
 
 
 def _auth_headers(email: str = "test@example.com") -> dict[str, str]:
@@ -318,6 +353,61 @@ def test_ops_pipeline_health_requires_auth() -> None:
         client = TestClient(app)
         response = client.get("/ops/pipeline-health")
         assert response.status_code == 401
+    finally:
+        app.dependency_overrides.pop(get_settings, None)
+        app.dependency_overrides.pop(get_db, None)
+
+
+def test_monitor_health_no_auth_required(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The /monitor-health endpoint should be accessible without auth."""
+
+    async def _db_ok() -> bool:
+        return True
+
+    monkeypatch.setattr("src.api.routes.ops.check_db_health", _db_ok)
+
+    # Mock the Telegram API call
+    monkeypatch.setattr("src.api.routes.ops.httpx.AsyncClient", _mock_httpx_client_ok)
+
+    session = _mock_session()
+    app.dependency_overrides[get_settings] = lambda: _settings(enabled=True)
+    app.dependency_overrides[get_db] = lambda: session
+    try:
+        client = TestClient(app)
+        response = client.get("/ops/monitor-health")
+        assert response.status_code == 200
+        data = response.json()
+        assert "overall_status" in data
+        assert "services" in data
+        assert "recent_error_count" in data
+        assert "telegram_webhook_url" in data
+        services = {s["name"]: s for s in data["services"]}
+        assert "telegram_webhook" in services
+        assert "database" in services
+        assert "scheduler" in services
+    finally:
+        app.dependency_overrides.pop(get_settings, None)
+        app.dependency_overrides.pop(get_db, None)
+
+
+def test_monitor_health_db_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    async def _db_fail() -> bool:
+        return False
+
+    monkeypatch.setattr("src.api.routes.ops.check_db_health", _db_fail)
+    monkeypatch.setattr("src.api.routes.ops.httpx.AsyncClient", _mock_httpx_client_ok)
+
+    session = _mock_session()
+    app.dependency_overrides[get_settings] = lambda: _settings(enabled=True)
+    app.dependency_overrides[get_db] = lambda: session
+    try:
+        client = TestClient(app)
+        response = client.get("/ops/monitor-health")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["overall_status"] == "error"
+        services = {s["name"]: s for s in data["services"]}
+        assert services["database"]["status"] == "error"
     finally:
         app.dependency_overrides.pop(get_settings, None)
         app.dependency_overrides.pop(get_db, None)

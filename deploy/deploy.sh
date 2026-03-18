@@ -267,4 +267,165 @@ if [[ "$CADDY_HTTP_STATUS" == "000" || "$CADDY_HTTPS_STATUS" == "000" ]]; then
   exit 1
 fi
 
+# ---------------------------------------------------------------------------
+# Post-deploy smoke tests — catch issues like the Telegram webhook 401 incident
+# These are non-fatal warnings (deploy already succeeded) but surface problems
+# immediately instead of waiting for the monitor timer to catch them.
+# ---------------------------------------------------------------------------
+echo "==> Running post-deploy smoke tests..."
+SMOKE_FAILURES=0
+
+# Smoke test 1: monitor-health endpoint (comprehensive health summary)
+MONITOR_HEALTH="$(curl -sS --max-time 15 "http://127.0.0.1:${BACKEND_PORT}/ops/monitor-health" 2>/dev/null || true)"
+if [[ -n "$MONITOR_HEALTH" ]]; then
+  OVERALL_STATUS="$(echo "$MONITOR_HEALTH" | python3 -c "import sys,json; print(json.load(sys.stdin).get('overall_status','unknown'))" 2>/dev/null || echo "parse_error")"
+  echo "==> Monitor health overall_status: ${OVERALL_STATUS}"
+  if [[ "$OVERALL_STATUS" == "error" ]]; then
+    echo "WARNING: monitor-health reports errors after deploy:" >&2
+    echo "$MONITOR_HEALTH" | python3 -c "
+import sys, json
+data = json.load(sys.stdin)
+for svc in data.get('services', []):
+    if svc['status'] in ('error', 'degraded'):
+        print(f\"  {svc['name']}: {svc['status']} — {svc.get('detail', '')}\")
+" 2>/dev/null || echo "$MONITOR_HEALTH"
+    SMOKE_FAILURES=$((SMOKE_FAILURES + 1))
+  fi
+else
+  echo "WARNING: monitor-health endpoint unreachable" >&2
+  SMOKE_FAILURES=$((SMOKE_FAILURES + 1))
+fi
+
+# Smoke test 2: Telegram webhook verification (if token is configured)
+TG_TOKEN="$(grep -E '^TELEGRAM_BOT_TOKEN=' "${RUNTIME_ENV}" 2>/dev/null | cut -d= -f2- | sed 's/^"//;s/"$//' | head -1 || true)"
+TG_SECRET="$(grep -E '^TELEGRAM_WEBHOOK_SECRET=' "${RUNTIME_ENV}" 2>/dev/null | cut -d= -f2- | sed 's/^"//;s/"$//' | head -1 || true)"
+if [[ -n "$TG_TOKEN" ]]; then
+  TG_INFO="$(curl -sS --max-time 10 "https://api.telegram.org/bot${TG_TOKEN}/getWebhookInfo" 2>/dev/null || true)"
+  if [[ -n "$TG_INFO" ]]; then
+    TG_URL="$(echo "$TG_INFO" | python3 -c "import sys,json; print(json.load(sys.stdin).get('result',{}).get('url',''))" 2>/dev/null || true)"
+    TG_ERROR="$(echo "$TG_INFO" | python3 -c "import sys,json; print(json.load(sys.stdin).get('result',{}).get('last_error_message',''))" 2>/dev/null || true)"
+    TG_PENDING="$(echo "$TG_INFO" | python3 -c "import sys,json; print(json.load(sys.stdin).get('result',{}).get('pending_update_count',0))" 2>/dev/null || true)"
+    EXPECTED_WEBHOOK_URL="$(grep -E '^APP_PUBLIC_BASE_URL=' "${RUNTIME_ENV}" 2>/dev/null | cut -d= -f2- | head -1 || true)"
+    EXPECTED_WEBHOOK_URL="${EXPECTED_WEBHOOK_URL%/}/api/webhooks/telegram"
+
+    echo "==> Telegram webhook URL: ${TG_URL:-<not set>}"
+    echo "==> Telegram pending updates: ${TG_PENDING}"
+
+    if [[ -z "$TG_URL" ]]; then
+      echo "WARNING: Telegram webhook URL is not set!" >&2
+      SMOKE_FAILURES=$((SMOKE_FAILURES + 1))
+    elif [[ "$TG_URL" != "$EXPECTED_WEBHOOK_URL" ]]; then
+      echo "WARNING: Telegram webhook URL mismatch! Expected: ${EXPECTED_WEBHOOK_URL}, Got: ${TG_URL}" >&2
+      SMOKE_FAILURES=$((SMOKE_FAILURES + 1))
+    fi
+
+    if [[ -n "$TG_ERROR" ]]; then
+      echo "WARNING: Telegram reports webhook error: ${TG_ERROR}" >&2
+      SMOKE_FAILURES=$((SMOKE_FAILURES + 1))
+    fi
+
+    if [[ -n "$TG_SECRET" ]]; then
+      echo "==> TELEGRAM_WEBHOOK_SECRET is configured (good)"
+    else
+      echo "WARNING: TELEGRAM_WEBHOOK_SECRET is not set — webhook requests are not verified" >&2
+    fi
+  fi
+else
+  echo "==> Telegram bot token not configured, skipping webhook smoke test"
+fi
+
+# Smoke test 3: verify recent backend logs have no repeated errors
+RECENT_ERRORS="$(docker compose logs backend --tail=50 --no-color 2>/dev/null | grep -ci "error\|traceback\|exception" || true)"
+if [[ "$RECENT_ERRORS" -gt 5 ]]; then
+  echo "WARNING: ${RECENT_ERRORS} error-like lines in recent backend logs" >&2
+  SMOKE_FAILURES=$((SMOKE_FAILURES + 1))
+fi
+
+if [[ "$SMOKE_FAILURES" -gt 0 ]]; then
+  echo "==> SMOKE TEST: ${SMOKE_FAILURES} warning(s) detected — review above output"
+else
+  echo "==> SMOKE TEST: all checks passed"
+fi
+
+# ---------------------------------------------------------------------------
+# Install ops monitor systemd timer (idempotent — safe to run every deploy)
+# ---------------------------------------------------------------------------
+MONITOR_SERVICE_SRC="${DEPLOY_SRC}/systemd/collective-will-monitor.service"
+MONITOR_TIMER_SRC="${DEPLOY_SRC}/systemd/collective-will-monitor.timer"
+MONITOR_SCRIPT_SRC="${DEPLOY_SRC}/monitor-ops.sh"
+MONITOR_SCRIPT_DST="${DEPLOY_SRC}/scripts/monitor-ops.sh"
+
+if [[ -f "$MONITOR_SERVICE_SRC" && -f "$MONITOR_TIMER_SRC" ]]; then
+  echo "==> Installing ops monitor systemd timer..."
+
+  # Ensure the scripts directory exists and the monitor script is executable
+  mkdir -p "$(dirname "$MONITOR_SCRIPT_DST")"
+  if [[ -f "$MONITOR_SCRIPT_SRC" ]]; then
+    cp "$MONITOR_SCRIPT_SRC" "$MONITOR_SCRIPT_DST"
+    chmod +x "$MONITOR_SCRIPT_DST"
+  fi
+
+  mkdir -p /var/lib/collective-will-monitor
+  chown "$(whoami):$(id -gn)" /var/lib/collective-will-monitor 2>/dev/null || true
+
+  NEED_RELOAD=0
+  for unit_file in "$MONITOR_SERVICE_SRC" "$MONITOR_TIMER_SRC"; do
+    unit_name="$(basename "$unit_file")"
+    dest="/etc/systemd/system/${unit_name}"
+    if command -v sudo >/dev/null 2>&1; then
+      if ! sudo -n cmp -s "$unit_file" "$dest" 2>/dev/null; then
+        sudo -n cp "$unit_file" "$dest"
+        NEED_RELOAD=1
+      fi
+    fi
+  done
+
+  if command -v sudo >/dev/null 2>&1; then
+    if [[ "$NEED_RELOAD" -eq 1 ]]; then
+      sudo -n systemctl daemon-reload
+    fi
+    sudo -n systemctl enable collective-will-monitor.timer 2>/dev/null || true
+    sudo -n systemctl start collective-will-monitor.timer 2>/dev/null || true
+    echo "==> Ops monitor timer installed and running"
+    systemctl is-active collective-will-monitor.timer 2>/dev/null && echo "==> Timer status: active" || echo "==> Timer status: check manually"
+  else
+    echo "==> sudo not available; install systemd units manually (see deploy/README.md)"
+  fi
+else
+  echo "==> Monitor systemd units not found in deploy bundle, skipping"
+fi
+
+# ---------------------------------------------------------------------------
+# Post-deploy notification email — confirms email pipeline works after deploy
+# ---------------------------------------------------------------------------
+ALERT_EMAILS="$(grep -E '^OPS_ALERT_EMAILS=' "${RUNTIME_ENV}" 2>/dev/null | cut -d= -f2- | head -1 || true)"
+RESEND_KEY="$(grep -E '^RESEND_API_KEY=' "${RUNTIME_ENV}" 2>/dev/null | cut -d= -f2- | head -1 || true)"
+EMAIL_FROM="$(grep -E '^EMAIL_FROM=' "${RUNTIME_ENV}" 2>/dev/null | cut -d= -f2- | head -1 || echo "ops@resend.dev")"
+BACKEND_IMAGE="ghcr.io/civil-whisper/collective-will-backend:latest"
+
+if [[ -n "$ALERT_EMAILS" && -n "$RESEND_KEY" ]]; then
+  echo "==> Sending deploy notification email to ${ALERT_EMAILS}..."
+  DEPLOY_TS="$(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+  SMOKE_RESULT="all passed"
+  if [[ "$SMOKE_FAILURES" -gt 0 ]]; then
+    SMOKE_RESULT="${SMOKE_FAILURES} warning(s)"
+  fi
+
+  docker run --rm --network host \
+    -e RESEND_API_KEY="${RESEND_KEY}" \
+    -e EMAIL_FROM="${EMAIL_FROM}" \
+    -e OPS_ALERT_EMAILS="${ALERT_EMAILS}" \
+    -e DEPLOY_ENV="${ENV}" \
+    -e DEPLOY_IMAGE_TAG="${IMAGE_TAG}" \
+    -e DEPLOY_TIMESTAMP="${DEPLOY_TS}" \
+    -e DEPLOY_SERVICES_RUNNING="${RUNNING}/${EXPECTED_RUNNING}" \
+    -e DEPLOY_SMOKE_RESULT="${SMOKE_RESULT}" \
+    "${BACKEND_IMAGE}" \
+    uv run python -m src.ops.deploy_notify 2>/dev/null \
+    && echo "==> Deploy notification email sent" \
+    || echo "==> Deploy notification email failed (non-fatal)"
+else
+  echo "==> Skipping deploy notification (OPS_ALERT_EMAILS or RESEND_API_KEY not set)"
+fi
+
 echo "==> Deploy complete for ${ENV} (${RUNNING}/${EXPECTED_RUNNING} services running)"

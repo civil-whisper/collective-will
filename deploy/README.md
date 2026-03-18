@@ -74,18 +74,25 @@ Secure the files:
 chmod 600 /opt/collective-will/production/.env.secrets /opt/collective-will/staging/.env.secrets
 ```
 
-### Voice phrases and env (preferred: one script)
+### Pushing all env config to the VPS (preferred)
 
-Push all secrets and voice config in one go:
+All VPS environment setup is done through `scripts/push-env.sh`. This is the
+single entry point for getting config onto the server:
 
 ```bash
-# From repo root: requires .env.secrets and optional voice-phrases.json
-./scripts/push-env.sh staging    # or production
+# From repo root — pushes merged .env, .env.secrets, and voice-phrases.json
+./scripts/push-env.sh staging deploy@195.246.231.210
+./scripts/push-env.sh production deploy@195.246.231.210
 ```
 
-This pushes to the VPS: merged `.env`, `.env.secrets`, and `voice-phrases.json` (if present).
-Deploy then uses `.env.secrets` when merging during `deploy.sh`. Create `voice-phrases.json` from
-`voice-phrases.json.example` so voice verification works.
+What it does:
+1. Merges `deploy/public.env.<env>` (git-tracked) + `.env.secrets` (local, not committed)
+2. Applies per-env overrides from `deploy/.env.<env>` if present
+3. Pushes merged `.env` and raw `.env.secrets` to `/opt/collective-will/<env>/`
+4. Pushes `voice-phrases.json` if present (required for voice verification)
+5. Sets correct file permissions (600 for env files, 644 for voice phrases)
+
+After pushing, deploy (via `deploy.sh` or GitHub Actions) will use these files.
 
 To copy voice-phrases only (manual). Use `chmod 644` so the backend container (non-root) can read the mounted file:
 
@@ -177,6 +184,21 @@ Then merge to `main` for production.
 
 The GitHub Actions workflow also skips Caddy apply when `deploy/Caddyfile`
 has not changed, avoiding unnecessary Caddy reloads on app-only deploys.
+
+### Post-deploy smoke tests
+
+After all services are healthy, `deploy.sh` runs non-fatal smoke tests:
+
+1. **Monitor health** — calls `/ops/monitor-health` and warns if any service reports `error`
+2. **Telegram webhook** — calls Telegram's `getWebhookInfo` and checks:
+   - Webhook URL matches `APP_PUBLIC_BASE_URL/api/webhooks/telegram`
+   - No `last_error_message` from Telegram
+   - `TELEGRAM_WEBHOOK_SECRET` is set
+3. **Recent errors** — scans the last 50 backend log lines for error/traceback patterns
+
+These tests do not fail the deploy (it already succeeded) but surface problems immediately
+in the deploy output so you catch issues like the webhook 401 incident before waiting for
+the monitoring timer.
 
 ### Optional tuning knobs
 
@@ -271,6 +293,88 @@ To set or update the webhook (e.g. for staging):
 If you use `TELEGRAM_WEBHOOK_SECRET`, register the secret with Telegram when calling `setWebhook` (e.g. add `secret_token` as in the security doc) so the backend can verify webhook requests.
 
 Unit tests for the Telegram webhook (with a fake token) live in `tests/test_api/test_webhooks.py`. There is no in-repo test that calls the real Telegram API to validate a token; use `scripts/check-telegram.sh` for that.
+
+## Ops Monitoring (Email Alerts)
+
+A lightweight monitor checks backend health every 5 minutes and sends email
+alerts on failures plus a daily heartbeat when all is well.
+
+### Configuration
+
+Add `OPS_ALERT_EMAILS` to your `.env.secrets` on the VPS (it contains your email, so
+it belongs with secrets, not in the git-tracked public env):
+
+```bash
+# In /opt/collective-will/staging/.env.secrets (and production)
+OPS_ALERT_EMAILS=your-email@example.com
+```
+
+The other settings have sensible defaults in `public.env.<env>` and can be overridden:
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `OPS_ALERT_EMAILS` | *(empty)* | Comma-separated recipient emails |
+| `OPS_HEARTBEAT_HOUR_UTC` | `8` | UTC hour to send the daily "all OK" email |
+| `OPS_MONITOR_LOOKBACK_MINUTES` | `10` | Window for counting recent errors |
+| `OPS_ALERT_DEDUP_MINUTES` | `60` | Suppress repeat alerts for same issue |
+| `RESEND_API_KEY` | — | Required for sending emails |
+| `EMAIL_FROM` | `ops@resend.dev` | Sender address |
+
+### Systemd timer installation (automatic)
+
+The `deploy.sh` script automatically installs and enables the systemd timer on
+every deploy. No manual steps required — it copies the unit files, runs
+`daemon-reload`, and enables the timer idempotently.
+
+**Prerequisite (one-time)**: the `deploy` user needs passwordless sudo for
+systemctl and cp to `/etc/systemd/system/`. This is already required for the
+Caddy apply step. If sudo is not available, install manually:
+
+```bash
+sudo cp /opt/collective-will/repo-deploy/systemd/collective-will-monitor.service \
+        /etc/systemd/system/
+sudo cp /opt/collective-will/repo-deploy/systemd/collective-will-monitor.timer \
+        /etc/systemd/system/
+sudo mkdir -p /var/lib/collective-will-monitor
+sudo chown deploy:deploy /var/lib/collective-will-monitor
+sudo systemctl daemon-reload
+sudo systemctl enable --now collective-will-monitor.timer
+```
+
+### Deploy notification email
+
+After every deploy, a notification email is sent to `OPS_ALERT_EMAILS` confirming:
+- Environment and image tag
+- Service count
+- Smoke test results
+- That the email delivery pipeline is working
+
+This is sent using the backend Docker image, so it exercises the same code path
+as the monitoring alerts. If you don't receive it, the email pipeline is broken.
+
+### Verify
+
+```bash
+# Check timer status
+systemctl list-timers collective-will-monitor.timer
+
+# Run manually
+sudo systemctl start collective-will-monitor.service
+journalctl -u collective-will-monitor.service --no-pager -n 30
+
+# View monitor state
+cat /var/lib/collective-will-monitor/staging.json
+```
+
+### What it checks
+
+- **API**: backend reachable via `/ops/monitor-health`
+- **Database**: PostgreSQL health check
+- **Telegram webhook**: active `getWebhookInfo` verification (URL match, pending updates, last error)
+- **Scheduler**: heartbeat staleness
+- **Email transport**: Resend API key presence
+- **Recent errors/warnings**: from in-memory ops event buffer
+- **Pipeline degradations**: from evidence log
 
 ## Troubleshooting
 
