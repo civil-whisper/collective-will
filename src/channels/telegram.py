@@ -37,7 +37,6 @@ class TelegramChannel(BaseChannel):
         if not chat_id:
             return None
 
-        sender_ref = await get_or_create_account_ref(self._session, "telegram", chat_id)
         message_id = str(message.get("message_id", ""))
         date_ts = message.get("date")
         timestamp = datetime.fromtimestamp(int(date_ts), tz=UTC) if date_ts else datetime.now(UTC)
@@ -45,6 +44,7 @@ class TelegramChannel(BaseChannel):
         # Handle voice messages
         voice = message.get("voice")
         if voice is not None:
+            sender_ref = await get_or_create_account_ref(self._session, "telegram", chat_id)
             return UnifiedMessage(
                 sender_ref=sender_ref,
                 text="",
@@ -60,6 +60,7 @@ class TelegramChannel(BaseChannel):
         if not text:
             return None
 
+        sender_ref = await get_or_create_account_ref(self._session, "telegram", chat_id)
         return UnifiedMessage(
             sender_ref=sender_ref,
             text=text,

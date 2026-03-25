@@ -218,6 +218,7 @@ async def test_check_vote_change_second_denied(mock_settings: MagicMock) -> None
 @pytest.mark.asyncio
 async def test_record_velocity_tracks() -> None:
     db = AsyncMock()
+    db.add = MagicMock()
     await record_account_creation_velocity(db, "1.2.3.4", "example.com")
     db.add.assert_called_once()
     added = db.add.call_args[0][0]

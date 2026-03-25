@@ -72,7 +72,8 @@ async def test_migration_upgrade_downgrade_roundtrip(test_database_url: str) -> 
                 "WHERE table_schema='public'"
             )
         )
-        assert {row[0] for row in table_rows.fetchall()} == EXPECTED_TABLES
+        actual_tables = {row[0] for row in table_rows.fetchall()}
+        assert actual_tables == EXPECTED_TABLES | {"alembic_version"}
 
         trigger_rows = await conn.execute(
             text(
@@ -96,7 +97,7 @@ async def test_migration_upgrade_downgrade_roundtrip(test_database_url: str) -> 
                 "WHERE table_schema='public'"
             )
         )
-        assert {row[0] for row in remaining_tables.fetchall()} == set()
+        assert {row[0] for row in remaining_tables.fetchall()} == {"alembic_version"}
     await engine.dispose()
 
     await _run_alembic(partial(command.upgrade, cfg, "head"))

@@ -61,7 +61,8 @@ async def test_parse_webhook_extracts_text_and_sender_ref(mock_mapping: AsyncMoc
 
 
 @pytest.mark.asyncio
-async def test_parse_webhook_returns_none_for_photo_message() -> None:
+@patch("src.channels.telegram.get_or_create_account_ref", new_callable=AsyncMock)
+async def test_parse_webhook_returns_none_for_photo_message(mock_mapping: AsyncMock) -> None:
     channel = _make_channel()
     payload = {
         "update_id": 2,
@@ -74,6 +75,7 @@ async def test_parse_webhook_returns_none_for_photo_message() -> None:
         },
     }
     assert await channel.parse_webhook(payload) is None
+    mock_mapping.assert_not_called()
 
 
 @pytest.mark.asyncio
