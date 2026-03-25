@@ -43,6 +43,11 @@ The `upgrade()` function must create:
 9. **Evidence chain trigger**: SQL trigger function that validates prev_hash on INSERT
 10. **Revoke UPDATE/DELETE** on evidence_log: `REVOKE UPDATE, DELETE ON evidence_log FROM collective` (the app DB user)
 
+The repository currently keeps a squashed single-head baseline in
+`migrations/versions/001_initial_schema.py`. When all deployed environments have
+been reset and no longer need the old revision chain, fold the current schema into
+that file and remove superseded later revisions.
+
 The `downgrade()` function must drop all tables and the extension in reverse order.
 
 ## Constraints

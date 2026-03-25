@@ -1,8 +1,8 @@
-"""Initial schema (clean slate).
+"""Initial schema (squashed clean-slate baseline).
 
 Revision ID: 001_initial_schema
 Revises:
-Create Date: 2026-02-25 00:00:00.000000
+Create Date: 2026-03-25 00:00:00.000000
 """
 
 from __future__ import annotations
@@ -38,9 +38,19 @@ def upgrade() -> None:
         sa.Column("is_anonymous", sa.Boolean(), nullable=False, server_default=sa.false()),
         sa.Column("bot_state", sa.String(length=32), nullable=True),
         sa.Column("bot_state_data", postgresql.JSONB(), nullable=True),
+        sa.Column("voice_enrolled_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("voice_verified_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("voice_embedding", sa.LargeBinary(), nullable=True),
+        sa.Column("voice_model_version", sa.String(length=128), nullable=True),
     )
     op.create_index("ix_users_email", "users", ["email"], unique=True)
     op.create_index("ix_users_messaging_account_ref", "users", ["messaging_account_ref"], unique=True)
+    op.create_index(
+        "ix_users_voice_enrolled_at",
+        "users",
+        ["voice_enrolled_at"],
+        postgresql_where=sa.text("voice_enrolled_at IS NOT NULL"),
+    )
 
     op.create_table(
         "submissions",
@@ -79,6 +89,12 @@ def upgrade() -> None:
         sa.Column("stance", sa.String(length=16), nullable=False),
         sa.Column("policy_topic", sa.String(length=255), nullable=False, server_default="unassigned"),
         sa.Column("policy_key", sa.String(length=255), nullable=False, server_default="unassigned"),
+        sa.Column("actor_scope", sa.String(length=64), nullable=False, server_default="unclear"),
+        sa.Column("action_mechanism", sa.String(length=64), nullable=False, server_default="unclear"),
+        sa.Column("target_scope", sa.String(length=64), nullable=False, server_default="unclear"),
+        sa.Column("ballot_readiness", sa.String(length=32), nullable=False, server_default="discussion-only"),
+        sa.Column("ballot_readiness_reason", sa.String(length=255), nullable=True),
+        sa.Column("submission_lane", sa.String(length=32), nullable=False, server_default="policy_proposal"),
         sa.Column("entities", postgresql.JSONB(), nullable=False),
         sa.Column("embedding", Vector(1024), nullable=True),
         sa.Column("confidence", sa.Float(), nullable=False),
@@ -92,15 +108,28 @@ def upgrade() -> None:
     op.create_index("ix_policy_candidates_submission_id", "policy_candidates", ["submission_id"])
     op.create_index("ix_policy_candidates_policy_topic", "policy_candidates", ["policy_topic"])
     op.create_index("ix_policy_candidates_policy_key", "policy_candidates", ["policy_key"])
+    op.create_index("ix_policy_candidates_submission_lane", "policy_candidates", ["submission_lane"])
 
     op.create_table(
         "clusters",
         sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True, nullable=False),
         sa.Column("policy_topic", sa.String(length=255), nullable=False, server_default="unassigned"),
         sa.Column("policy_key", sa.String(length=255), nullable=False, server_default="unassigned"),
+        sa.Column("status", sa.String(length=16), nullable=False, server_default="open"),
+        sa.Column("submission_lane", sa.String(length=32), nullable=False, server_default="policy_proposal"),
         sa.Column("summary", sa.String(), nullable=False),
         sa.Column("ballot_question", sa.String(), nullable=True),
         sa.Column("ballot_question_fa", sa.String(), nullable=True),
+        sa.Column("refinement_draft", sa.String(), nullable=True),
+        sa.Column("refinement_draft_fa", sa.String(), nullable=True),
+        sa.Column("refinement_confidence", sa.Float(), nullable=True),
+        sa.Column(
+            "refinement_requires_clarification",
+            sa.Boolean(),
+            nullable=False,
+            server_default=sa.false(),
+        ),
+        sa.Column("refinement_notes", sa.String(length=255), nullable=True),
         sa.Column("candidate_ids", postgresql.ARRAY(postgresql.UUID(as_uuid=True)), nullable=False),
         sa.Column("member_count", sa.Integer(), nullable=False),
         sa.Column("approval_count", sa.Integer(), nullable=False, server_default="0"),
@@ -110,7 +139,15 @@ def upgrade() -> None:
         sa.Column("evidence_log_id", sa.BigInteger(), nullable=True),
     )
     op.create_index("ix_clusters_policy_topic", "clusters", ["policy_topic"])
-    op.create_index("ix_clusters_policy_key", "clusters", ["policy_key"], unique=True)
+    op.create_index("ix_clusters_status", "clusters", ["status"])
+    op.create_index("ix_clusters_submission_lane", "clusters", ["submission_lane"])
+    op.create_index(
+        "uq_cluster_policy_key_lane_open",
+        "clusters",
+        ["policy_key", "submission_lane"],
+        unique=True,
+        postgresql_where=sa.text("status = 'open'"),
+    )
 
     op.create_table(
         "policy_options",
@@ -215,6 +252,31 @@ def upgrade() -> None:
     )
     op.create_index("ix_daily_anchors_day", "daily_anchors", ["day"], unique=True)
 
+    op.create_table(
+        "ip_signup_log",
+        sa.Column("id", sa.BigInteger(), primary_key=True, autoincrement=True),
+        sa.Column("requester_ip", sa.String(length=45), nullable=False),
+        sa.Column("email_domain", sa.String(length=255), nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.text("now()")),
+    )
+    op.create_index(
+        "ix_ip_signup_log_ip_created_at",
+        "ip_signup_log",
+        ["requester_ip", "created_at"],
+    )
+    op.create_index("ix_ip_signup_log_created_at", "ip_signup_log", ["created_at"])
+
+    op.create_table(
+        "enrollment_audio",
+        sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True, nullable=False),
+        sa.Column("user_id", postgresql.UUID(as_uuid=True), nullable=False),
+        sa.Column("phrase_id", sa.Integer(), nullable=False),
+        sa.Column("audio_ogg", sa.LargeBinary(), nullable=False),
+        sa.Column("duration_seconds", sa.Float(), nullable=True),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+        sa.ForeignKeyConstraint(["user_id"], ["users.id"], ondelete="CASCADE"),
+    )
+
     op.execute(
         """
         CREATE OR REPLACE FUNCTION validate_evidence_prev_hash()
@@ -257,6 +319,12 @@ def downgrade() -> None:
     op.execute("DROP TRIGGER IF EXISTS trg_validate_evidence_prev_hash ON evidence_log")
     op.execute("DROP FUNCTION IF EXISTS validate_evidence_prev_hash")
 
+    op.drop_table("enrollment_audio")
+
+    op.drop_index("ix_ip_signup_log_created_at", table_name="ip_signup_log")
+    op.drop_index("ix_ip_signup_log_ip_created_at", table_name="ip_signup_log")
+    op.drop_table("ip_signup_log")
+
     op.drop_index("ix_daily_anchors_day", table_name="daily_anchors")
     op.drop_table("daily_anchors")
 
@@ -284,10 +352,13 @@ def downgrade() -> None:
     op.drop_index("ix_policy_options_cluster_id", table_name="policy_options")
     op.drop_table("policy_options")
 
-    op.drop_index("ix_clusters_policy_key", table_name="clusters")
+    op.drop_index("uq_cluster_policy_key_lane_open", table_name="clusters")
+    op.drop_index("ix_clusters_submission_lane", table_name="clusters")
+    op.drop_index("ix_clusters_status", table_name="clusters")
     op.drop_index("ix_clusters_policy_topic", table_name="clusters")
     op.drop_table("clusters")
 
+    op.drop_index("ix_policy_candidates_submission_lane", table_name="policy_candidates")
     op.drop_index("ix_policy_candidates_policy_key", table_name="policy_candidates")
     op.drop_index("ix_policy_candidates_policy_topic", table_name="policy_candidates")
     op.drop_index("ix_policy_candidates_submission_id", table_name="policy_candidates")
@@ -299,6 +370,7 @@ def downgrade() -> None:
     op.drop_index("ix_submissions_user_id", table_name="submissions")
     op.drop_table("submissions")
 
+    op.drop_index("ix_users_voice_enrolled_at", table_name="users")
     op.drop_index("ix_users_messaging_account_ref", table_name="users")
     op.drop_index("ix_users_email", table_name="users")
     op.drop_table("users")

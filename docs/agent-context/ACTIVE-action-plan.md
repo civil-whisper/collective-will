@@ -693,7 +693,7 @@ Both are stance-neutral. Three-stage pipeline: inline assignment → hybrid norm
 
 94. [done] Cluster lifecycle with open/archived status
     - Added `status` column to `Cluster` model (`open` or `archived`, default `open`)
-    - Alembic migration `002_cluster_status`: adds column, status index, replaces unique index on `policy_key` with partial unique index (`WHERE status = 'open'`)
+    - Alembic migration `002_cluster_status` added the cluster lifecycle fields and index changes; those changes are now folded into the squashed baseline `001_initial_schema`
     - `open_cycle()` sets included clusters to `archived` before creating the voting cycle
     - `_find_or_create_cluster()` only matches clusters with `status='open'`; archived policy_keys get fresh open clusters
     - `run_pipeline` and `_maybe_open_cycle` filter by `status='open'` (removed `_clusters_in_completed_cycles`)
@@ -860,7 +860,7 @@ ML inference runs in a separate Docker service (`voice-service/`).
      - 16 voice settings in `src/config.py` (thresholds, rate limits, session duration, audio bounds)
      - 4 voice columns on User model: `voice_enrolled_at`, `voice_verified_at`, `voice_embedding` (LargeBinary), `voice_model_version`
      - 2 computed properties: `is_voice_enrolled`, `is_voice_session_active`
-     - Migration `004_voice_verification`
+     - Migration `004_voice_verification` at the time; now folded into the squashed baseline `001_initial_schema`
      - `voice_enrolled`, `voice_verified` added to `VALID_EVENT_TYPES`
      - Voice verification rate limiter in `src/api/rate_limit.py` (5/hour/user)
      - `voice_file_id`, `voice_duration` on `UnifiedMessage`
@@ -918,7 +918,7 @@ Replaces local voice-service Docker container with cloud APIs. See `docs/decisio
 
 111. [done] Add enrollment audio storage for model portability
      - `src/models/enrollment_audio.py`: SQLAlchemy model (user_id, phrase_id, audio_ogg)
-     - `migrations/versions/005_enrollment_audio.py`: Creates table
+     - `enrollment_audio` table creation (originally `005_enrollment_audio`, now folded into `001_initial_schema`)
      - `src/voice/enrollment.py`: Stores raw OGG audio + model version during enrollment
 
 112. [done] Create Modal serverless embedding function
@@ -1264,7 +1264,7 @@ pipeline but use a dedicated option generator for neutral sentiment-capture answ
 161. [done] Add `submission_lane` to PolicyCandidate and Cluster models
      - New `submission_lane` column (String(32), server_default `policy_proposal`, indexed)
      - Cluster unique index scoped by `(policy_key, submission_lane)` where `status='open'`
-     - Alembic migration `009_submission_lane`
+     - Alembic migration `009_submission_lane` at the time; now folded into the squashed baseline `001_initial_schema`
      - Pydantic schemas updated (create + read)
 
 162. [done] Update canonicalization for lane classification

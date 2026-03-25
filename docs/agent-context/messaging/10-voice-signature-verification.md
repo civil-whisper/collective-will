@@ -44,7 +44,7 @@ Cloud-based: no local voice-service container.
 ### Enrollment audio storage
 
 - `src/models/enrollment_audio.py` -- `EnrollmentAudio` SQLAlchemy model: stores raw OGG audio per enrollment phrase for model portability
-- `migrations/versions/005_enrollment_audio.py` -- Creates `enrollment_audio` table
+- `migrations/versions/001_initial_schema.py` -- Includes the `enrollment_audio` table in the squashed baseline
 
 ### Modified files
 
@@ -57,7 +57,7 @@ Cloud-based: no local voice-service container.
 - `src/db/evidence.py` -- `voice_enrolled`, `voice_enroll_phrase_rejected`, `voice_verified` in `VALID_EVENT_TYPES`
 - `src/config.py` -- Voice cloud settings (embedding endpoint, timeouts, thresholds)
 - `src/api/rate_limit.py` -- `check_voice_rate_limit` (sliding-window, config-backed limits)
-- `migrations/versions/004_voice_verification.py` -- Adds voice columns to `users` table
+- `migrations/versions/001_initial_schema.py` -- Includes the voice-related `users` columns in the squashed baseline
 
 ## Specification
 
@@ -187,5 +187,4 @@ Computed properties on User:
 
 ### Migration
 
-- `migrations/versions/004_voice_verification.py` -- adds voice columns to `users` table
-- `migrations/versions/005_enrollment_audio.py` -- adds `enrollment_audio` table
+- `migrations/versions/001_initial_schema.py` -- includes both the voice-related `users` columns and the `enrollment_audio` table in the squashed baseline

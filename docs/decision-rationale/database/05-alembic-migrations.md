@@ -14,6 +14,8 @@ This subcontext operationalizes schema integrity decisions as:
 - pgvector extension setup in schema bootstrap.
 - Evidence-chain trigger creation and immutability permissions.
 - Upgrade/downgrade round-trip validation.
+- Intentional squashing back to a single baseline revision when all environments
+  have been reset and no deployed chain needs preserving.
 
 ---
 

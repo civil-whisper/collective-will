@@ -10,6 +10,24 @@ from alembic.config import Config
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine
 
+EXPECTED_TABLES = {
+    "clusters",
+    "daily_anchors",
+    "enrollment_audio",
+    "evidence_log",
+    "ip_signup_log",
+    "policy_candidates",
+    "policy_endorsements",
+    "policy_options",
+    "scheduler_heartbeat",
+    "sealed_account_mappings",
+    "submissions",
+    "users",
+    "verification_tokens",
+    "votes",
+    "voting_cycles",
+}
+
 
 def _alembic_config(database_url: str) -> Config:
     cfg = Config("alembic.ini")
@@ -45,14 +63,16 @@ async def test_migration_upgrade_downgrade_roundtrip(test_database_url: str) -> 
 
     engine = create_async_engine(test_database_url)
     async with engine.connect() as conn:
+        version_rows = await conn.execute(text("SELECT version_num FROM alembic_version"))
+        assert version_rows.scalar_one() == "001_initial_schema"
+
         table_rows = await conn.execute(
             text(
                 "SELECT table_name FROM information_schema.tables "
-                "WHERE table_schema='public' AND table_name IN "
-                "('users','submissions','policy_candidates','voting_cycles','clusters','votes','evidence_log')"
+                "WHERE table_schema='public'"
             )
         )
-        assert len(table_rows.fetchall()) == 7
+        assert {row[0] for row in table_rows.fetchall()} == EXPECTED_TABLES
 
         trigger_rows = await conn.execute(
             text(
@@ -70,13 +90,13 @@ async def test_migration_upgrade_downgrade_roundtrip(test_database_url: str) -> 
 
     engine = create_async_engine(test_database_url)
     async with engine.connect() as conn:
-        users = await conn.execute(
+        remaining_tables = await conn.execute(
             text(
                 "SELECT table_name FROM information_schema.tables "
-                "WHERE table_schema='public' AND table_name='users'"
+                "WHERE table_schema='public'"
             )
         )
-        assert users.fetchone() is None
+        assert {row[0] for row in remaining_tables.fetchall()} == set()
     await engine.dispose()
 
     await _run_alembic(partial(command.upgrade, cfg, "head"))

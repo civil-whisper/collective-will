@@ -15,6 +15,7 @@ from src.db.heartbeat import SchedulerHeartbeat  # noqa: F401
 from src.db.ip_signup_log import IPSignupLog  # noqa: F401
 from src.db.sealed_mapping import SealedAccountMapping  # noqa: F401
 from src.db.verification_tokens import VerificationToken  # noqa: F401
+from src.models.enrollment_audio import EnrollmentAudio  # noqa: F401
 from src.models import (  # noqa: F401
     Cluster,
     PolicyCandidate,

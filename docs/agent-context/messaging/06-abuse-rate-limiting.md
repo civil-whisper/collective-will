@@ -11,7 +11,7 @@ Implement rate limiting, burst detection, and quarantine logic as reusable funct
 
 - `src/handlers/abuse.py` — rate limiting and quarantine logic
 - `src/db/ip_signup_log.py` — `IPSignupLog` ORM model for DB-backed IP rate limiting
-- `migrations/versions/003_ip_signup_log.py` — creates `ip_signup_log` table
+- `migrations/versions/001_initial_schema.py` — includes the `ip_signup_log` table in the squashed baseline
 
 ## Specification
 
