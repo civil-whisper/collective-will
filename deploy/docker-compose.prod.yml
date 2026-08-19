@@ -37,7 +37,7 @@ services:
     environment:
       DATABASE_URL: postgresql+asyncpg://collective:${DB_PASSWORD}@postgres:5432/collective_will
     ports:
-      - "${BACKEND_PORT:-8000}:8000"
+      - "127.0.0.1:${BACKEND_PORT:-8000}:8000"
     volumes:
       - ./voice-phrases.json:/app/voice-phrases.json:ro
     depends_on:
@@ -70,7 +70,7 @@ services:
       AUTH_TRUST_HOST: "true"
       OPS_CONSOLE_SHOW_IN_NAV: ${OPS_CONSOLE_SHOW_IN_NAV:-false}
     ports:
-      - "${WEB_PORT:-3000}:3000"
+      - "127.0.0.1:${WEB_PORT:-3000}:3000"
     depends_on:
       - backend
 

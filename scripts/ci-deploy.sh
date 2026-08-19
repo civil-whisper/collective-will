@@ -70,10 +70,57 @@ if [[ -f "$envfile" ]]; then
   fi
 fi
 
-# 7. deploy.yml workflow exists and has reasonable timeout
+# 7. cw-apply-caddy exists, is executable, and has valid bash syntax
+if [[ -x "${DEPLOY_DIR}/cw-apply-caddy" ]]; then
+  ok "deploy/cw-apply-caddy is executable"
+else
+  err "deploy/cw-apply-caddy missing or not executable"
+fi
+if [[ -f "${DEPLOY_DIR}/cw-apply-caddy" ]] && bash -n "${DEPLOY_DIR}/cw-apply-caddy"; then
+  ok "deploy/cw-apply-caddy syntax"
+else
+  err "deploy/cw-apply-caddy has syntax errors"
+fi
+
+# 8. VPS provision scripts
+for script in \
+  "${SCRIPT_DIR}/scripts/bootstrap-server.sh" \
+  "${SCRIPT_DIR}/scripts/provision-vps.sh" \
+  "${SCRIPT_DIR}/scripts/sync-deploy-bundle.sh" \
+  "${SCRIPT_DIR}/scripts/repoint-origin-dns.sh" \
+  "${DEPLOY_DIR}/remote-entry.sh"
+do
+  if bash -n "$script"; then
+    ok "$(basename "$script") syntax"
+  else
+    err "${script} has syntax errors"
+  fi
+done
+
+BUNDLE_LIST="${DEPLOY_DIR}/BUNDLE"
+if [[ -f "$BUNDLE_LIST" ]]; then
+  ok "deploy/BUNDLE exists"
+  while IFS= read -r rel; do
+    [[ -z "$rel" || "$rel" =~ ^# ]] && continue
+    if [[ -f "${DEPLOY_DIR}/${rel}" ]]; then
+      ok "bundle file ${rel}"
+    else
+      err "BUNDLE lists missing file: ${rel}"
+    fi
+  done < "$BUNDLE_LIST"
+else
+  err "deploy/BUNDLE missing"
+fi
+
+# 9. deploy.yml workflow exists, uses remote-entry, and has reasonable timeout
 WORKFLOW="${SCRIPT_DIR}/.github/workflows/deploy.yml"
 if [[ -f "$WORKFLOW" ]]; then
   ok "deploy.yml workflow exists"
+  if grep -q 'remote-entry.sh' "$WORKFLOW"; then
+    ok "deploy.yml invokes remote-entry.sh"
+  else
+    err "deploy.yml does not invoke remote-entry.sh"
+  fi
   timeout_val=$(grep 'command_timeout' "$WORKFLOW" | head -1 | grep -oE '[0-9]+m' || true)
   if [[ -n "$timeout_val" ]]; then
     minutes="${timeout_val%m}"

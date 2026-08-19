@@ -101,6 +101,7 @@ When a user requests deletion, the account mapping is destroyed. Evidence chain 
 
 - **Domain**: register via Njalla (WHOIS shows registrar, not owner). Credit card payment is acceptable.
 - **Hosting**: use 1984.is VPS as primary production host (privacy jurisdiction). Not standard identity-verified providers like Hetzner.
+- **Amendment 2026-08-19:** pre-traction hosting is Hetzner CX23 (~€4/mo) at `5.75.158.200`. Domain stays with Njalla. Revisit 1984.is / Njalla VPS before the pilot has real Iranian users at volume. See `docs/decision-rationale/infrastructure-guide.md`.
 - **All public-facing accounts**: pseudonymous (git, GitHub, project email via ProtonMail).
 - **Non-public accounts** (WhatsApp Business API, LLM API, dev tools): regular accounts with credit card are acceptable.
 

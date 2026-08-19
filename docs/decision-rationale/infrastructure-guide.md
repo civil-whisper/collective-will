@@ -2,7 +2,11 @@
 
 A practical guide for setting up and managing the infrastructure for Collective Will. Written for beginners.
 
-> **⚠️ Safety First**: If you or any contributors have family in Iran or other sensitive countries, read the [Operational Security Guide](operational-security.md) BEFORE setting up infrastructure. Your standard credit card and identity should NOT be attached to this project.
+> **⚠️ Safety First**: If you or any contributors have family in Iran or other sensitive countries, treat operational security as a prerequisite BEFORE setting up infrastructure. Your standard credit card and identity should NOT be attached to this project if a privacy-jurisdiction host is in use.
+
+> **Amendment 2026-08-19 — Hosting provider.** Pre-traction hosting moved from a ~€30/mo privacy VPS to a Hetzner Cloud CX23 (`5.75.158.200`, 2 vCPU / 4 GB / 40 GB, ~€4/mo). Domain stays at Njalla (WHOIS unchanged). Cloudflare proxy remains the origin-hiding layer. Accepted risk: *publicly anonymous, legally identifiable* in Germany. Gate: move back to 1984.is or Njalla VPS before the pilot carries real Iranian user data at volume.
+>
+> **Moving the origin later:** `scripts/provision-vps.sh` bootstraps any Ubuntu host you can SSH into (provider-agnostic). Cloudflare DNS can be flipped with `scripts/repoint-origin-dns.sh` when `CLOUDFLARE_API_TOKEN` is set. Creating/destroying the VM and the provider firewall stay out of git — they are account-specific. Day-to-day deploys remain GitHub Actions against `VPS_HOST`.
 
 ---
 
@@ -102,9 +106,9 @@ The key protection is that **WHOIS shows the registrar, not you**. This requires
 
 | Provider | WHOIS Shows | Jurisdiction | Credit Card OK? | v0 Status |
 |----------|-------------|--------------|-----------------|-----------|
-| **Njalla** | "Njalla, Sweden" | Sweden | ✅ Yes | **Domain registrar** |
-| **1984.is** | Privacy-protected | Iceland | ✅ Yes | **Default VPS host** |
-| Hetzner | Your identity | Germany | ❌ Don't use | **Not for this project** |
+| **Njalla** | "Njalla, Sweden" | Sweden | ✅ Yes | **Domain registrar (current)** |
+| **1984.is** | Privacy-protected | Iceland | ✅ Yes | **Preferred VPS when traction exists** |
+| Hetzner | Your identity | Germany | Used 2026-08-19 for cost | **Current pre-traction VPS (CX23)** |
 | Regular registrar | Your name/address | Varies | ❌ Don't use | **Not for this project** |
 
 **Why NOT Hetzner/DigitalOcean**: They verify your identity and that information is more easily discoverable. The privacy protection comes from the provider's model, not from payment method.

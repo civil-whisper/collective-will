@@ -1,10 +1,24 @@
 # VPS Deployment Setup
 
-Remaining setup steps for GitHub Actions CI/CD. Docker and the `deploy` user
-are already configured on the VPS with SSH key access.
+Remaining setup steps for GitHub Actions CI/CD after the server is bootstrapped.
+
+**New box?** From the laptop, after you can SSH in with sudo:
+
+```bash
+./scripts/provision-vps.sh admin@NEW.IP
+```
+
+That runs `bootstrap-server.sh`, `push-env.sh`, copies the deploy bundle, and
+runs the first deploy — but only if DNS already grey-clouded to that IP (Let's
+Encrypt will otherwise fail). Details: `docs/VPS-SETUP-RUNBOOK.md`.
+
+`bootstrap-server.sh` alone creates the `deploy` user, Docker log rotation,
+Caddy, swap, and the root wrappers (`/usr/local/bin/cw-apply-caddy`,
+`/usr/local/sbin/cw-install-monitor-timer.sh`) with scoped sudoers.
 
 ## Prerequisites
 
+- Server bootstrapped (`scripts/bootstrap-server.sh`)
 - A domain pointing to the VPS IP (A record for `yourdomain.com` and `staging.yourdomain.com`)
 
 ## 1. Export your existing SSH key as a GitHub Secret
@@ -81,8 +95,8 @@ single entry point for getting config onto the server:
 
 ```bash
 # From repo root — pushes merged .env, .env.secrets, and voice-phrases.json
-./scripts/push-env.sh staging deploy@195.246.231.210
-./scripts/push-env.sh production deploy@195.246.231.210
+./scripts/push-env.sh staging deploy@5.75.158.200
+./scripts/push-env.sh production deploy@5.75.158.200
 ```
 
 What it does:
@@ -153,19 +167,14 @@ Caddy will automatically obtain TLS certificates from Let's Encrypt.
 
 ## 6. First deploy
 
-After all the above, push to the `staging` branch to trigger the first deploy:
+Deploys are **manual**: GitHub → Actions → Deploy → Run workflow → `staging` or
+`production`. Pushing to `main` only rebuilds GHCR images (`:latest`); it does
+not deploy. Wait for the CI `build-backend` / `build-web` jobs to finish before
+deploying, or you may pull a stale image.
 
 ```bash
-git push origin staging
+curl -s https://staging.collectivewill.org/api/health
 ```
-
-Monitor the GitHub Actions run. Once it completes, verify:
-
-```bash
-curl -s https://staging.yourdomain.com/api/health
-```
-
-Then merge to `main` for production.
 
 ## Built-in Deploy Safeguards
 

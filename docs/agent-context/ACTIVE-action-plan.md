@@ -11,6 +11,12 @@ If this file conflicts with `CONTEXT-shared.md`, update both in the same change.
 
 ## Priority Workstreams
 
+### P0 — Hetzner VPS bring-up (2026-08-19)
+
+Staging is being stood up on Hetzner CX23 `5.75.158.200` (Ubuntu 26.04, shared with an existing local Postgres). Do not run production alongside staging on 4 GB. DNS A records must be repointed off `195.246.231.210`. Details: `docs/VPS-SETUP-RUNBOOK.md`.
+
+Next host move: `scripts/provision-vps.sh admin@NEW.IP` (plus optional `scripts/repoint-origin-dns.sh` when `CLOUDFLARE_API_TOKEN` is set). Do not recreate the 15-phase runbook by hand.
+
 ### P0 — Security Hardening (Completed 2025-03-02)
 
 Full details: `docs/agent-context/security/03-security-hardening-2025-03.md`

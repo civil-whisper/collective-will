@@ -1,0 +1,12 @@
+# Files copied to /opt/collective-will/repo-deploy on every deploy.
+# Paths are relative to deploy/. Extra copies (monitor-ops.sh) are handled
+# by scripts/sync-deploy-bundle.sh. Keep this list as the single source of truth.
+docker-compose.prod.yml
+deploy.sh
+remote-entry.sh
+Caddyfile
+public.env.staging
+public.env.production
+cw-apply-caddy
+systemd/collective-will-monitor.service
+systemd/collective-will-monitor.timer

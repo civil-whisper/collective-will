@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+# Install the repo Caddyfile and reload Caddy. Root-owned; the deploy user may
+# run ONLY this, via sudoers. Validates before applying so a bad Caddyfile
+# cannot take the site down.
+set -euo pipefail
+
+SRC="/opt/collective-will/repo-deploy/Caddyfile"
+DST="/etc/caddy/Caddyfile"
+
+[[ -f "$SRC" ]] || { echo "Missing $SRC" >&2; exit 1; }
+
+DOMAIN="$(systemctl show caddy -p Environment --value | tr ' ' '\n' \
+          | sed -n 's/^DOMAIN=//p')"
+[[ -n "$DOMAIN" ]] || { echo "DOMAIN not set in the caddy unit" >&2; exit 1; }
+
+if ! DOMAIN="$DOMAIN" caddy validate --config "$SRC" --adapter caddyfile >/dev/null 2>&1; then
+  echo "ERROR: Caddyfile failed validation; not applying." >&2
+  DOMAIN="$DOMAIN" caddy validate --config "$SRC" --adapter caddyfile >&2 || true
+  exit 1
+fi
+
+if [[ -f "$DST" ]] && cmp -s "$SRC" "$DST"; then
+  echo "==> Caddyfile unchanged"
+  exit 0
+fi
+
+cp -f "$DST" "${DST}.bak.$(date +%Y%m%d%H%M%S)" 2>/dev/null || true
+install -o root -g root -m 644 "$SRC" "$DST"
+
+if systemctl reload caddy; then
+  echo "==> Caddy reloaded"
+else
+  echo "ERROR: reload failed; restoring previous Caddyfile" >&2
+  LATEST_BAK="$(ls -1t ${DST}.bak.* 2>/dev/null | head -1 || true)"
+  [[ -n "$LATEST_BAK" ]] && install -m 644 "$LATEST_BAK" "$DST" && systemctl reload caddy
+  exit 1
+fi
